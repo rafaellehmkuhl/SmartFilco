@@ -163,13 +163,38 @@ mais linear o processo, mais simples a sintonia e mais estável em toda a faixa.
 
 ### Procedimento de caracterização (na bancada, com a máquina instrumentada)
 
-1. Com o sensor de pressão já lendo, variar o comando da bomba em degraus (ex.: 10%→100%).
+1. Com o sensor de pressão já lendo, varrer o comando da bomba de 0 a 100 **de 1 em 1**
+   (a resolução do DimmerLink é inteira — não há passo mais fino).
 2. Registrar **pressão × comando** (com porta-filtro cego / restrição conhecida).
 3. **Repetir nas três curvas** do DimmerLink (Linear / RMS / Log) e escolher a mais linear.
-4. Anotar o **comando mínimo em que a bomba ainda bombeia** — abaixo disso ela zumbe
-   sem vazão, e o PID precisa saturar ali em vez de continuar reduzindo.
-5. Montar uma **tabela de calibração** (feedforward) e usá-la como ponto de partida do PID.
+4. Anotar o **comando mínimo em que a bomba realmente bombeia** — abaixo disso ela
+   zumbe sem vazão, e o PID precisa saturar ali em vez de continuar reduzindo.
+5. Montar a **LUT de calibração** (feedforward) e usá-la como ponto de partida do PID.
 6. Ajustar ganhos do PID de pressão para resposta estável, sem oscilação.
+
+### 🚦 Critério de decisão: fica no DimmerLink ou migra para PSM?
+
+Esta caracterização **é o experimento que decide** se o dimmer comprado atende. Os
+dados a extrair e o critério:
+
+| Medir | Reprovado se |
+|---|---|
+| Nº de degraus inteiros entre **2 bar e 9 bar** | **< 15 degraus** — pouca autoridade para perfilar |
+| Estabilidade da pressão em **2–3 bar** (pré-infusão) | oscilação/pulsação grosseira, ou a bomba alterna entre zumbir e jorrar |
+| Comando mínimo com vazão real | muito alto, deixando a pré-infusão inalcançável |
+| Repetibilidade subindo × descendo o comando | histerese grande |
+
+- ✅ **Passou:** segue no DimmerLink. Zero solda, zero ISR crítica no firmware.
+- ❌ **Reprovou:** migrar para **PSM**, com o bypass documentado em
+  [02](02-arquitetura-eletrica-pinout.md#plano-b--bypass-do-dimmerlink-para-psm).
+
+O ponto fraco previsível é a **pré-infusão**, não a extração. Ângulo de fase em
+potência baixa é justamente onde bomba vibratória se comporta pior — o solenoide não
+completa o curso. Extração a 9 bar deve ir bem em qualquer cenário.
+
+> Não antecipe a migração. O bypass exige dessoldar componente em placa de rede AC e
+> devolve a ISR de timing crítico ao firmware — só vale com dado mostrando que
+> precisa.
 
 ### Interação com a OPV
 

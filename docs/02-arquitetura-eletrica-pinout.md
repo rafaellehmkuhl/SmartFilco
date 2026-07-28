@@ -171,26 +171,107 @@ Comandos de 3–4 bytes a 115200 levam ~300 µs — irrelevante.
 > Se optar por I²C depois, note que o DimmerLink pede **100 kHz**; o barramento
 > inteiro teria que rodar nessa velocidade.
 
+### Protocolo (completo)
+
+Não há biblioteca — são bytes crus. Todo comando começa com **STX = `0x02`**; sem
+ele o comando é ignorado.
+
+| Comando | Código | Formato | Descrição |
+|---|---|---|---|
+| **SET** | `0x53` | `02 53 IDX LEVEL` | define o nível |
+| **GET** | `0x47` | `02 47 IDX` | lê o nível |
+| **CURVE** | `0x43` | `02 43 IDX TYPE` | curva: 0=LINEAR, 1=RMS, 2=LOG |
+| **GETCURVE** | `0x51` | `02 51 IDX` | lê a curva |
+| **FREQ** | `0x52` | `02 52` | lê a frequência da rede |
+| **RESET** | `0x58` | `02 58` | reset por software |
+| **SWITCH_I2C** | `0x5B` | `02 5B` | muda para I²C |
+
+Respostas: `0x00` OK · `0xF9` sintaxe · `0xFC` erro de EEPROM · `0xFD` índice
+inválido · `0xFE` parâmetro inválido.
+
+> 🔴 **`SWITCH_I2C` é irreversível pela UART.** Depois dele a UART é **desativada** e
+> o estado fica gravado em EEPROM, sobrevivendo a reboot — só se fala com a placa por
+> I²C em 0x50. Nunca emitir `0x02 0x5B` por acidente.
+
+> ✅ **`SET` não grava em EEPROM** (só o modo de interface grava). Pode ser chamado no
+> laço de controle dezenas de vezes por segundo sem desgastar a memória. Latência
+> UART direta < 1 ms.
+
+### ⚠️ Duas limitações que importam para este projeto
+
+**1. Resolução de 0–100 inteiro.** O `LEVEL` é **1 byte, 0 a 100** — 101 degraus, e
+nada mais fino. Não existe modo de atraso de fase cru nem upload de curva
+personalizada. Para *pressure profiling* isso é grosseiro justamente onde mais dói:
+a pré-infusão (2–3 bar) fica perto do mínimo da bomba, onde talvez sobrem só ~10
+degraus úteis.
+
+**2. Só ângulo de fase.** Não há modo de pulos de ciclo (PSM). Ver
+[Plano B](#plano-b--bypass-do-dimmerlink-para-psm) abaixo.
+
+> Note que **mapeamento personalizado não é limitação**: o firmware monta a própria
+> LUT `pressão desejada → comando 0–100` a partir da caracterização, e a curva do
+> DimmerLink é só o que fica por baixo dela. O que **não** dá para consertar em
+> software é a quantização em 101 degraus e a ausência de PSM.
+
 ### Curva de dimerização
 
-O DimmerLink oferece curvas **Linear**, **RMS** e **Logarítmica**, com auto-detecção
-de 50/60 Hz (Brasil = 60 Hz, resolvido sozinho).
+Curvas **Linear**, **RMS** e **Logarítmica**, com auto-detecção de 50/60 Hz
+(Brasil = 60 Hz, resolvido sozinho).
 
-➡️ **Começar pela curva RMS.** "Linear" é linear no *ângulo de fase*, que não tem
-relação útil com o que a bomba faz. A curva RMS mapeia o comando para **tensão RMS**,
-que é muito mais próxima da grandeza que move um solenoide — ou seja, lineariza o
-processo antes do PID e facilita a sintonia. Confirmar empiricamente na
-caracterização ([07](07-seguranca-e-calibracao.md)).
+➡️ **Começar pela RMS.** "Linear" é linear no *ângulo de fase*, que não tem relação
+útil com o que a bomba faz. A RMS mapeia o comando para **tensão RMS**, muito mais
+próxima da grandeza que move um solenoide — lineariza o processo antes do PID e
+melhora o aproveitamento dos 101 degraus. Confirmar na caracterização ([07](07-seguranca-e-calibracao.md)).
 
 ### A confirmar no módulo em mãos
 
 - [ ] Quais pads estão expostos: UART, I²C, ou ambos.
-- [ ] Endereço I²C = 0x50 (se for usar I²C).
-- [ ] Conjunto de comandos exato — a documentação vive em
-      [github.com/robotdyn-dimmer/DimmerLink](https://github.com/robotdyn-dimmer/DimmerLink)
-      (guias 01–08 + exemplos em Arduino/Python/MicroPython).
-- [ ] ⚠️ **Não** usar a biblioteca `RBDDimmer` — ela é do dimmer clássico, com pinos
-      ZC/PWM. Aqui não há biblioteca: são bytes crus na serial.
+- [ ] ⚠️ **Não** usar a biblioteca `RBDDimmer` — é do dimmer clássico, com pinos ZC/PWM.
+
+## Plano B — bypass do DimmerLink para PSM
+
+**Não fazer agora.** Documentado porque a caracterização pode indicar que é
+necessário, e é melhor saber que o caminho existe antes de depender do módulo.
+
+### Como o Gaggiuino faz
+
+O Gaggiuino **não** usa ângulo de fase na bomba: usa **PSM (Pulse Skip Modulation)**,
+via a biblioteca [banoz/PSM.Library](https://github.com/banoz/PSM.Library). Em vez de
+cortar o início de cada semiciclo, ele deixa passar **semiciclos inteiros** e decide
+quais **pular**.
+
+A diferença importa para bomba vibratória. Uma ULKA é um solenoide: cada semiciclo
+puxa o pistão contra uma mola. Com ângulo de fase em potência baixa, o pulso chega
+tarde e curto, a força não completa o curso e a bomba **zumbe sem bombear** — é
+exatamente o sintoma que os usuários de Philco relatam ("o dimmer não desce abaixo de
+11–12 bar"). Com PSM, todo pulso que chega é **inteiro e em força total**; controla-se
+a vazão pela contagem de pulsos. O comportamento em baixa potência é muito melhor.
+
+Bônus do PSM que perdemos com o DimmerLink: como cada pulso é um curso discreto da
+bomba, dá para **estimar vazão contando pulsos + pressão, sem flow meter** — é assim
+que o Gaggiuino faz *flow profiling*. Ver nota na [BOM](04-bom-lista-de-compras.md).
+
+### O caminho do bypass
+
+A arquitetura do DimmerLink joga a favor: normalmente ele é uma placa **separada**, e
+seu conector de saída expõe exatamente **VCC, GND, Z-C (zero-cross) e Dim (gate do
+TRIAC)** — os mesmos dois sinais que o PSM precisa. Na variante integrada esses dois
+estágios estão na mesma PCB, mas a interface entre eles continua existindo.
+
+1. Localizar os sinais **Z-C** e **Dim** na placa (pads ou trilha entre os estágios).
+2. Deixar o controlador DimmerLink em 0% (ou sem alimentação).
+3. Ligar **Z-C → GPIO de interrupção** e **Dim → GPIO de saída** no ESP32.
+4. Usar `banoz/PSM.Library`, como o Gaggiuino.
+
+⚠️ **Não é bypass puro de fiação.** Os projetos de PSM sobre dimmer RobotDyn relatam
+precisar **trocar a ponte retificadora do detector de zero-cross por um diodo**, para
+que o ZC enxergue só o semiciclo negativo — é o que permite decidir se o próximo pulso
+positivo será pulado. É dessoldagem em placa de rede AC. Verificar se a versão atual
+da PSM.Library ainda exige isso antes de encostar o ferro.
+
+**Custo de sair do DimmerLink:** volta a ISR de timing crítico para o firmware — o
+risco de jitter que ele hoje elimina de graça. Por isso a ordem é: tentar
+DimmerLink primeiro, medir, e só migrar com dado na mão.
 
 ## Sensor de temperatura: PT100 3 fios + MAX31865
 

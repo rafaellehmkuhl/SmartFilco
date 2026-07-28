@@ -30,7 +30,7 @@ Na prática, sugestão de uso dos dois núcleos do ESP32-S3:
 |---|---|---|
 | `TemperatureModule` | Lê o MAX31865 (SPI), checa o registrador de **fault**, aplica filtro, expõe `T_boiler` e `T_bolo_estimada` (offset modelado) | 1 |
 | `PressureModule` | Lê o sensor via ADS1115 (I²C), converte 0,5–4,5 V → bar, **filtra a ondulação de 60 Hz da bomba**, aplica calibração | 1 |
-| `PumpModule` | Controle da bomba via **DimmerLink** (UART 115200, comandos de 3–4 bytes), tabela de calibração + PID de pressão (malha fechada) | 1 |
+| `PumpModule` | Controle da bomba via **DimmerLink** (UART 115200, `02 53 00 LEVEL`), **LUT própria** `pressão → comando 0–100` + PID de pressão (malha fechada). Interface abstrata o bastante para trocar por PSM sem mexer no resto | 1 |
 | `BoilerModule` | PID de temperatura → SSR (slow PWM por janela de tempo) | 1 |
 | `SafetyModule` | Limites de temperatura/pressão, timeout de bomba, sensor aberto/curto/travado, watchdog, estado seguro no boot | 1 |
 | `LoggerModule` | Gravação de cada shot no microSD (CSV/JSON) + histórico | 1 |
@@ -125,3 +125,12 @@ controle vive na camada de UI, em nenhuma das duas.
   Aqui o protocolo é serial cru — ver [github.com/robotdyn-dimmer/DimmerLink](https://github.com/robotdyn-dimmer/DimmerLink).
 - **Sem ISR de zero-cross:** o DimmerLink cuida do timing. O laço de controle não
   tem mais nenhuma seção crítica de microssegundos.
+- **`SET` não desgasta EEPROM** — pode ser chamado no laço de controle. Mas **nunca**
+  emitir `0x02 0x5B` (SWITCH_I2C): desativa a UART permanentemente, gravado em EEPROM.
+- **Comando é inteiro 0–100.** O PID interno pode trabalhar em ponto flutuante, mas
+  o valor enviado é quantizado — evitar que a quantização vire *limit cycle*
+  (oscilação em torno do setpoint saltando entre dois degraus). Zona morta ou
+  histerese de 1 degrau na saída resolve.
+- **`PumpModule` atrás de uma interface.** Se a caracterização reprovar o DimmerLink
+  ([07](07-seguranca-e-calibracao.md)), a troca para PSM deve ser uma implementação
+  nova do mesmo contrato — não uma refatoração do `ShotModule`.

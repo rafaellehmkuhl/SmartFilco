@@ -48,7 +48,7 @@ Reservatório → Bomba vibratória → (OPV?) → Boiler → Grupo → Porta-fi
 | Leitura analógica | **ADS1115 (ADC 16-bit por I²C), em 5 V** | 16 bits reais e leitura **direta** dos 0,5–4,5 V do sensor sem divisor resistivo. O ADC do ESP32-S3 satura em ~3,1 V. Exige **level shifter** no I²C. |
 | Sensor de pressão | **0–13,8 bar (200 PSI)**, saída 0,5–4,5 V, 1/8" NPT | Cobre o pico da bomba com folga e dá um pouco mais de resolução que a faixa de 16 bar. |
 | Controle da resistência | SSR-40DA **+ termostato de vapor original em série** | Chaveamento silencioso. O termostato vira *backstop* de hardware contra SSR em curto ou firmware travado. Ver [07](07-seguranca-e-calibracao.md). |
-| Controle da bomba | Dimmer RobotDyn 8A com **DimmerLink** integrado, por **UART** | O DimmerLink faz zero-cross + disparo do TRIAC internamente → **zero ISR de timing crítico no ESP32**. Em troca, só há **controle por ângulo de fase** (burst firing fica fora), o que torna a **malha fechada obrigatória**. Ver [02](02-arquitetura-eletrica-pinout.md) e [07](07-seguranca-e-calibracao.md). |
+| Controle da bomba | Dimmer RobotDyn 8A com **DimmerLink** integrado, por **UART** | O DimmerLink faz zero-cross + disparo do TRIAC internamente → **zero ISR de timing crítico no ESP32**. Em troca: só **ângulo de fase** (sem PSM) e comando **inteiro 0–100**. Decisão **revisável** — critério objetivo e plano de bypass para PSM em [02](02-arquitetura-eletrica-pinout.md#plano-b--bypass-do-dimmerlink-para-psm) e [07](07-seguranca-e-calibracao.md). |
 | Hidráulica | Padronizada em **1/8" NPT**, mangueira 4mm | Casa com o manômetro/TEE que o usuário já possui. |
 
 ### Por que PT100 e não PT1000

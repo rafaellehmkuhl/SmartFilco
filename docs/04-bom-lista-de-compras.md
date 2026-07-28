@@ -61,7 +61,7 @@ pressão vier com defeito, são +2 semanas de espera.
 
 | Qtd | Item | Buscar por | Função |
 |---|---|---|---|
-| 1 | Flow meter Hall | "coffee flow meter hall" / "YF-S401" | receita por volume |
+| 1 | Flow meter Hall | "coffee flow meter hall" / "YF-S401" | receita por volume. ⚠️ **Mais necessário do que parecia:** o Gaggiuino estima vazão contando pulsos da bomba, o que só funciona com PSM. Com o DimmerLink (ângulo de fase) esse atalho não existe — *flow profiling* aqui exige o sensor de verdade. Ver [02](02-arquitetura-eletrica-pinout.md#plano-b--bypass-do-dimmerlink-para-psm) |
 | 2 | **ACS712** (20A) | "ACS712 20A module" | diagnóstico de corrente (resistência/bomba) |
 | 1 | Sensor de nível (boia magnética) | "magnetic float switch" | evitar bomba a seco |
 | 1 | Waveshare ESP32-S3-Touch-LCD-3.5 (**SPI/ST7796**) | — | fase de interface local |
