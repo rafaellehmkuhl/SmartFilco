@@ -1,28 +1,40 @@
 # SmartFilco
 
 Digitalização e automação completa de uma cafeteira espresso **Philco 15 Bar**
-(idêntica à Philco 20 Bar) usando um **ESP32-S3** com display touch, controle
-digital de temperatura (PID) e de pressão (malha fechada), logging de extração
-e interface web opcional.
+(idêntica à Philco 20 Bar) usando um **ESP32-S3**: controle digital de temperatura
+(PID) e de pressão (malha fechada), logging de extração e interface web.
 
 > Objetivo: transformar um "mod" comum de Philco em um projeto de engenharia
 > reproduzível — no espírito do Gaggiuino, mas com arquitetura moderna
-> (ESP32-S3, touchscreen, Wi-Fi, web UI, OTA).
+> (ESP32-S3, Wi-Fi, web UI, OTA, e touchscreen numa fase posterior).
 
 ---
 
 ## Estado atual do projeto
 
 **Fase 1 — Documentação e definição de hardware: ✅ concluída**
+**Leva 1 (eletrônica): ✅ comprada** — R$ 201,94 no AliExpress + itens já em mãos
 
 - [x] Máquina identificada e caracterizada (Philco 15 Bar, single boiler, bomba vibratória)
 - [x] Arquitetura elétrica definida (sensores, atuadores, MCU)
 - [x] Esquema hidráulico definido
-- [x] Display escolhido e pinagem real confirmada pelo esquemático oficial
-- [x] BOM comprável dividida em 2 levas
-- [ ] **Próximo:** abrir a máquina (engenharia reversa física) → ver [docs/06](docs/06-engenharia-reversa-checklist.md)
-- [ ] Comprar Leva 1 (eletrônica) no AliExpress
+- [x] BOM da Leva 1 comprada e conferida contra o projeto
+- [ ] **Próximo:** bancada headless (ESP32 + sensores na mesa) — não depende de abrir a máquina
+- [ ] Abrir a máquina (engenharia reversa física) → ver [docs/06](docs/06-engenharia-reversa-checklist.md)
 - [ ] Comprar Leva 2 (hidráulica, em 1/8" NPT) após abrir a máquina
+
+### Revisões de projeto (jul/2026)
+
+Quatro decisões mudaram depois de conferir a compra real contra a documentação:
+
+| Antes | Agora | Por quê |
+|---|---|---|
+| Board Waveshare com touch | **ESP32-S3 devkit, headless** | já em mãos; display vira fase 3 e para de bloquear o início. RTC → NTP, SD → módulo SPI |
+| PT1000 × 2 | **PT100 3 fios × 1** | a vantagem do PT1000 some com ligação a 3 fios, e a alegação de "maior resolução" no doc antigo **estava errada** |
+| 2º sensor na saída do grupo | **cortado** | nenhum projeto DIY usa dois; a Philco não tem grupo para instrumentar. Offset vira caracterização única com termopar K |
+| SSR direto na resistência | **SSR + termostato de vapor em série** | backstop de hardware contra SSR em curto / firmware travado, antes do fusível térmico |
+
+Justificativas completas em [docs/01](docs/01-projeto-visao-geral.md#decisões-de-arquitetura-e-o-porquê).
 
 ---
 
@@ -42,12 +54,16 @@ e interface web opcional.
 
 ## Resumo de 30 segundos
 
-- **MCU + display:** Waveshare **ESP32-S3-Touch-LCD-3.5** (ST7796 SPI, ESP32-S3R8, 8MB PSRAM, RTC + microSD onboard).
-- **Temperatura:** 2× **PT1000** classe A + 2× **MAX31865** (boiler + saída do grupo). Controle por **PID → SSR**.
-- **Pressão:** 1× sensor **0–16 bar / 0,5–4,5V** lido por **ADS1115** (ADC por I²C — obrigatório, ver docs/02). Controle em **malha fechada → dimmer TRIAC** na bomba.
-- **Atuadores:** **SSR-40DA** (resistência) e módulo **dimmer AC com zero-cross** (bomba vibratória).
+- **MCU:** **ESP32-S3-WROOM-1 N16R8** (dual USB-C), headless na fase 1 — interface via **Wi-Fi/web**. Timestamp por **NTP**; logging em **módulo microSD SPI**. ⚠️ PSRAM octal: GPIO33–37 são armadilha (estão no header, não funcionam).
+- **Temperatura:** 1× **PT100** classe A, **3 fios**, de superfície, na parede do boiler + 1× **MAX31865** (Rref **430 Ω**). Controle por **PID → SSR**. Temperatura no bolo é **modelada**, não medida ([por quê](docs/01-projeto-visao-geral.md#por-que-um-sensor-de-temperatura-e-não-dois)).
+- **Pressão:** 1× sensor **0–13,8 bar (200 PSI) / 0,5–4,5 V**, 1/8" NPT, lido por **ADS1115 em 5 V** (PGA ±6,144 V) através de **level shifter**. Controle em **malha fechada → dimmer** na bomba.
+- **Atuadores:** **SSR-40DA + dissipador** (resistência) e **dimmer RobotDyn 8A com DimmerLink** por UART (bomba vibratória) — zero-cross e disparo do TRIAC ficam no controlador dedicado, **sem ISR crítica no ESP32**.
 - **Hidráulica:** padronizada em **1/8" NPT**, mangueira **4mm**. TEE + OPV ajustável + sensor de pressão + manômetro.
-- **Segurança:** **fusível térmico original mantido**, fonte isolada Hi-Link, aterramento e isolação do lado AC.
+- **Segurança:** **fusível térmico original intacto**, **termostato de vapor em série com o SSR** como backstop de hardware, fonte isolada Hi-Link, aterramento e isolação do lado AC.
 
 ⚠️ **Este projeto mexe com rede elétrica (127/220V) e água quente sob pressão.**
 Leia [docs/07 — Segurança](docs/07-seguranca-e-calibracao.md) antes de qualquer coisa.
+
+⚠️ **Antes de abrir a máquina**, leia a seção 0 de
+[docs/06](docs/06-engenharia-reversa-checklist.md) sobre o **parafuso do chuveiro** —
+é o defeito que mais destrói essa máquina, e espaná-lo custa uma caldeira nova.

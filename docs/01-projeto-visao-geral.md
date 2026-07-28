@@ -8,9 +8,9 @@ com:
 
 - Medição **digital** de temperatura e pressão
 - Controle **digital** de temperatura (PID) e de pressão (malha fechada)
-- **Display touch** local (controle sem depender de celular/PC)
-- **Wi-Fi / web app** opcional na rede local (e possivelmente BLE)
+- **Wi-Fi / web app** na rede local (interface principal na primeira fase)
 - **Logging** de cada extração (shot) e visualização em gráficos
+- **Display touch** local — *adiado para a fase de interface*
 - Recursos avançados: perfis de pré-infusão e *pressure profiling*, flush, backflush, steam, OTA
 
 A meta não é só "modificar", é produzir um **manual de engenharia reproduzível**
@@ -43,26 +43,96 @@ Reservatório → Bomba vibratória → (OPV?) → Boiler → Grupo → Porta-fi
 
 | Decisão | Escolha | Motivo |
 |---|---|---|
-| MCU + display | Waveshare ESP32-S3-Touch-LCD-3.5 (SPI/ST7796) | Display **SPI** (não RGB paralelo) → sobra GPIO; traz RTC + microSD + 8MB PSRAM; driver LVGL maduro. Ver [02](02-arquitetura-eletrica-pinout.md). |
-| Sensor de temperatura | PT1000 classe A + MAX31865 (×2) | Maior resolução e menor sensibilidade ao cabo que PT100; padrão em espresso. Dois pontos: **boiler** (controle) e **saída do grupo** (só monitorar temperatura real na água). |
-| Leitura analógica | **ADS1115 (ADC por I²C)** | O ESP32-S3 **não tem ADC utilizável livre** neste board com Wi-Fi ligado (ver [02](02-arquitetura-eletrica-pinout.md)). Obrigatório para ler o sensor de pressão. |
-| Sensor de pressão | 0–16 bar, saída 0,5–4,5V, 1/8" NPT | Mais simples que 4–20mA; faixa cobre os ~15 bar da máquina. |
-| Controle da resistência | SSR-40DA | Chaveamento silencioso, sem desgaste; PID por software liga/desliga dezenas de vezes/min. |
-| Controle da bomba | Dimmer AC com zero-cross + TRIAC (malha fechada) | Permite *pressure profiling*; malha fechada corrige a não-linearidade da bomba. Ver [07](07-seguranca-e-calibracao.md). |
+| MCU | **ESP32-S3-WROOM-1 N16R8, headless** | Já em mãos. Display sai da Fase 1 → nada bloqueia o início. Sem o board Waveshare perde-se RTC (→ **NTP**) e slot SD (→ **módulo SD**), e ganha-se ~20 GPIOs livres. ⚠️ PSRAM octal inutiliza GPIO33–37. Ver [02](02-arquitetura-eletrica-pinout.md). |
+| Sensor de temperatura | **1× PT100 classe A, 3 fios, superfície + 1× MAX31865 (Rref 430 Ω)** | Ver as duas notas abaixo — é a decisão que mais mudou. |
+| Leitura analógica | **ADS1115 (ADC 16-bit por I²C), em 5 V** | 16 bits reais e leitura **direta** dos 0,5–4,5 V do sensor sem divisor resistivo. O ADC do ESP32-S3 satura em ~3,1 V. Exige **level shifter** no I²C. |
+| Sensor de pressão | **0–13,8 bar (200 PSI)**, saída 0,5–4,5 V, 1/8" NPT | Cobre o pico da bomba com folga e dá um pouco mais de resolução que a faixa de 16 bar. |
+| Controle da resistência | SSR-40DA **+ termostato de vapor original em série** | Chaveamento silencioso. O termostato vira *backstop* de hardware contra SSR em curto ou firmware travado. Ver [07](07-seguranca-e-calibracao.md). |
+| Controle da bomba | Dimmer RobotDyn 8A com **DimmerLink** integrado, por **UART** | O DimmerLink faz zero-cross + disparo do TRIAC internamente → **zero ISR de timing crítico no ESP32**. Em troca, só há **controle por ângulo de fase** (burst firing fica fora), o que torna a **malha fechada obrigatória**. Ver [02](02-arquitetura-eletrica-pinout.md) e [07](07-seguranca-e-calibracao.md). |
 | Hidráulica | Padronizada em **1/8" NPT**, mangueira 4mm | Casa com o manômetro/TEE que o usuário já possui. |
+
+### Por que PT100 e não PT1000
+
+A versão anterior deste documento dizia *"maior resolução e menor sensibilidade ao
+cabo"*. **A parte da resolução estava errada.** O MAX31865 é ratiométrico: o ADC de
+15 bits mede sobre o Rref, e o Rref escala junto com o sensor —
+`430/32768 ÷ 0,385 = 0,034 °C/LSB` para PT100 e `4300/32768 ÷ 3,85 = 0,034 °C/LSB`
+para PT1000. **Idênticos.** Pela mesma razão, a imunidade a ruído acoplado por
+tensão também empata.
+
+A vantagem real do PT1000 é só uma: resistência de cabo e contato pesa 10× menos
+(0,385 Ω/°C contra 3,85 Ω/°C). **Com a sonda ligada em 3 fios isso desaparece** — o
+modo 3 fios do MAX31865 cancela a resistência de linha, sobrando apenas o
+descasamento entre condutores (< 0,05 Ω ≈ **< 0,15 °C** num cabo de 1 m).
+
+Como a sonda em mãos é **PT100 de 3 fios** e o módulo MAX31865 genérico é o de
+**Rref 430 Ω** (o padrão de mercado), o conjunto é coerente e a diferença prática
+para PT1000 é irrelevante nesta aplicação.
+
+Bônus não planejado: a sonda é de **superfície**, o que dispensa achar rosca livre
+no boiler — problema que o [checklist 06](06-engenharia-reversa-checklist.md) tinha
+levantado como incógnita. É também o que todos os mods de PID da Philco fazem
+(termopar na parede da caldeira).
+
+### Por que **um** sensor de temperatura, e não dois
+
+O plano original tinha um segundo sensor na "saída do grupo" para medir a
+temperatura real da água. **Foi removido.** Levantamento do estado da arte:
+
+| Projeto | Sensores de temperatura |
+|---|---|
+| **Gaggiuino** | **1** — só o boiler (K-type/MAX6675 antigo, NTC nas PCBs novas) |
+| PID REX-C100 (mods de Philco, Poemia, Silvia) | **1** — parede da caldeira |
+| La Marzocco | 1 + **offset fixo em firmware** |
+| **Decent DE1** (~US$ 3,3k) | vários — exceção explicada abaixo |
+
+O DE1 é a exceção que confirma a regra: ele tem sensor no bloco dispersor ~2 mm
+acima do puck porque **controla temperatura misturando água quente e fria com duas
+bombas em tempo real**. O sensor é a realimentação desse misturador. Sem
+misturador, o segundo sensor não tem atuador nenhum para comandar.
+
+**E na Philco o caso é pior:** ela não tem grupo. A caldeira parafusa direto no
+chuveiro. Não existe caminho térmico entre "boiler" e "saída do grupo" para
+instrumentar — uma sonda de superfície ali leria **o mesmo bloco de alumínio** que
+a sonda do boiler. Mediria metal, não água.
+
+Os dados do fórum Clube do Café (medições do usuário *regisassao* com termopar no
+bolo) mostram por que um segundo sensor de superfície também não resolveria:
+
+- extração longa: **20 °C** de diferença entre bolo e parede da caldeira;
+- extração típica de 28 s: **78 °C no bolo contra 69 °C no PID**.
+
+Repare que **o sinal inverte** — o bolo ora está mais quente, ora mais frio que a
+leitura da caldeira, porque a sonda de parede enxerga camadas d'água diferentes
+conforme o regime. O offset **não é constante**: varia com vazão e com o instante
+do shot.
+
+➡️ **Substituto:** caracterizar o offset **uma vez**, na bancada, com termopar K
+entre porta-filtro e grupo, logando temperatura + pressão + tempo em paralelo. Como
+os três canais ficam gravados, o offset pode virar depois um modelo função de
+vazão/tempo **sem hardware novo**. Procedimento em [07](07-seguranca-e-calibracao.md).
+
+Economia: 1 PT100, 1 MAX31865, 1 GPIO de CS e um furo na máquina.
 
 ## Fases do projeto
 
 1. **Documentação + hardware (Fase 1) ✅** — esta documentação.
-2. **Engenharia reversa física** — abrir a máquina, confirmar bomba/OPV/rosca ([06](06-engenharia-reversa-checklist.md)).
-3. **Instrumentação** — instalar sensores.
-4. **Controle** — PID de temperatura + malha de pressão.
-5. **Firmware** — arquitetura modular, UI, API ([05](05-firmware-arquitetura.md)).
-6. **Interfaces** — touchscreen + web UI.
-7. **Avançado** — perfis, gráficos em tempo real, histórico, OTA, (opcional) Home Assistant.
+2. **Bancada headless** — ESP32-S3 + sensores na mesa, sem a máquina: I²C scan, leitura
+   de temperatura e pressão, teste de SSR e dimmer com lâmpada. **Não depende de abrir a máquina.**
+3. **Engenharia reversa física** — abrir a máquina, confirmar bomba/OPV/rosca e o
+   estado do parafuso do chuveiro ([06](06-engenharia-reversa-checklist.md)).
+4. **Instrumentação** — instalar sensores na máquina + caracterizar o offset de
+   temperatura com termopar K ([07](07-seguranca-e-calibracao.md)).
+5. **Controle** — PID de temperatura + malha de pressão.
+6. **Firmware** — arquitetura modular, web UI, API ([05](05-firmware-arquitetura.md)).
+7. **Interface local** — comprar o board com touchscreen e portar a UI para LVGL.
+8. **Avançado** — perfis, gráficos em tempo real, histórico, OTA, (opcional) Home Assistant.
+
+> As fases 2 e 3 são **paralelas**: a bancada eletrônica anda enquanto a Leva 2
+> (hidráulica) não chegou.
 
 ## Estratégia de montagem
 
 - Protótipo com **módulos "voando"** conectados, presos por uma **peça impressa 3D** que organiza tudo.
-- Firmware desenhado **como se já fosse uma PCB** desde o início (separação lógica entre "Control Board" — sensores/atuadores/segurança/tempo-real — e "UI Board" — touchscreen/Wi-Fi/API), mesmo rodando num único ESP32.
-- Quando o protótipo estiver validado, migrar para **PCB** (KiCad) reaproveitando o mapa de pinos deste documento.
+- Firmware desenhado **como se já fosse uma PCB** desde o início (separação lógica entre "Control Board" — sensores/atuadores/segurança/tempo-real — e "UI Board" — Wi-Fi/API, depois touchscreen), mesmo rodando num único ESP32.
+- Quando o protótipo estiver validado, migrar para **PCB** (KiCad) reaproveitando o mapa de pinos de [02](02-arquitetura-eletrica-pinout.md).
