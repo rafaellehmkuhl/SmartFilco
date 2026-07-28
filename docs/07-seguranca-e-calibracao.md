@@ -169,33 +169,69 @@ mais linear o processo, mais simples a sintonia e mais estável em toda a faixa.
 3. **Repetir nas três curvas** do DimmerLink (Linear / RMS / Log) e escolher a mais linear.
 4. Anotar o **comando mínimo em que a bomba realmente bombeia** — abaixo disso ela
    zumbe sem vazão, e o PID precisa saturar ali em vez de continuar reduzindo.
-5. Montar a **LUT de calibração** (feedforward) e usá-la como ponto de partida do PID.
-6. Ajustar ganhos do PID de pressão para resposta estável, sem oscilação.
+5. **Medir a constante de tempo de descida:** estabilizar em 9 bar com puck real,
+   cortar a bomba e cronometrar a queda. É esse número que define se um perfil
+   declinante é factível e com que taxa máxima ([03](03-esquema-hidraulico.md)).
+6. Montar a **LUT de calibração** (feedforward) e usá-la como ponto de partida do PID.
+7. Ajustar ganhos do PID de pressão para resposta estável, sem oscilação.
+
+> **Verificar o diodo da bomba.** Ulkas normalmente têm um diodo em série, o que as
+> faz trabalhar em meia onda e já limita o duty máximo a ~50%. Relatos indicam perda
+> de eficácia abaixo de ~20% de duty. Confirmar a presença dele ao abrir a máquina
+> ([06](06-engenharia-reversa-checklist.md)) — muda a interpretação da faixa útil de
+> comando e é relevante se houver migração para PSM.
 
 ### 🚦 Critério de decisão: fica no DimmerLink ou migra para PSM?
 
 Esta caracterização **é o experimento que decide** se o dimmer comprado atende. Os
 dados a extrair e o critério:
 
+**Alvo de pré-infusão: 3–4 bar.** Não 2 bar. A faixa usada na prática é 2–4 bar, com
+~3 bar como referência canônica (é a *line pressure* das máquinas comerciais
+plumbadas, que fazem pré-infusão abrindo o grupo para a rede de água). Perfis de
+*blooming* a 2 bar são a variante agressiva, não o padrão.
+
 | Medir | Reprovado se |
 |---|---|
-| Nº de degraus inteiros entre **2 bar e 9 bar** | **< 15 degraus** — pouca autoridade para perfilar |
-| Estabilidade da pressão em **2–3 bar** (pré-infusão) | oscilação/pulsação grosseira, ou a bomba alterna entre zumbir e jorrar |
-| Comando mínimo com vazão real | muito alto, deixando a pré-infusão inalcançável |
+| Nº de degraus inteiros entre **3 bar e 9 bar** | **< 15 degraus** — pouca autoridade para perfilar |
+| Estabilidade da pressão em **3–4 bar** (pré-infusão) | oscilação/pulsação grosseira, ou a bomba alterna entre zumbir e jorrar |
+| **Pressão mínima estável** que a bomba sustenta | **> 4 bar** — pré-infusão convencional fica fora de alcance |
 | Repetibilidade subindo × descendo o comando | histerese grande |
 
 - ✅ **Passou:** segue no DimmerLink. Zero solda, zero ISR crítica no firmware.
 - ❌ **Reprovou:** migrar para **PSM**, com o bypass documentado em
   [02](02-arquitetura-eletrica-pinout.md#plano-b--bypass-do-dimmerlink-para-psm).
 
-Ao avaliar a migração, os contras **reais** do PSM são **ripple de pressão** em duty
-baixo e a volta da ISR de timing crítico ao firmware. Ignore a afirmação de que PSM
-travaria ou queimaria bomba vibratória — é falsa, e desmontada em
-[02](02-arquitetura-eletrica-pinout.md#-mito-psm-trava-e-queima-bomba-vibratória).
+### Referência de campo
 
-O ponto fraco previsível é a **pré-infusão**, não a extração. Ângulo de fase em
-potência baixa é justamente onde bomba vibratória se comporta pior — o solenoide não
-completa o curso. Extração a 9 bar deve ir bem em qualquer cenário.
+Relatos no [Home-Barista](https://www.home-barista.com/espresso-machines/successes-in-controlling-your-ulka-pump-for-pressure-profiling-t54317.html)
+de quem controlou Ulka pelos dois métodos:
+
+- **Dimmer (ângulo de fase):** posições marcadas em 3 / 6 / 9 bar funcionaram bem,
+  com a bomba **travando abaixo de ~3 bar**.
+- **Pulsando a bomba por microcontrolador:** funciona para pré-infusão, porém
+  **mais barulhento**.
+
+Ou seja: **~3 bar é o piso esperado do ângulo de fase**, o que coincide exatamente com
+o limite inferior da faixa normal de pré-infusão. A leitura é moderadamente otimista —
+o DimmerLink deve alcançar a pré-infusão convencional (3–4 bar) e ficar de fora só das
+variantes mais agressivas.
+
+> ⚠️ Aquele thread é de **2018**, anterior ao amadurecimento do Gaggiuino. Os dados
+> empíricos valem; a conclusão de que "controle eletrônico de bomba vibratória
+> continua sendo objetivo em aberto" envelheceu.
+
+### O que pesar na decisão de migrar
+
+Contras **reais** do PSM: **ripple de pressão** em duty baixo (pulsos espaçados) e a
+volta da ISR de timing crítico ao firmware.
+
+Ignore a afirmação de que PSM travaria ou queimaria bomba vibratória — é falsa, e
+desmontada em [02](02-arquitetura-eletrica-pinout.md#-mito-psm-trava-e-queima-bomba-vibratória).
+
+O ponto fraco previsível do que temos é a **pré-infusão**, não a extração: ângulo de
+fase em potência baixa é onde bomba vibratória se comporta pior, porque o solenoide
+não completa o curso. Extração a 9 bar deve ir bem em qualquer cenário.
 
 > Não antecipe a migração. O bypass exige dessoldar componente em placa de rede AC e
 > devolve a ISR de timing crítico ao firmware — só vale com dado mostrando que

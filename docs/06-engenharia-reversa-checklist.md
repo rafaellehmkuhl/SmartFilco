@@ -62,6 +62,10 @@ sozinho custa mais que boa parte da BOM deste projeto.
 
 - [ ] **Modelo/marca** da bomba (foto da etiqueta): é ULKA (EP5/EX5) ou clone?
 - [ ] Tensão e potência (ex.: 48W / 230V).
+- [ ] **Existe diodo em série com a bomba?** Ulkas normalmente têm, o que as faz
+      trabalhar em **meia onda** e limita o duty máximo a ~50%. Muda a interpretação
+      da faixa útil de comando e importa se houver migração para PSM
+      ([07](07-seguranca-e-calibracao.md)).
 - [ ] Como o dimmer atual está ligado nela.
 - [ ] Registrar comportamento atual: com o dimmer, a pressão desce até ~11–12 bar mas não chega a 9 — confirmar e anotar em quais posições.
 

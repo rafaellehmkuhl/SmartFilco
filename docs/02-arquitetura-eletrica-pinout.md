@@ -202,8 +202,10 @@ inválido · `0xFE` parâmetro inválido.
 **1. Resolução de 0–100 inteiro.** O `LEVEL` é **1 byte, 0 a 100** — 101 degraus, e
 nada mais fino. Não existe modo de atraso de fase cru nem upload de curva
 personalizada. Para *pressure profiling* isso é grosseiro justamente onde mais dói:
-a pré-infusão (2–3 bar) fica perto do mínimo da bomba, onde talvez sobrem só ~10
-degraus úteis.
+a pré-infusão (3–4 bar) fica perto do mínimo da bomba, onde sobram poucos degraus
+úteis. Atenuante: pré-infusão é **teto de pressão**, não setpoint perseguido — o que
+se pede lá embaixo é ponto de operação estável, não autoridade fina de controle.
+Ver [05](05-firmware-arquitetura.md) e [07](07-seguranca-e-calibracao.md).
 
 **2. Só ângulo de fase.** Não há modo de pulos de ciclo (PSM). Ver
 [Plano B](#plano-b--bypass-do-dimmerlink-para-psm) abaixo.
@@ -275,7 +277,16 @@ plano B por engano.
 **O tradeoff real do PSM — que existe — é outro: ripple de pressão.** Em duty baixo
 os pulsos ficam espaçados e a pressão pulsa mais, o que em tese pode piorar
 canalização. A complacência hidráulica e o próprio puck suavizam bastante, mas é este
-o contra a pesar na decisão — não travamento nem bobina queimada.
+o contra a pesar na decisão — não travamento nem bobina queimada. Relatos de campo
+com bomba pulsada por microcontrolador confirmam o incômodo na forma de **mais ruído**,
+não de dano.
+
+> A única evidência que existe perto da alegação de desgaste é indireta e fraca: no
+> [Home-Barista](https://www.home-barista.com/espresso-machines/successes-in-controlling-your-ulka-pump-for-pressure-profiling-t54317.html)
+> menciona-se, de segunda mão, que o método patenteado da Breville de reduzir a saída
+> da bomba encurtaria a vida dela. Só que a patente da Breville é **manipulação de
+> forma de onda** — controle tipo fase, não PSM. Se esse relato valer algo, ele aponta
+> para o método que estamos usando, não para o plano B.
 
 ### O caminho do bypass
 

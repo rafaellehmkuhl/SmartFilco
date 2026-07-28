@@ -38,7 +38,7 @@ Na prática, sugestão de uso dos dois núcleos do ESP32-S3:
 | `WebServer` | UI web + API REST/WebSocket para gráficos em tempo real — **interface principal da fase 1** | 1 |
 | `Storage` | Configurações persistentes (NVS + microSD) | 1 |
 | `ShotModule` | Máquina de estados da extração: pré-infusão → ramp → hold → declínio; timer, integra fluxo (futuro) | 2 |
-| `ProfileModule` | Perfis de pressão/temperatura, armazenados no microSD | 2 |
+| `ProfileModule` | Perfis de pressão/temperatura, armazenados no microSD. Pré-infusão como **teto**, declínio como **decaimento observado** — ver abaixo | 2 |
 | `SteamModule` | Modo vapor (setpoint alto, teto pelo termostato de vapor em hardware) | 2 |
 | `OTA` | Atualização de firmware pela rede | 2 |
 | `DisplayModule` | UI LVGL — **cliente da mesma API do WebServer** | 3 |
@@ -105,6 +105,46 @@ controle vive na camada de UI, em nenhuma das duas.
 - **ESP-IDF** ou **Arduino-ESP32** (a definir na fase de implementação; ambos servem).
 - Web: servidor HTTP + WebSocket para telemetria em tempo real; front simples embarcado no flash.
 - **LVGL** só na fase 3 (driver ST7796 + touch FT6336 bem suportados).
+
+## Como modelar as fases do shot nesta máquina
+
+As três fases **não** são todas "um setpoint que o PID persegue". Tratar as três do
+mesmo jeito produz saturação e *windup* em duas delas.
+
+### Pré-infusão = teto de pressão, não setpoint
+
+Com o puck seco a resistência é baixa: a água entra fácil e a pressão fica baixa
+**sozinha**. Conforme o bolo satura e incha, a resistência sobe e a pressão sobe
+junto. O valor observado no fim da fase é aproximadamente a **pressão de equilíbrio
+da bomba naquela potência** contra um puck já molhado.
+
+Não é à toa que no Gaggiuino o parâmetro é literalmente *"max reachable pressure for
+the pre-infusion phase"*. Implementar como **potência baixa estável + limitador**, não
+como PID perseguindo 3 bar num sistema que ainda não consegue gerar 3 bar.
+
+Efeito colateral bom: nesse enquadramento a resolução grosseira do DimmerLink
+(101 degraus) incomoda muito menos, porque o que se pede lá embaixo é um ponto de
+operação estável, não autoridade fina de controle.
+
+**Faixa alvo: 3–4 bar.** É a faixa mais usada na prática (a referência canônica de
+~3 bar vem da *line pressure* das máquinas comerciais plumbadas). Perfis de *blooming*
+a 2 bar provavelmente estão fora de alcance com ângulo de fase — ver [07](07-seguranca-e-calibracao.md).
+
+### Rampa e hold = PID de verdade
+
+É aqui que a malha fechada trabalha. Nenhuma ressalva.
+
+### Declínio = decaimento observado, não perseguido
+
+A Philco não tem solenoide de 3 vias: a pressão só cai sangrando pelo puck
+([03](03-esquema-hidraulico.md)). Declínio gradual ao longo de ~10 s funciona;
+degrau para baixo não acontece com nenhuma eletrônica.
+
+➡️ Implementar como **redução programada da potência da bomba**, registrando a
+pressão resultante — e **não** como setpoint decrescente com PID. Se for setpoint, o
+integrador vai acumular erro contra um limite físico e a saída vai grudar no fundo.
+Se o perfil declinante for setpoint mesmo assim, prever *anti-windup* e limite de
+taxa compatível com a constante de tempo real, medida na caracterização.
 
 ## Cuidados específicos deste hardware
 

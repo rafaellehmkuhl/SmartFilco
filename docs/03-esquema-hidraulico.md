@@ -79,6 +79,35 @@ porta-filtro e grupo e depois compensada por modelo no firmware. Procedimento em
 - Comprimento de mangueira necessário e pontos de fixação.
 - **Estado do parafuso do chuveiro** — ver [06](06-engenharia-reversa-checklist.md), é item zero.
 
-> **A Philco não tem válvula solenoide.** O corte de fluxo é feito por mola + pino de
-> silicone, então ela **sempre pinga** depois de desligar a extração. Isso afeta
-> detecção de fim de shot e logging por peso — o firmware não pode assumir corte seco.
+## 🔴 Ausência de válvula solenoide — limita o perfil de pressão
+
+A Philco **não tem válvula de 3 vias**. O corte de fluxo é feito por mola + pino de
+silicone. Duas consequências, e a segunda é de projeto, não de acabamento.
+
+**1. Ela sempre pinga** depois de desligar a extração. Afeta detecção de fim de shot
+e logging por peso — o firmware não pode assumir corte seco.
+
+**2. Descer a pressão é limitado pela hidráulica, não pelo controle da bomba.**
+Numa máquina com solenoide de 3 vias, despressurizar é instantâneo: abre-se o
+caminho para a bandeja. Aqui o **único** caminho de alívio durante o shot é através
+do próprio puck. A constante de tempo é
+`complacência do sistema ÷ condutância do puck`.
+
+| O que se pede ao perfil | Viável? |
+|---|---|
+| Subir pressão (pré-infusão → rampa → 9 bar) | ✅ limitado só pela bomba |
+| **Declínio gradual** ao longo de ~10 s | 🟡 provavelmente sim, é decaimento natural com a bomba aliviada |
+| **Queda rápida / degrau para baixo** | ❌ não acontece, com nenhuma eletrônica |
+
+Isso independe de DimmerLink, PSM ou qualquer método de controle — é a máquina.
+Relato de campo consistente com isso: usuários de Ulka com dimmer conseguem variar
+pressão **subindo**, mas descer é lento porque a pressão precisa sangrar pelo puck
+([Home-Barista](https://www.home-barista.com/espresso-machines/successes-in-controlling-your-ulka-pump-for-pressure-profiling-t54317.html)).
+
+➡️ O `ProfileModule` deve tratar a fase de declínio como **decaimento observado**, não
+como setpoint a perseguir — senão o PID satura tentando algo hidraulicamente
+impossível. Ver [05](05-firmware-arquitetura.md).
+
+> **Único bypass manual existente:** abrir a válvula de vapor alivia pressão
+> rapidamente. Automatizar isso exigiria acrescentar um solenoide — fora de escopo,
+> mas é o caminho caso o declínio rápido vire requisito.
