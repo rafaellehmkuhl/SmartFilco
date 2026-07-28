@@ -188,6 +188,11 @@ dados a extrair e o critério:
 - ❌ **Reprovou:** migrar para **PSM**, com o bypass documentado em
   [02](02-arquitetura-eletrica-pinout.md#plano-b--bypass-do-dimmerlink-para-psm).
 
+Ao avaliar a migração, os contras **reais** do PSM são **ripple de pressão** em duty
+baixo e a volta da ISR de timing crítico ao firmware. Ignore a afirmação de que PSM
+travaria ou queimaria bomba vibratória — é falsa, e desmontada em
+[02](02-arquitetura-eletrica-pinout.md#-mito-psm-trava-e-queima-bomba-vibratória).
+
 O ponto fraco previsível é a **pré-infusão**, não a extração. Ângulo de fase em
 potência baixa é justamente onde bomba vibratória se comporta pior — o solenoide não
 completa o curso. Extração a 9 bar deve ir bem em qualquer cenário.

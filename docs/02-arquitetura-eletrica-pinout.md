@@ -251,6 +251,32 @@ Bônus do PSM que perdemos com o DimmerLink: como cada pulso é um curso discret
 bomba, dá para **estimar vazão contando pulsos + pressão, sem flow meter** — é assim
 que o Gaggiuino faz *flow profiling*. Ver nota na [BOM](04-bom-lista-de-compras.md).
 
+### ❌ Mito: "PSM trava e queima bomba vibratória"
+
+Circula a afirmação de que PSM faria o pistão da Ulka perder o sincronismo com a
+rede, chacoalhar, perder pressão e superaquecer a bobina — e que só ângulo de fase
+seria seguro. **É o inverso do que acontece**, e vale registrar para não descartar o
+plano B por engano.
+
+- **Não há sincronismo a perder.** Bomba vibratória não é máquina síncrona: é um
+  oscilador mola-massa-solenoide que recebe um impulso por ciclo. Sem rotor, sem
+  momento angular. Pular um ciclo significa só que aquele curso não acontece — o
+  pistão volta pela mola e espera. O pulso seguinte chega **inteiro** e completa o curso.
+- **Quem produz curso incompleto é o ângulo de fase.** Pulso cortado e atrasado
+  entrega energia parcial; em potência baixa o pistão não completa o percurso e a
+  bomba zumbe sem bombear.
+- **Aquecimento:** perda ∝ I²R × tempo ligado. PSM entrega pulsos de amplitude cheia
+  numa fração do tempo e deixa a bobina esfriar entre eles; ângulo de fase dispara
+  **todo** ciclo com onda picotada. O limite de duty cycle da Ulka (~1 min on /
+  1 min off) é sobre tempo total de operação, não sobre método de modulação.
+- **Evidência de campo:** o Gaggiuino roda PSM em bomba Ulka em milhares de
+  instalações, e a `PSM.Library` existe exatamente para isso ("*PSM vibe pump control*").
+
+**O tradeoff real do PSM — que existe — é outro: ripple de pressão.** Em duty baixo
+os pulsos ficam espaçados e a pressão pulsa mais, o que em tese pode piorar
+canalização. A complacência hidráulica e o próprio puck suavizam bastante, mas é este
+o contra a pesar na decisão — não travamento nem bobina queimada.
+
 ### O caminho do bypass
 
 A arquitetura do DimmerLink joga a favor: normalmente ele é uma placa **separada**, e
