@@ -8,8 +8,12 @@ O que faz:
 
 - **RGB (WS2812)** em passeio de matiz, saturação cheia, na task do **core 1**
 - **Wi-Fi STA** + **`esp_http_server`** no **core 0**
-- Página em `/` mostrando a cor ao vivo; `/rgb` devolve o estado em JSON
+- Página em `/` alimentada por **WebSocket** (`/ws`), push a 25 Hz
+- `/rgb` devolve o mesmo JSON por HTTP — teste de fumaça curl-ável
 - Heartbeat na serial a cada 2 s (matiz, RGB, heap, core)
+
+O JSON traz `ws` (assinantes conectados), `wstx` e `wserr`, que é como se depura
+o push sem terminal serial.
 
 ## Compilar e gravar
 

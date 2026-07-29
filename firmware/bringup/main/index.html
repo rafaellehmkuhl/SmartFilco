@@ -8,13 +8,13 @@ justify-content:center;align-items:center;gap:2rem;padding:2rem;
 background:#12110f;color:#e8e3da;
 font:15px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}
 #sw{width:min(58vw,260px);aspect-ratio:1;border-radius:18px;
-border:1px solid #33302b;transition:background .1s linear}
+border:1px solid #33302b;transition:background .15s linear}
 .ch{display:grid;grid-template-columns:1.2rem 3ch 1fr;gap:.55rem .7rem;
 align-items:center;width:min(80vw,320px)}
 .ch b{font-weight:500;color:#8a8175}
 .ch i{font-style:normal;text-align:right;font-size:1.05rem}
 .t{height:6px;background:#1e1c19;border-radius:3px;overflow:hidden}
-.t>div{height:100%;border-radius:3px;transition:width .1s linear}
+.t>div{height:100%;border-radius:3px;transition:width .15s linear}
 .sub{color:#8a8175;font-size:.75rem;letter-spacing:.04em}
 </style></head><body>
 <div id="sw"></div>
@@ -25,15 +25,28 @@ align-items:center;width:min(80vw,320px)}
 </div>
 <div class="sub" id="meta">carregando...</div>
 <script>
-async function tick(){
- try{
-  var d=await(await fetch('/rgb')).json(),c=d.rgb;
-  var k=function(x){return Math.round(x*255/d.max);};   // 0..max -> 0..255
-  sw.style.background='rgb('+k(c[0])+','+k(c[1])+','+k(c[2])+')';
-  var v=[vr,vg,vb],b=[br,bg,bb];
-  for(var i=0;i<3;i++){v[i].textContent=c[i];b[i].style.width=(100*c[i]/d.max)+'%';}
+var tNum=0;
+function pinta(d){
+ var c=d.rgb, k=function(x){return Math.round(x*255/d.max);};  // 0..max -> 0..255
+ sw.style.background='rgb('+k(c[0])+','+k(c[1])+','+k(c[2])+')';
+ var b=[br,bg,bb];
+ for(var i=0;i<3;i++){b[i].style.width=(100*c[i]/d.max)+'%';}
+ // Texto num ritmo humano. Cor e barras acompanham os 30 Hz porque são
+ // movimento; dígito trocando 30x/s ninguem le, so treme.
+ var t=performance.now();
+ if(t-tNum>125){
+  tNum=t;
+  var v=[vr,vg,vb];
+  for(var j=0;j<3;j++){v[j].textContent=c[j];}
   meta.textContent=d.ip+' · '+d.rssi+' dBm · up '+d.up+'s';
- }catch(e){}
+ }
 }
-setInterval(tick,100);tick();
+function liga(){
+ var ws=new WebSocket('ws://'+location.host+'/ws');
+ ws.onmessage=function(e){pinta(JSON.parse(e.data));};
+ ws.onerror=function(){ws.close();};
+ // a placa reinicia bastante durante bring-up; reconectar sozinho evita F5
+ ws.onclose=function(){meta.textContent='reconectando...';setTimeout(liga,1000);};
+}
+liga();
 </script></body></html>

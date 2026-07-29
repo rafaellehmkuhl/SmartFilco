@@ -27,3 +27,6 @@ CONFIG_LWIP_TCPIP_TASK_AFFINITY_CPU0=y
 # Console pela USB nativa do S3, que é onde o cabo está. O padrão é a UART0
 # (GPIO43/44), que sairia pela ponte CH343 — a porta que não aceita escrita.
 CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+
+# WebSocket no esp_http_server. Vem desligado por padrão.
+CONFIG_HTTPD_WS_SUPPORT=y

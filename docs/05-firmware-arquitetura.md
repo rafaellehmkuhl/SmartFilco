@@ -130,7 +130,22 @@ mesma API. Começar no Arduino significaria migrar depois, no pior momento.
 > DMA em SRAM interna e barramento SPI dedicado.
 
 - Web: `esp_http_server` + WebSocket para telemetria; front embarcado no flash
-  via `EMBED_TXTFILES`.
+  via `EMBED_TXTFILES`. Já em pé no bring-up: push a 25 Hz, medido em 24,8 Hz
+  com mediana de 41 ms entre frames.
+
+> ⚠️ **Duas armadilhas do WebSocket no esp_http_server** (custaram tempo no
+> bring-up, valem para o `WebServer` da fase 1):
+>
+> 1. `CONFIG_HTTPD_WS_SUPPORT` vem **desligado** por padrão.
+> 2. **O handler não é chamado no handshake.** Está no `httpd_uri.c`: *"If the
+>    request is websocket handshake, then do not call the uri->handler"*. O padrão
+>    antigo de registrar o socket dentro de `if (req->method == HTTP_GET)` não
+>    dispara — o cliente conecta, recebe 101, e nunca é registrado. Sintoma:
+>    handshake perfeito e zero frames.
+>
+> ➡️ Não manter lista própria de clientes. `httpd_get_client_list()` +
+> `httpd_ws_get_fd_info()` dizem quem está conectado e quem falou WS. Isso apaga
+> registro, slots e limpeza de socket morto, e nunca dessincroniza.
 - **LVGL** só na fase 3 (ST7796 + FT6336). ⚠️ O SPI já é compartilhado entre
   MAX31865 e microSD — o display precisa do **outro host SPI**, sozinho, ou a
   fluidez morre.

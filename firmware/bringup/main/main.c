@@ -18,6 +18,7 @@
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
 #include "led_strip.h"
+#include "lwip/sockets.h"
 #include "nvs_flash.h"
 
 #include "wifi_cfg.h"
@@ -35,12 +36,19 @@ static const char *TAG = "bringup";
 #define TRANSICAO_MS 3000
 #define CORE_RT 1        // core do tempo-real
 #define CORE_NET 0       // core da rede
+// httpd_get_client_list() devolve ESP_ERR_INVALID_ARG se houver mais sockets
+// abertos que o array comporta — por isso o mesmo valor governa os dois.
+#define MAX_SOCKS 7      // = httpd_config_t.max_open_sockets
+#define WS_HZ 30         // taxa de push do estado (33 ms)
 
 extern const char index_html_start[] asm("_binary_index_html_start");
 extern const char index_html_end[] asm("_binary_index_html_end");
 
 static led_strip_handle_t tiras[2];
 static int64_t t0;
+static httpd_handle_t servidor;
+static volatile int ws_falhas;         // sends recusados, acumulado
+static volatile uint32_t ws_enviados;  // frames entregues, acumulado
 
 // ponytail: 3 bytes lidos pelo handler HTTP sem lock. Uma leitura rasgada mostra
 // uma cor intermediária por um quadro e nada mais — não vale um mutex. Quando o
@@ -213,7 +221,7 @@ static esp_err_t h_pagina(httpd_req_t *req)
     return httpd_resp_send(req, index_html_start, index_html_end - index_html_start - 1);
 }
 
-static esp_err_t h_rgb(httpd_req_t *req)
+static int montar_json(char *buf, size_t tam)
 {
     wifi_ap_record_t ap;
     int rssi = (esp_wifi_sta_get_ap_info(&ap) == ESP_OK) ? ap.rssi : 0;
@@ -224,15 +232,90 @@ static esp_err_t h_rgb(httpd_req_t *req)
         esp_netif_get_ip_info(netif, &ip);
     }
 
-    char buf[192];
-    int n = snprintf(buf, sizeof(buf),
-                     "{\"rgb\":[%u,%u,%u],\"max\":%d,\"ip\":\"" IPSTR "\",\"rssi\":%d,\"up\":%lld}",
-                     cor[0], cor[1], cor[2], MAXV, IP2STR(&ip.ip), rssi,
-                     (esp_timer_get_time() - t0) / 1000000);
+    int fds[MAX_SOCKS];
+    size_t n_fds = MAX_SOCKS;
+    int assinantes = 0;
+    if (servidor && httpd_get_client_list(servidor, &n_fds, fds) == ESP_OK) {
+        for (size_t i = 0; i < n_fds; i++) {
+            if (httpd_ws_get_fd_info(servidor, fds[i]) == HTTPD_WS_CLIENT_WEBSOCKET) {
+                assinantes++;
+            }
+        }
+    }
 
+    return snprintf(buf, tam,
+                    "{\"rgb\":[%u,%u,%u],\"max\":%d,\"ip\":\"" IPSTR "\",\"rssi\":%d,"
+                    "\"up\":%lld,\"ws\":%d,\"wserr\":%d,\"wstx\":%lu}",
+                    cor[0], cor[1], cor[2], MAXV, IP2STR(&ip.ip), rssi,
+                    (esp_timer_get_time() - t0) / 1000000,
+                    assinantes, ws_falhas, (unsigned long)ws_enviados);
+}
+
+// Mantido de propósito: é o teste de fumaça curl-ável. O caminho ao vivo é o
+// WebSocket; este aqui é para checar a placa de um terminal sem cliente WS.
+static esp_err_t h_rgb(httpd_req_t *req)
+{
+    char buf[192];
+    int n = montar_json(buf, sizeof(buf));
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
     return httpd_resp_send(req, buf, n);
+}
+
+// ---------------------------------------------------------------- websocket
+
+// ⚠️ O handshake NÃO passa por aqui. O esp_http_server responde o 101 e retorna
+// antes de chamar o handler — está escrito no httpd_uri.c: "If the request is
+// websocket handshake, then do not call the uri->handler". O padrão antigo de
+// registrar o fd num `if (req->method == HTTP_GET)` não dispara mais.
+//
+// Esta função só vê frames de dados. A página não manda nenhum, mas um frame
+// que chegue e não seja drenado trava o socket.
+static esp_err_t h_ws(httpd_req_t *req)
+{
+    uint8_t lixo[64];
+    httpd_ws_frame_t f = { .type = HTTPD_WS_TYPE_TEXT, .payload = lixo };
+    return httpd_ws_recv_frame(req, &f, sizeof(lixo));
+}
+
+// Sem lista própria de clientes: o servidor já sabe quem está conectado e quem
+// falou WebSocket. Perguntar a ele elimina registro, slots e limpeza de socket
+// morto — e nunca fica dessincronizado.
+static void tarefa_ws(void *arg)
+{
+    char buf[192];
+    int fds[MAX_SOCKS];
+
+    while (1) {
+        size_t n_fds = MAX_SOCKS;
+        if (httpd_get_client_list(servidor, &n_fds, fds) == ESP_OK) {
+            int n = montar_json(buf, sizeof(buf));
+            httpd_ws_frame_t f = {
+                .type = HTTPD_WS_TYPE_TEXT,
+                .payload = (uint8_t *)buf,
+                .len = n,
+            };
+
+            for (size_t i = 0; i < n_fds; i++) {
+                if (httpd_ws_get_fd_info(servidor, fds[i]) != HTTPD_WS_CLIENT_WEBSOCKET) {
+                    continue;   // socket HTTP comum, não é assinante
+                }
+                // httpd_ws_send_frame_async faz DOIS send(): cabeçalho e depois
+                // payload. Com Nagle, o segundo espera o ACK do primeiro, e o
+                // delayed-ACK do outro lado segura por até ~200 ms — vira
+                // travada visível. Setar a cada push é um syscall de nada e
+                // evita ter de lembrar de quais fds já foram configurados.
+                int um = 1;
+                setsockopt(fds[i], IPPROTO_TCP, TCP_NODELAY, &um, sizeof(um));
+                if (httpd_ws_send_frame_async(servidor, fds[i], &f) == ESP_OK) {
+                    ws_enviados++;
+                } else {
+                    ws_falhas++;
+                }
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000 / WS_HZ));
+    }
 }
 
 static void http_iniciar(void)
@@ -240,15 +323,22 @@ static void http_iniciar(void)
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
     cfg.core_id = CORE_NET;     // servidor fora do core de tempo-real
     cfg.lru_purge_enable = true;
+    cfg.max_open_sockets = MAX_SOCKS;
 
-    httpd_handle_t srv = NULL;
-    ESP_ERROR_CHECK(httpd_start(&srv, &cfg));
+    ESP_ERROR_CHECK(httpd_start(&servidor, &cfg));
 
     httpd_uri_t u_pag = { .uri = "/", .method = HTTP_GET, .handler = h_pagina };
     httpd_uri_t u_rgb = { .uri = "/rgb", .method = HTTP_GET, .handler = h_rgb };
-    ESP_ERROR_CHECK(httpd_register_uri_handler(srv, &u_pag));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(srv, &u_rgb));
-    ESP_LOGI(TAG, "http no ar");
+    httpd_uri_t u_ws = {
+        .uri = "/ws", .method = HTTP_GET, .handler = h_ws, .is_websocket = true
+    };
+    ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_pag));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_rgb));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_ws));
+
+    // push fica no core da rede: mandar frame do core 1 furaria a separação
+    xTaskCreatePinnedToCore(tarefa_ws, "ws", 4096, NULL, 4, NULL, CORE_NET);
+    ESP_LOGI(TAG, "http + ws no ar");
 }
 
 // ---------------------------------------------------------------- main
