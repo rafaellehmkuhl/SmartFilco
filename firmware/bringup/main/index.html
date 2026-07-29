@@ -1,0 +1,39 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SmartFilco — RGB</title>
+<style>
+:root{color-scheme:dark}
+body{margin:0;min-height:100vh;display:flex;flex-direction:column;
+justify-content:center;align-items:center;gap:2rem;padding:2rem;
+background:#12110f;color:#e8e3da;
+font:15px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}
+#sw{width:min(58vw,260px);aspect-ratio:1;border-radius:18px;
+border:1px solid #33302b;transition:background .1s linear}
+.ch{display:grid;grid-template-columns:1.2rem 3ch 1fr;gap:.55rem .7rem;
+align-items:center;width:min(80vw,320px)}
+.ch b{font-weight:500;color:#8a8175}
+.ch i{font-style:normal;text-align:right;font-size:1.05rem}
+.t{height:6px;background:#1e1c19;border-radius:3px;overflow:hidden}
+.t>div{height:100%;border-radius:3px;transition:width .1s linear}
+.sub{color:#8a8175;font-size:.75rem;letter-spacing:.04em}
+</style></head><body>
+<div id="sw"></div>
+<div class="ch">
+<b>R</b><i id="vr">-</i><div class="t"><div id="br" style="background:#d4553f"></div></div>
+<b>G</b><i id="vg">-</i><div class="t"><div id="bg" style="background:#6b8e5a"></div></div>
+<b>B</b><i id="vb">-</i><div class="t"><div id="bb" style="background:#5a7d9e"></div></div>
+</div>
+<div class="sub" id="meta">carregando...</div>
+<script>
+async function tick(){
+ try{
+  var d=await(await fetch('/rgb')).json(),c=d.rgb;
+  var k=function(x){return Math.round(x*255/d.max);};   // 0..max -> 0..255
+  sw.style.background='rgb('+k(c[0])+','+k(c[1])+','+k(c[2])+')';
+  var v=[vr,vg,vb],b=[br,bg,bb];
+  for(var i=0;i<3;i++){v[i].textContent=c[i];b[i].style.width=(100*c[i]/d.max)+'%';}
+  meta.textContent=d.ip+' · '+d.rssi+' dBm · up '+d.up+'s';
+ }catch(e){}
+}
+setInterval(tick,100);tick();
+</script></body></html>

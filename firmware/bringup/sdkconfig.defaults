@@ -1,0 +1,29 @@
+# Estes são exatamente os ajustes que o Arduino-ESP32 não deixaria mexer.
+
+CONFIG_IDF_TARGET="esp32s3"
+
+# Flash da N16R8: 16 MB, QIO a 80 MHz
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+
+# PSRAM octal a 80 MHz — o "R8". Consome GPIO33–37: eles existem no header e não
+# funcionam. Ver README e docs/02.
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+
+# Tick de 1 kHz: granularidade de 1 ms no vTaskDelay. O padrão do IDF é 100 Hz,
+# que dá passo de 10 ms — grosso demais para o laço de pressão da docs/05.
+CONFIG_FREERTOS_HZ=1000
+
+# Rede presa no core 0. É isso que mantém o jitter do Wi-Fi longe do core 1,
+# onde vive o tempo-real.
+CONFIG_ESP_WIFI_TASK_PINNED_TO_CORE_0=y
+CONFIG_LWIP_TCPIP_TASK_AFFINITY_CPU0=y
+
+# Console pela USB nativa do S3, que é onde o cabo está. O padrão é a UART0
+# (GPIO43/44), que sairia pela ponte CH343 — a porta que não aceita escrita.
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y

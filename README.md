@@ -50,6 +50,12 @@ Justificativas completas em [docs/01](docs/01-projeto-visao-geral.md#decisões-d
 | [06 — Engenharia reversa (checklist)](docs/06-engenharia-reversa-checklist.md) | O que medir/anotar ao abrir a máquina |
 | [07 — Segurança e calibração](docs/07-seguranca-e-calibracao.md) | Riscos de rede AC, aterramento, calibração dos sensores e da bomba |
 
+## Código
+
+| Onde | O quê |
+|---|---|
+| [`firmware/bringup/`](firmware/bringup/) | Prova de vida da placa em ESP-IDF: RGB, Wi-Fi e servidor web. Sem lógica de café |
+
 ---
 
 ## Resumo de 30 segundos

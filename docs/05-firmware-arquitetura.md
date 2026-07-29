@@ -1,7 +1,9 @@
 # 05 — Arquitetura de firmware
 
-> Ainda não é fase de implementação — este documento fixa a **arquitetura alvo**
-> para o firmware nascer organizado.
+> Este documento fixa a **arquitetura alvo**. A implementação começou:
+> [`firmware/bringup/`](../firmware/bringup/) é o primeiro código no repo — prova
+> de vida da placa em ESP-IDF (RGB + Wi-Fi + servidor web), sem nada do domínio
+> de café ainda.
 
 ## Princípios
 
@@ -100,11 +102,54 @@ controle vive na camada de UI, em nenhuma das duas.
 > Guardar sempre `T_boiler` **crua**, além da estimada. É o que permite refinar o
 > modelo de offset depois, em cima do histórico, sem repetir a bancada.
 
-## Stack sugerida
+## Stack — decidida
 
-- **ESP-IDF** ou **Arduino-ESP32** (a definir na fase de implementação; ambos servem).
-- Web: servidor HTTP + WebSocket para telemetria em tempo real; front simples embarcado no flash.
-- **LVGL** só na fase 3 (driver ST7796 + touch FT6336 bem suportados).
+**ESP-IDF v5.5.5.** Decisão tomada em 29/07/2026, no bring-up da Leva 1.
+
+O ponto que costuma passar despercebido: **Arduino-ESP32 3.x *é* ESP-IDF** — mesmo
+FreeRTOS, mesmo LWIP, mesmo driver de Wi-Fi, com APIs por cima. Não existe
+interpretador nem overhead de runtime, e **performance bruta é idêntica**. A
+diferença é *controle sobre a configuração*:
+
+| | ESP-IDF | Arduino-ESP32 |
+|---|---|---|
+| `sdkconfig` | menuconfig completo | libs pré-compiladas, config congelada |
+| Core do Wi-Fi/LWIP | fixado por config | herda o padrão |
+| Tick do FreeRTOS | escolhido (padrão 100 Hz) | fixo em 1000 Hz |
+| LVGL | port oficial + `esp_lcd` com DMA | caminho comum (TFT_eSPI) é pior |
+| Web | `esp_http_server`, WebSocket nativo | `WebServer.h` ou ESPAsyncWebServer |
+| Debug | JTAG pela USB nativa, gdb, heap tracing | funciona, mal integrado |
+
+O argumento decisivo não foi performance: é que a fase 3 traz LVGL consumindo a
+mesma API. Começar no Arduino significaria migrar depois, no pior momento.
+
+> **As malhas de controle são o requisito menos exigente dos três.** O laço de
+> 50-100 ms é folgado para qualquer um dos dois. O risco real não é throughput,
+> é **jitter do Wi-Fi disputando o mesmo core** — e é isso que o IDF fixa por
+> configuração. O gargalo de verdade do projeto é o LVGL, que depende de buffer
+> DMA em SRAM interna e barramento SPI dedicado.
+
+- Web: `esp_http_server` + WebSocket para telemetria; front embarcado no flash
+  via `EMBED_TXTFILES`.
+- **LVGL** só na fase 3 (ST7796 + FT6336). ⚠️ O SPI já é compartilhado entre
+  MAX31865 e microSD — o display precisa do **outro host SPI**, sozinho, ou a
+  fluidez morre.
+
+### Ajustes de `sdkconfig` que valem
+
+São exatamente os que o Arduino não deixaria mexer. Ver
+[`firmware/bringup/sdkconfig.defaults`](../firmware/bringup/sdkconfig.defaults):
+
+- `CONFIG_FREERTOS_HZ=1000` — o padrão do IDF é 100 Hz, passo de 10 ms, grosso
+  demais para o laço de pressão.
+- `CONFIG_ESP_WIFI_TASK_PINNED_TO_CORE_0` + `CONFIG_LWIP_TCPIP_TASK_AFFINITY_CPU0`
+  — mantém a rede longe do core 1.
+- `CONFIG_SPIRAM_MODE_OCT` + `SPEED_80M` — a PSRAM do N16R8.
+- `CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG` — console pela USB nativa.
+
+> Símbolo desconhecido em `sdkconfig.defaults` é **ignorado em silêncio** pelo
+> IDF. Escrever `CONFIG_ESP_WIFI_TASK_CORE_ID_0` (que não existe) não dá erro
+> nenhum — só não faz nada. Conferir contra o Kconfig depois de editar.
 
 ## Como modelar as fases do shot nesta máquina
 
@@ -174,3 +219,89 @@ taxa compatível com a constante de tempo real, medida na caracterização.
 - **`PumpModule` atrás de uma interface.** Se a caracterização reprovar o DimmerLink
   ([07](07-seguranca-e-calibracao.md)), a troca para PSM deve ser uma implementação
   nova do mesmo contrato — não uma refatoração do `ShotModule`.
+
+## Gravação do firmware (esptool)
+
+Módulo em mãos, identificado na bancada: **ESP32-S3 QFN56, revisão v0.2, PSRAM
+embutida 8 MB (AP_3v3), cristal 40 MHz, MAC `74:4d:bd:8a:9d:d8`**.
+
+A placa **não** usa o USB nativo do S3 (VID Espressif `303A`) — ela enumera atrás
+de uma ponte **WCH CH343** (`1A86:55D3`), como `/dev/cu.usbmodem57280307871` no
+macOS. O sufixo vem do número de série do CH343, então o nome da porta é estável.
+
+⚠️ **Pela porta UART (CH343) só dá para ler — toda escrita falha.** Medido na
+bancada, esptool v4.8.1:
+
+| Operação | Resultado |
+|---|---|
+| `chip_id`, `flash_id`, `get_security_info` | ✅ funcionam |
+| `read_flash` (com `--no-stub`) | ✅ funciona, ~7 kB/s |
+| Upload do stub (escrita em RAM) | ❌ `Failed to write to target RAM ... Operation timed out` |
+| `write_flash` (com `--no-stub`) | ❌ `Failed to write to target Flash after seq 0 ... Requested resource not found` |
+| `erase_flash` (com `--no-stub`) | ❌ ROM do S3 não implementa a função |
+
+O padrão é claro: comandos curtos e leitura passam, **transferência em bloco não**.
+Não é baud (falha igual em 115200 e 460800), não é compressão (`-u` falha igual),
+e não é proteção — secure boot e flash encryption estão **desligados**
+(verificado por `get_security_info`).
+
+➡️ **Gravar pela outra porta USB-C.** A DevKitC-1 tem duas: a serial via CH343 e a
+**USB nativa do S3** (USB-OTG/JTAG, VID `303A`). A nativa não passa pela ponte WCH
+e é o caminho suportado pela Espressif para flash. A porta UART continua ótima para
+monitor serial e leitura.
+
+Se a nativa também falhar na escrita, aí o suspeito é cabo/alimentação — troque o
+cabo por um de dados comprovado e ligue direto na máquina, sem hub.
+
+Pela nativa a gravação é ~180× mais rápida: **1293 kbit/s** contra os ~7 kB/s da
+CH343, com `erase_flash` em 5,5 s.
+
+### ⚠️ O DTR da USB-JTAG é o GPIO0
+
+Esta foi a armadilha mais cara do bring-up. No USB-Serial-JTAG do S3:
+
+| Linha CDC | Pino |
+|---|---|
+| RTS | EN (reset) |
+| **DTR** | **GPIO0 (strapping de boot)** |
+
+Ou seja: **qualquer coisa que abra aquela porta e assere DTR joga a placa em
+download mode**, onde ela não roda o app e não imprime nada. Perdi um bom tempo
+achando que o firmware estava quebrado — ele estava gravado e correto desde o
+início, e a placa é que nunca saía do bootloader.
+
+Sintomas que confundem:
+
+- `esptool ... --after hard_reset` termina dizendo "Hard resetting", mas o boot
+  seguinte reporta `boot:0x0 (DOWNLOAD(USB/UART0))`.
+- Abrir a porta com `pyserial` — mesmo com `dtr=False` atribuído antes do `open()`
+  — não foi suficiente no macOS; o driver CDC assere por conta.
+- **LED aceso não prova que o firmware roda.** WS2812 retém a última cor
+  latcheada indefinidamente. Dois quadros de vídeo idênticos foram lidos como
+  "animação lenta" quando na verdade a cor estava congelada de uma execução
+  anterior.
+
+➡️ **Diagnóstico de um comando:** se `esptool --before no_reset` conectar, a placa
+está parada no bootloader.
+
+➡️ **Saída:** apertar **RST** fisicamente. Nenhuma sequência de DTR/RTS pelo host
+resolveu de forma confiável.
+
+### Fluxo de trabalho que funciona
+
+```bash
+source ~/esp/esp-idf/export.sh
+idf.py -C firmware/bringup build
+idf.py -C firmware/bringup -p /dev/cu.usbmodem1101 flash monitor
+```
+
+`idf.py monitor` faz a sequência de linhas na ordem certa — mas **exige TTY**, não
+roda em pipe nem em CI. Para captura não-interativa não há solução boa: o jeito é
+o firmware falar sozinho. Por isso o `bringup.c` tem heartbeat de 2 s imprimindo
+matiz, RGB, heap e core — sem ele a placa é indepurável sem terminal.
+
+### Dados de flash confirmados
+
+Flash **GigaDevice `C8:4018`, 16 MB, modo quad**, tensão 3,3 V por eFuse — bate com
+o N16R8. Firmware que veio de fábrica era o demo `arduino-lib-builder` (esp-idf
+v4.4.7, Mar/2024), layout de partições Arduino (`otadata`/`app0`/`spiffs`/`coredump`).

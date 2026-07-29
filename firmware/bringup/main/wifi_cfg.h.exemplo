@@ -1,0 +1,4 @@
+// Copie para wifi_cfg.h e preencha. O arquivo real é ignorado pelo git.
+#pragma once
+#define WIFI_SSID "sua-rede"
+#define WIFI_PASS "sua-senha"
