@@ -15,7 +15,7 @@ pressão vier com defeito, são +2 semanas de espera.
 
 | Item | Preço | Notas |
 |---|---|---|
-| **Dimmer AC RobotDyn 8A**, variante **UART/I²C (V2)** — traz o **DimmerLink** integrado | R$ 32,17 | ⚠️ Não é o clássico com pinos ZC/PWM: um Cortex-M+ dedicado faz zero-cross e disparo internamente, e o ESP32 só manda 3–4 bytes por UART (115200) ou I²C (**0x50**). **Não usar `RBDDimmer`** — protocolo cru, docs em [robotdyn-dimmer/DimmerLink](https://github.com/robotdyn-dimmer/DimmerLink) |
+| **Dimmer AC RobotDyn 8A**, variante **UART/I²C (V2)** — traz o **DimmerLink** integrado | R$ 32,17 | 🔄 **Comprado, mas não será usado como veio.** A decisão de 29/07/2026 é atuar a bomba por **PSM**, o que dispensa o DimmerLink. Vira reserva — o clássico com pinos ZC/PWM é a peça certa, ver [Futuro](#-dimmer-comprar-o-clássico-para-psm) e [02](02-arquitetura-eletrica-pinout.md#bypass-do-dimmerlink-para-psm-decidido) |
 | **ADS1115** 16-bit I²C | R$ 11,99 | alimentar em **5 V**, PGA **±6,144 V** |
 | **Sensor de pressão 200 PSI**, 1/8" NPT, 5 V | R$ 45,39 | = **13,8 bar**. Rosca já é NPT ✅ |
 | **Cabo de silicone** (branco/vermelho/preto) | R$ 28,72 | |
@@ -61,10 +61,55 @@ pressão vier com defeito, são +2 semanas de espera.
 
 | Qtd | Item | Buscar por | Função |
 |---|---|---|---|
-| 1 | Flow meter Hall | "coffee flow meter hall" / "YF-S401" | receita por volume. ⚠️ **Mais necessário do que parecia:** o Gaggiuino estima vazão contando pulsos da bomba, o que só funciona com PSM. Com o DimmerLink (ângulo de fase) esse atalho não existe — *flow profiling* aqui exige o sensor de verdade. Ver [02](02-arquitetura-eletrica-pinout.md#plano-b--bypass-do-dimmerlink-para-psm) |
+| ~~1~~ | ~~Flow meter Hall (YF-S401)~~ | **REMOVIDO** | Ver abaixo — não mede espresso, e com PSM não é preciso |
 | 2 | **ACS712** (20A) | "ACS712 20A module" | diagnóstico de corrente (resistência/bomba) |
 | 1 | Sensor de nível (boia magnética) | "magnetic float switch" | evitar bomba a seco |
-| 1 | Waveshare ESP32-S3-Touch-LCD-3.5 (**SPI/ST7796**) | — | fase de interface local |
+| 1 | Display para a fase de interface | ver nota abaixo | Waveshare 3.5" SPI/ST7796 **ou** placa integrada com display RGB |
+
+### ❌ Flow meter YF-S401 — fora do projeto
+
+Dois motivos independentes, e o primeiro já bastaria:
+
+**1. Não mede espresso.** O YF-S401 é especificado para **0,3–6 L/min**, com precisão
+de 3% apenas entre 0,15 e 3 L/min ([datasheet](https://www.quartz1.com/price/PIC/250Q1442301.pdf)).
+Vazão de espresso:
+
+| Shot | Vazão |
+|---|---|
+| 36 g em 30 s | **0,072 L/min** |
+| 50 g em 25 s (rápido) | **0,12 L/min** |
+
+Ou seja: **2,5 a 4× abaixo do mínimo do sensor**, e abaixo até do piso de precisão. A
+turbina não gira de forma confiável nessa faixa. Ele só leria durante *flush* sem
+bolo — exatamente quando a medida não serve para nada. E não ajuda montar antes da
+bomba: vazão volumétrica é a mesma dos dois lados.
+
+**2. Com PSM não é preciso.** Cada semiciclo que passa é um curso discreto da bomba,
+então vazão sai de **contagem de pulsos + pressão**, calibrada contra balança. É assim
+que o Gaggiuino faz *flow profiling* — e ele **não** usa flow meter. Máquinas
+comerciais usam medidor volumétrico de baixa vazão classe Gicar; o Decent DE1 usa
+sensor feito sob medida. Turbina de irrigação não é a peça.
+
+> Isto reverte a nota anterior, que marcava o flow meter como "mais necessário do que
+> parecia". Aquele raciocínio valia **porque** o DimmerLink só faz ângulo de fase.
+> Com a [decisão de ir para PSM](02-arquitetura-eletrica-pinout.md#bypass-do-dimmerlink-para-psm-decidido)
+> o atalho de contagem de pulsos volta a existir, e o sensor perde a razão de ser.
+>
+> Se algum dia houver medição de vazão de verdade, o critério é **faixa**: precisa
+> ler ~0,05–0,3 L/min, não 0,3–6.
+
+### 🛒 Dimmer: comprar o **clássico** para PSM
+
+O V2 com DimmerLink integrado já está comprado, mas é a variante errada para PSM —
+chegar nos sinais `Z-C`/`Dim` nele exige dessoldagem em placa de rede AC. O **dimmer
+RobotDyn clássico expõe `Z-C` e `PWM` em header**, prontos, por ~R$ 32.
+
+| Qtd | Item | Buscar por | Função |
+|---|---|---|---|
+| 1 | **Dimmer AC RobotDyn 8A clássico** (pinos ZC/PWM) | "RobotDyn AC dimmer 8A ZC PWM" | bomba por PSM. ⚠️ **Não** a variante UART/I²C V2 |
+
+Guardar o V2 como reserva. Detalhes em
+[02](02-arquitetura-eletrica-pinout.md#bypass-do-dimmerlink-para-psm-decidido).
 
 ---
 

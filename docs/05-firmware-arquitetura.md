@@ -32,7 +32,7 @@ Na prática, sugestão de uso dos dois núcleos do ESP32-S3:
 |---|---|---|
 | `TemperatureModule` | Lê o MAX31865 (SPI), checa o registrador de **fault**, aplica filtro, expõe `T_boiler` e `T_bolo_estimada` (offset modelado) | 1 |
 | `PressureModule` | Lê o sensor via ADS1115 (I²C), converte 0,5–4,5 V → bar, **filtra a ondulação de 60 Hz da bomba**, aplica calibração | 1 |
-| `PumpModule` | Controle da bomba via **DimmerLink** (UART 115200, `02 53 00 LEVEL`), **LUT própria** `pressão → comando 0–100` + PID de pressão (malha fechada). Interface abstrata o bastante para trocar por PSM sem mexer no resto | 1 |
+| `PumpModule` | Controle da bomba por **PSM**: ISR de zero-cross (`Z-C`, em **IRAM**) decide passar ou pular cada semiciclo no `Dim`. Base: [`banoz/PSM.Library`](https://github.com/banoz/PSM.Library). LUT `pressão → duty` + PID de pressão (malha fechada) | 1 |
 | `BoilerModule` | PID de temperatura → SSR (slow PWM por janela de tempo) | 1 |
 | `SafetyModule` | Limites de temperatura/pressão, timeout de bomba, sensor aberto/curto/travado, watchdog, estado seguro no boot | 1 |
 | `LoggerModule` | Gravação de cada shot no microSD (CSV/JSON) + histórico | 1 |
@@ -64,7 +64,8 @@ a cada ~50–100 ms:
   if shot.active:
     p_target = ProfileModule.targetAt(shot.elapsed)
     duty_pump = PumpModule.pid(p_target, P)   # malha fechada
-    DimmerLink.set(duty_pump)                  # 3-4 bytes na UART; sem ISR
+    PumpModule.setDuty(duty_pump)              # só grava o duty; quem dispara é a
+                                               # ISR de zero-cross, assíncrona
 
   SafetyModule.check(T_boiler, P, currents)
 ```
@@ -182,9 +183,13 @@ Não é à toa que no Gaggiuino o parâmetro é literalmente *"max reachable pre
 the pre-infusion phase"*. Implementar como **potência baixa estável + limitador**, não
 como PID perseguindo 3 bar num sistema que ainda não consegue gerar 3 bar.
 
-Efeito colateral bom: nesse enquadramento a resolução grosseira do DimmerLink
-(101 degraus) incomoda muito menos, porque o que se pede lá embaixo é um ponto de
-operação estável, não autoridade fina de controle.
+🔄 **Com PSM esta fase deixa de ser o problema que era.** O argumento original dizia
+que a resolução grosseira do DimmerLink incomodava pouco aqui, porque o que se pede
+lá embaixo é um ponto de operação estável. Verdade — mas a raiz do problema era
+outra: **em potência baixa o ângulo de fase entrega curso incompleto**, e a bomba
+zumbe sem bombear. PSM entrega pulso inteiro sempre, só mais espaçado. Pré-infusão a
+3–4 bar sai naturalmente, e a faixa de 2 bar (*blooming*), que estava provavelmente
+fora de alcance, volta a ser plausível.
 
 **Faixa alvo: 3–4 bar.** É a faixa mais usada na prática (a referência canônica de
 ~3 bar vem da *line pressure* das máquinas comerciais plumbadas). Perfis de *blooming*
@@ -215,25 +220,30 @@ taxa compatível com a constante de tempo real, medida na caracterização.
   60 Hz e sem filtro o PID de pressão persegue a ondulação.
 - **Fault do MAX31865:** ler o registrador de falha, não inferir por valor absurdo.
 - **Estado seguro no boot:** SSR e bomba desligados **antes** de qualquer
-  inicialização de Wi-Fi ou UI. Para a bomba isso significa **mandar 0% ao
-  DimmerLink explicitamente** — ele é um controlador independente e mantém o último
-  valor recebido, inclusive através de um reset do ESP32.
-- **Watchdog do lado do dimmer:** como o DimmerLink não sabe se o ESP32 morreu, o
-  `SafetyModule` precisa reenviar 0% em qualquer caminho de falha. Um ESP32 travado
-  com a bomba em 80% não para sozinho.
-- **Nada de `RBDDimmer`:** essa biblioteca é do dimmer clássico com pinos ZC/PWM.
-  Aqui o protocolo é serial cru — ver [github.com/robotdyn-dimmer/DimmerLink](https://github.com/robotdyn-dimmer/DimmerLink).
-- **Sem ISR de zero-cross:** o DimmerLink cuida do timing. O laço de controle não
-  tem mais nenhuma seção crítica de microssegundos.
-- **`SET` não desgasta EEPROM** — pode ser chamado no laço de controle. Mas **nunca**
-  emitir `0x02 0x5B` (SWITCH_I2C): desativa a UART permanentemente, gravado em EEPROM.
-- **Comando é inteiro 0–100.** O PID interno pode trabalhar em ponto flutuante, mas
-  o valor enviado é quantizado — evitar que a quantização vire *limit cycle*
-  (oscilação em torno do setpoint saltando entre dois degraus). Zona morta ou
-  histerese de 1 degrau na saída resolve.
-- **`PumpModule` atrás de uma interface.** Se a caracterização reprovar o DimmerLink
-  ([07](07-seguranca-e-calibracao.md)), a troca para PSM deve ser uma implementação
-  nova do mesmo contrato — não uma refatoração do `ShotModule`.
+  inicialização de Wi-Fi ou UI. Com PSM isso é mais simples que com o DimmerLink:
+  não há controlador remoto guardando o último valor — parar de disparar o `Dim`
+  **é** parar a bomba. O estado inseguro no boot seria um GPIO flutuando, então
+  configure `Dim` como saída em nível baixo antes de habilitar a ISR.
+- **A ISR de zero-cross vai em IRAM.** `ESP_INTR_FLAG_IRAM`, e nada dentro dela
+  pode tocar flash (sem `ESP_LOGx`, sem chamada não-IRAM). Um cache miss de flash
+  atrasa o handler em milissegundos, e milissegundos custam semiciclo.
+- **PSM tolera jitter; ângulo de fase não.** Com ângulo de fase o instante do
+  disparo **é** o nível de potência, e erro de dezenas de µs já desestabiliza. Com
+  PSM a decisão é binária — passa o semiciclo ou pula — e o nível vem da
+  **contagem**. Jitter de centenas de µs só apara a borda de subida.
+- **Watchdog da bomba continua obrigatório**, por outro motivo: um ESP32 travado com
+  a ISR ainda disparando mantém a bomba ligada. O `SafetyModule` precisa de um
+  caminho que force `Dim` baixo em qualquer falha.
+- **Nada de `RBDDimmer`.** Usar [`banoz/PSM.Library`](https://github.com/banoz/PSM.Library),
+  que é a implementação de PSM para bomba vibratória usada pelo Gaggiuino.
+- **Quantização agora é o número de semiciclos**, não 101 degraus. A 60 Hz são 120
+  semiciclos/s: uma janela de 1 s dá resolução de ~0,8%, melhor que o DimmerLink. Mas
+  a janela também é o tempo de resposta — janela curta responde rápido e quantiza
+  grosso. Escolher com o dado da caracterização, e prever zona morta contra
+  *limit cycle*.
+- **`PumpModule` atrás de uma interface.** Continua valendo, agora no sentido
+  inverso: se o PSM decepcionar, voltar ao DimmerLink (que está comprado) deve ser
+  uma implementação nova do mesmo contrato — não uma refatoração do `ShotModule`.
 
 ## Gravação do firmware (esptool)
 

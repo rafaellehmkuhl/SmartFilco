@@ -181,10 +181,22 @@ mais linear o processo, mais simples a sintonia e mais estável em toda a faixa.
 > ([06](06-engenharia-reversa-checklist.md)) — muda a interpretação da faixa útil de
 > comando e é relevante se houver migração para PSM.
 
-### 🚦 Critério de decisão: fica no DimmerLink ou migra para PSM?
+### 🚦 Critério de decisão — ⚠️ resolvido antes do experimento
 
-Esta caracterização **é o experimento que decide** se o dimmer comprado atende. Os
-dados a extrair e o critério:
+> **Decisão tomada em 29/07/2026: vamos de PSM.** Este critério não é mais um portão
+> a atravessar; ficou registrado porque **a caracterização continua valendo**, agora
+> como linha de base para comparar contra o PSM, não como veredito sobre o DimmerLink.
+>
+> O que pesou para antecipar: o ponto fraco previsível do ângulo de fase é exatamente
+> a pré-infusão, e a física é conhecida — solenoide com pulso cortado não completa o
+> curso. Não havia muito a aprender gastando bancada para confirmar um resultado já
+> esperado. Ver [02](02-arquitetura-eletrica-pinout.md#bypass-do-dimmerlink-para-psm-decidido).
+>
+> Se ainda quiser rodar a caracterização com o V2 (que está comprado), os números
+> abaixo são o que medir — e o **mesmo procedimento serve para o PSM**, trocando
+> "degraus de comando" por "duty da janela de semiciclos".
+
+Os dados a extrair e o critério que era usado:
 
 **Alvo de pré-infusão: 3–4 bar.** Não 2 bar. A faixa usada na prática é 2–4 bar, com
 ~3 bar como referência canônica (é a *line pressure* das máquinas comerciais
@@ -198,9 +210,8 @@ plumbadas, que fazem pré-infusão abrindo o grupo para a rede de água). Perfis
 | **Pressão mínima estável** que a bomba sustenta | **> 4 bar** — pré-infusão convencional fica fora de alcance |
 | Repetibilidade subindo × descendo o comando | histerese grande |
 
-- ✅ **Passou:** segue no DimmerLink. Zero solda, zero ISR crítica no firmware.
-- ❌ **Reprovou:** migrar para **PSM**, com o bypass documentado em
-  [02](02-arquitetura-eletrica-pinout.md#plano-b--bypass-do-dimmerlink-para-psm).
+*(Critério histórico: ✅ passou → seguia no DimmerLink; ❌ reprovou → migrava para
+PSM. Superado pela decisão de 29/07/2026.)*
 
 ### Referência de campo
 
@@ -233,9 +244,15 @@ O ponto fraco previsível do que temos é a **pré-infusão**, não a extração
 fase em potência baixa é onde bomba vibratória se comporta pior, porque o solenoide
 não completa o curso. Extração a 9 bar deve ir bem em qualquer cenário.
 
-> Não antecipe a migração. O bypass exige dessoldar componente em placa de rede AC e
-> devolve a ISR de timing crítico ao firmware — só vale com dado mostrando que
-> precisa.
+> 🔄 **A recomendação de "não antecipar a migração" foi revertida em 29/07/2026.**
+> Ela se apoiava em dois custos, e os dois encolheram:
+>
+> - **"Exige dessoldar em placa de rede AC"** — só se insistir no V2 comprado. O
+>   **dimmer clássico expõe `Z-C` e `PWM` em header** por ~R$ 32, e é o que vamos
+>   comprar. Zero solda em AC.
+> - **"Devolve a ISR de timing crítico"** — devolve a ISR, mas **PSM tolera centenas
+>   de µs de jitter**, contra dezenas do ângulo de fase, porque a decisão é binária e
+>   o nível vem da contagem de pulsos. Com a ISR em IRAM, o risco é pequeno.
 
 ### Interação com a OPV
 

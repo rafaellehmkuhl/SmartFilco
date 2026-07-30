@@ -103,11 +103,15 @@ ESP32-S3. Solução: módulo level shifter bidirecional (MOSFET) entre os dois l
 | SPI MISO | **GPIO13** | SPI | |
 | CS MAX31865 | **GPIO10** | out | sensor do boiler |
 | CS microSD | **GPIO14** | out | módulo microSD |
-| UART TX → DimmerLink | **GPIO4** | out | comando da bomba, 115200 8N1 |
-| UART RX ← DimmerLink | **GPIO5** | in | resposta/ACK |
+| **Z-C** (zero-cross) | **GPIO4** | in / interrupção | do dimmer. ISR em **IRAM** |
+| **Dim** (gate do TRIAC) | **GPIO5** | out | PSM: passa ou pula o semiciclo |
 | SSR (resistência) | **GPIO6** | out | PID de temperatura |
-| Flow meter (futuro) | **GPIO7** | in / interrupção | sensor Hall |
-| Livres | GPIO1, 2, 15, 16, 17, 18, 21, 38–42, 47 | — | folga grande |
+| Livres | GPIO1, 2, 7, 15, 16, 17, 18, 21, 38–42, 47 | — | folga grande |
+
+> GPIO4/GPIO5 eram a UART do DimmerLink. Com a
+> [decisão de ir para PSM](#bypass-do-dimmerlink-para-psm-decidido) voltaram ao papel
+> original de `Z-C`/`Dim`. **GPIO7 liberou** — era reserva do flow meter, que saiu do
+> projeto ([04](04-bom-lista-de-compras.md)).
 
 Todos os pinos usados estão no **header esquerdo**, em sequência (4–14) — conveniente
 para o chicote e para a peça 3D.
@@ -138,6 +142,17 @@ Acesso "solto" fora de transação é o bug clássico aqui.
 - Rode um **I²C scan** no primeiro boot para confirmar o endereço.
 
 ## Controle da bomba: dimmer RobotDyn com **DimmerLink** integrado
+
+> ### 🔄 Decisão revista (29/07/2026): vamos de PSM, sem passar pelo DimmerLink
+>
+> Esta seção descreve o módulo **comprado** e continua válida como descrição de
+> hardware — mas o **DimmerLink não será usado**. A bomba será atuada por **PSM**,
+> com `Z-C` e `Dim` ligados direto ao ESP32. Ver
+> [Bypass do DimmerLink para PSM](#bypass-do-dimmerlink-para-psm-decidido).
+>
+> Consequência: os itens 1 e 2 abaixo **se invertem**. Volta a existir pino de
+> zero-cross e de gate, e volta a existir ISR de timing — bem menos crítica do que
+> com ângulo de fase, mas existe.
 
 O módulo comprado (variante "8A UART-I²C V2") traz o **DimmerLink** integrado —
 um controlador dedicado (Cortex-M+) que faz **toda** a parte crítica de tempo:
@@ -208,7 +223,7 @@ se pede lá embaixo é ponto de operação estável, não autoridade fina de con
 Ver [05](05-firmware-arquitetura.md) e [07](07-seguranca-e-calibracao.md).
 
 **2. Só ângulo de fase.** Não há modo de pulos de ciclo (PSM). Ver
-[Plano B](#plano-b--bypass-do-dimmerlink-para-psm) abaixo.
+[bypass para PSM](#bypass-do-dimmerlink-para-psm-decidido) abaixo.
 
 > Note que **mapeamento personalizado não é limitação**: o firmware monta a própria
 > LUT `pressão desejada → comando 0–100` a partir da caracterização, e a curva do
@@ -230,10 +245,24 @@ melhora o aproveitamento dos 101 degraus. Confirmar na caracterização ([07](07
 - [ ] Quais pads estão expostos: UART, I²C, ou ambos.
 - [ ] ⚠️ **Não** usar a biblioteca `RBDDimmer` — é do dimmer clássico, com pinos ZC/PWM.
 
-## Plano B — bypass do DimmerLink para PSM
+## Bypass do DimmerLink para PSM (decidido)
 
-**Não fazer agora.** Documentado porque a caracterização pode indicar que é
-necessário, e é melhor saber que o caminho existe antes de depender do módulo.
+**Este é o plano corrente**, desde 29/07/2026. Era Plano B condicional, à espera da
+caracterização do DimmerLink; a decisão foi antecipar. A justificativa técnica já
+estava toda escrita abaixo — o que mudou foi parar de tratá-la como hipótese.
+
+> ### 🛒 Se for comprar de novo: o dimmer **clássico** é a peça certa
+>
+> O V2 comprado (com DimmerLink integrado) é a variante **errada** para PSM: paga-se
+> por um controlador dedicado que será desligado, e chega-se aos sinais `Z-C`/`Dim`
+> por **dessoldagem em placa de rede AC** — possivelmente trocando a ponte
+> retificadora por um diodo.
+>
+> O **dimmer RobotDyn clássico expõe `Z-C` e `PWM` em header**, prontos. Custa
+> ~R$ 32 — ordens de magnitude mais barato, e mais seguro, que cirurgia no V2.
+>
+> ➡️ Comprar o clássico e guardar o V2 como reserva. Só encostar o ferro no V2 se
+> por algum motivo o clássico não vier.
 
 ### Como o Gaggiuino faz
 
@@ -306,9 +335,58 @@ que o ZC enxergue só o semiciclo negativo — é o que permite decidir se o pr�
 positivo será pulado. É dessoldagem em placa de rede AC. Verificar se a versão atual
 da PSM.Library ainda exige isso antes de encostar o ferro.
 
-**Custo de sair do DimmerLink:** volta a ISR de timing crítico para o firmware — o
-risco de jitter que ele hoje elimina de graça. Por isso a ordem é: tentar
-DimmerLink primeiro, medir, e só migrar com dado na mão.
+**Custo de sair do DimmerLink:** volta a ISR de zero-cross para o firmware.
+
+Mas **PSM é muito mais tolerante a jitter que ângulo de fase**, e isso merece ficar
+explícito porque muda o tamanho do risco:
+
+| | Precisão exigida do disparo |
+|---|---|
+| Ângulo de fase | dezenas de µs — o atraso **é** o nível de potência |
+| **PSM** | centenas de µs — a decisão é binária (passa o semiciclo ou pula) |
+
+Com PSM, jitter só apara levemente a borda de subida de um pulso que já ia passar
+inteiro. Não desestabiliza o nível de potência, porque o nível vem da **contagem**
+de pulsos, não do instante do disparo.
+
+➡️ Requisito real: a ISR de zero-cross marcada **`ESP_INTR_FLAG_IRAM`**, para não
+travar em cache miss de flash. Sem isso, o handler pode atrasar milissegundos
+quando o cache estiver ocupado — e milissegundos, aí sim, custam semiciclo.
+
+## Pinagem com placa de display RGB (se a interface virar placa integrada)
+
+Placas tipo **Waveshare/SpotPear ESP32-S3-Touch-LCD-4.3** ou **GUITION JC8048W550**
+não são displays — são ESP32-S3 completos que **substituem** o devkit. E display RGB
+não usa SPI, o que resolve de graça a disputa de barramento com MAX31865 + microSD.
+
+Em troca, o RGB come ~20 GPIOs (R3–R7, G2–G7, B3–B7, HSYNC, VSYNC, DE, PCLK) mais 3
+do touch. Por isso essas placas trazem um **CH422G**, expansor de I/O por I²C.
+
+⚠️ **`Z-C` e `Dim` não podem ir no expansor.** O CH422G é I²C: não gera interrupção,
+e cada escrita custa centenas de µs. Os dois precisam ser **GPIO reais** do ESP32.
+
+Na SpotPear sobra **GPIO6** (header de sensor) como único pino de fato livre. O
+segundo tem que sair de canibalização:
+
+| Candidato | Custo |
+|---|---|
+| GPIO15/16 (RS485) | passam pelo SP3485; conferir no esquemático se o lado do ESP32 é sangrável |
+| GPIO19/20 (USB nativa / CAN) | perde a USB nativa — e é a porta que **grava**, ver [05](05-firmware-arquitetura.md#-o-dtr-da-usb-jtag-é-o-gpio0) |
+| GPIO43/44 (console) | perde log serial |
+
+O resto encaixa sem briga:
+
+- **SSR → expansor, tranquilo.** É slow PWM de janela longa; latência de I²C é irrelevante.
+- **ADS1115 → barramento I²C** existente, sem pino extra.
+- **microSD** já está a bordo (GPIO11/12/13, CS no EXIO4).
+- **CS do MAX31865** pode ir no expansor pagando latência por transação.
+
+> Se essa placa entrar, **PSRAM vai a 120 MHz**: a doc da SpotPear diz que o
+> benchmark do LVGL dá 41 FPS e que habilitar 120M é necessário. O
+> `firmware/bringup/sdkconfig.defaults` está em `SPIRAM_SPEED_80M` e precisaria mudar.
+>
+> ⚠️ Divergência a confirmar antes de comprar: a wiki da SpotPear diz "8MB Flash",
+> o anúncio diz **N16R8** e a Waveshare documenta **16MB**.
 
 ## Sensor de temperatura: PT100 3 fios + MAX31865
 
