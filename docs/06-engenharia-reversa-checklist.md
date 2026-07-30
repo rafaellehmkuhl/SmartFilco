@@ -52,7 +52,13 @@ sozinho custa mais que boa parte da BOM deste projeto.
 ## B. Hidráulico
 
 - [ ] Traçar o caminho da água: reservatório → bomba → (OPV?) → boiler → grupo → porta-filtro.
-- [ ] **Existe OPV?** Se sim, onde e qual a pressão de abertura (se marcada/ajustável).
+- [ ] **Existe OPV? Em que pressão abre?** Único item hidráulico ainda em aberto — a
+      [`03`](03-esquema-hidraulico.md#-decisão-30072026-não-comprar-opv-ajustável)
+      já decidiu **não comprar** OPV ajustável; esta verificação só define se há algo
+      a ajustar no que já existe.
+- [x] ~~Confirmar tipo de cesta~~ — **despressurizada (naked)**, confirmado em
+      30/07/2026. Importa porque com cesta pressurizada a pressão medida é dominada
+      pelo restritor da cesta, não pelo puck: você estaria perfilando o acessório.
 - [ ] Onde está hoje o **TEE do manômetro**; há espaço para TEE + OPV + sensor + manômetro juntos?
 - [ ] Medir/confirmar **rosca 1/8" NPT** e **mangueira 4 mm** em cada conexão (macho/fêmea).
 - [ ] Medir comprimentos de mangueira necessários e identificar pontos de fixação.
@@ -62,10 +68,13 @@ sozinho custa mais que boa parte da BOM deste projeto.
 
 - [ ] **Modelo/marca** da bomba (foto da etiqueta): é ULKA (EP5/EX5) ou clone?
 - [ ] Tensão e potência (ex.: 48W / 230V).
-- [ ] **Existe diodo em série com a bomba?** Ulkas normalmente têm, o que as faz
-      trabalhar em **meia onda** e limita o duty máximo a ~50%. Muda a interpretação
-      da faixa útil de comando e importa se houver migração para PSM
-      ([07](07-seguranca-e-calibracao.md)).
+- [ ] **Diodo: identificar pelo MODELO, não procurar na fiação.** As Ulka **EP5 e
+      EX5 têm um 1N4007P integrado ao corpo da bomba** — não aparece no chicote, e
+      não é escolha do fabricante da cafeteira. A foto da etiqueta acima já responde.
+      - **É EP5 ou EX5** → tem diodo → trabalha em meia onda → **`divider = 2`** no
+        PSM ([02](02-arquitetura-eletrica-pinout.md#-divider--2-é-a-resposta-ao-diodo-da-bomba)).
+      - **É clone sem identificação** → aí sim vale medir: alimentar em baixa tensão
+        AC e verificar se conduz nas duas polaridades.
 - [ ] Como o dimmer atual está ligado nela.
 - [ ] Registrar comportamento atual: com o dimmer, a pressão desce até ~11–12 bar mas não chega a 9 — confirmar e anotar em quais posições.
 

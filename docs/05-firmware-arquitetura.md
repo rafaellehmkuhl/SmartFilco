@@ -15,39 +15,52 @@
   Isso é uma vantagem arquitetural — obriga a API a ser a fonte única de verdade, e
   o LVGL entra depois como **mais um cliente** dela, não como caminho paralelo.
 
-## Divisão em duas placas — agora **físicas**
+## Divisão em duas "placas lógicas" — **num chip só**
 
-> 🔄 **Revisto em 29/07/2026.** Esta divisão nasceu lógica, num chip só. Na fase de
-> interface ela passa a ser **física**: dois ESP32-S3, um controlando e um desenhando.
-> Ver o porquê em [02](02-arquitetura-eletrica-pinout.md#por-que-a-placa-com-display-rgb-não-serve-como-controlador).
+> 🔄 **Histórico das revisões.** Esta divisão nasceu lógica (um ESP32-S3). Em 29/07
+> virou **física** (duas placas), porque nenhuma placa com display tinha pino
+> sobrando. Em 30/07 **voltou a ser lógica**: a GUITION JC4880P443C (ESP32-P4, DSI)
+> deixa 12 GPIOs livres, então uma placa faz as duas coisas. Ver
+> [02](02-arquitetura-eletrica-pinout.md#-decisão-30072026-guition-jc4880p443c-placa-única).
 
-- **Control Board (tempo-real):** a DevKitC-1 que já está em mãos. Sensores, PID de
-  temperatura, PSM da bomba, SSR, watchdog, limites de segurança, servidor da API.
-- **UI Board (interface):** a placa com display integrado. **Não recebe nenhum
-  sinal de sensor ou atuador** — só desenha e toca. É um cliente da API, igual ao
-  navegador.
+- **Control Board (tempo-real):** sensores, PID de temperatura, PSM da bomba, SSR,
+  watchdog, limites de segurança.
+- **UI Board (interface):** Wi-Fi, web server, API, logging, e o LVGL.
 
-O que a separação compra:
+Ambas vivem no **ESP32-P4**. O LVGL continua sendo **cliente da mesma API** que o
+navegador consome — a separação é de disciplina, e o `firmware/bringup` já implementa
+o lado servidor.
 
-| | Chip único | Duas placas |
-|---|---|---|
-| GPIOs livres para sensores/atuadores | 1 (na placa RGB) | ~20 (na DevKitC-1) |
-| ISR de zero-cross competindo com DMA do RGB | sim | não |
-| Trabalho de API | — | **zero, já existe** (`firmware/bringup` serve estado por WebSocket) |
+### Uso dos núcleos
 
-A UI vira mais um cliente da mesma API, que é exatamente o que este documento já
-pedia — a diferença é que agora o isolamento é de hardware, não de disciplina.
+O P4 tem dois núcleos HP a 360 MHz mais um LP a 40 MHz.
 
-### Uso dos núcleos, na placa de controle
+- **HP core 1 → controle.** PID, máquina de estado do PSM, proteções, e a ISR de
+  `Z-C` fixada aqui.
+- **HP core 0 → interface.** LVGL, esp-hosted/SDIO, LWIP, servidor da API.
+- **LP core → livre.** Disponível, sem plano de uso.
 
-- **Core 1:** laço de controle determinístico (sensores, PID, PSM, SSR, proteções).
-- **Core 0:** Wi-Fi, LWIP, web/API, gravação no microSD.
+Isso importa mais aqui do que na arquitetura de duas placas, porque o **LVGL voltou
+para o mesmo chip do controle**. Renderizar 480×800 não é barato.
 
-> ⚠️ **Correção:** este documento sugeria o inverso (controle no core 0, Wi-Fi no
-> core 1). Está errado na prática: o ESP-IDF fixa a task de Wi-Fi no **core 0** por
-> padrão (`CONFIG_ESP_WIFI_TASK_PINNED_TO_CORE_0`), então é o controle que deve sair
-> de lá. Inverter exigiria mover o Wi-Fi contra o padrão, sem ganho.
+> ⚠️ **Correção de um exagero anterior.** Foi dito que, com o Wi-Fi no ESP32-C6, "o
+> jitter contra a ISR deixa de existir por construção". É mais forte que a verdade.
+> No **esp-hosted**, o C6 roda o driver 802.11 e o rádio — a parte de **tempo real
+> duro** — mas a **pilha TCP-IP (LWIP) continua rodando no P4**, falando com o C6 por
+> SDIO.
 >
+> O ganho é real e grande: o que sai do chip de controle é justamente a parte com
+> timing rígido (beacon, janelas de ACK). Mas não é "não existe mais" — é "a parte
+> perigosa saiu". LWIP é *soft*: um pacote atrasado 5 ms não quebra nada.
+
+### Se a P4 for descartada
+
+Com um ESP32-S3 (DevKitC-1 atual ou o Waveshare 3,5"), o mapa é o mesmo com uma
+diferença que **contradiz o que este documento dizia originalmente**:
+
+> Este documento sugeria controle no core 0 e Wi-Fi no core 1. Está errado na
+> prática: o ESP-IDF fixa a task de Wi-Fi no **core 0** por padrão
+> (`CONFIG_ESP_WIFI_TASK_PINNED_TO_CORE_0`), então é o controle que deve sair de lá.
 > O `firmware/bringup` já implementa o arranjo correto — `CORE_RT 1` / `CORE_NET 0`,
 > com `LWIP_TCPIP_TASK_AFFINITY_CPU0` no `sdkconfig.defaults`.
 
@@ -172,11 +185,64 @@ mesma API. Começar no Arduino significaria migrar depois, no pior momento.
 > ➡️ Não manter lista própria de clientes. `httpd_get_client_list()` +
 > `httpd_ws_get_fd_info()` dizem quem está conectado e quem falou WS. Isso apaga
 > registro, slots e limpeza de socket morto, e nunca dessincroniza.
-- **LVGL** só na fase 3, e **noutro chip**: a UI Board. Isso dissolve o alerta que
-  estava aqui — não há mais display disputando SPI com MAX31865 e microSD, porque o
-  display não está na mesma placa (e, sendo RGB, não usa SPI de todo jeito).
-  O alerta volta a valer **se** a opção de placa única com display SPI for retomada:
-  aí o display precisa do outro host SPI, sozinho, ou a fluidez morre.
+- **LVGL** só na fase 3 — ver seção abaixo.
+
+## LVGL: componentes e o que esperar de desempenho
+
+Tudo o que a fase 3 precisa existe como componente mantido pela Espressif, instalável
+por `idf_component.yml`:
+
+| Componente | Versão (jul/2026) | Papel |
+|---|---|---|
+| `espressif/esp_lvgl_port` | 2.8.0 | cola LVGL ↔ `esp_lcd`: task de tick, `lv_timer_handler`, mutex, callback de fim de DMA |
+| `lvgl/lvgl` | 9.5.0 | LVGL |
+| `espressif/esp_lcd_st7796` | 1.4.0 | painel SPI (se a opção for o Waveshare 3,5") |
+| `espressif/esp_lcd_touch_ft5x06` | 1.1.0 | touch FT6336 (mesma família FT6x36) |
+
+> O `esp_lvgl_port` é o análogo do que o `esp_http_server` foi para o WebSocket: sem
+> ele, escreve-se à mão a task de tick, o mutex entre UI e flush, e o tratamento de
+> "transferência DMA terminou".
+
+### ⚠️ Números medidos — e a correção de uma fonte de fabricante
+
+Este documento citava **41 FPS** para o benchmark do LVGL, com base na wiki da
+SpotPear. O número está **contradito pela medição da própria Espressif** na placa de
+referência dela ([esp_lvgl_port/performance.md](https://github.com/espressif/esp-bsp/blob/master/components/esp_lvgl_port/docs/performance.md)):
+
+| Placa de referência, RGB 800×480 | LVGL 8 | LVGL 9 |
+|---|---|---|
+| Default | **12 FPS** | 9 FPS |
+| Otimizado | **16 FPS** | 11 FPS |
+
+Os 41 FPS aparecem lá só na linha com `Refresh period: 10 ms` — ajuste de medição, não
+configuração de uso. Foi um número de fabricante registrado aqui sem contraditório.
+
+**Duas conclusões práticas:**
+
+**LVGL 9 é ~25% mais lento que LVGL 8** nessas placas. Não é motivo para começar na 8
+(a 9.5 é o que tem suporte), mas é alavanca real se a fluidez apertar.
+
+**Display SPI não é o compromisso que parecia.** Um painel SPI tem **memória própria**
+(o ST7796 carrega a GRAM), então o ESP32 manda por DMA só o retângulo que mudou. Um
+painel **RGB não tem memória nenhuma**: o framebuffer inteiro precisa morar no chip e
+ser varrido continuamente — e 800×480×2 = **768 KB** contra **512 KB de SRAM interna
+total** do S3, o que obriga a PSRAM. É por isso que a RGB é mais lenta apesar de ter
+barramento mais largo.
+
+> Para a UI descrita aqui — gráfico ao vivo, alguns números e botões — as regiões que
+> mudam são pequenas, que é exatamente onde SPI é eficiente. Onde SPI perde é em
+> transição de tela cheia: repintar 480×320 a 80 MHz leva ~31 ms.
+
+### Configuração vale mais que driver
+
+Da mesma medição da Espressif: o tamanho do buffer é *"by far the most significant
+setting"*, e **SRAM interna supera PSRAM significativamente**.
+
+- Buffer de **10–25% da tela**, não mais. Com 480×320, 25% são **77 KB** — cabe na
+  SRAM interna.
+- Foi aí que a diferença de 12 para 28 FPS apareceu nas medições deles.
+- Com painel **RGB** essa escolha não existe: o framebuffer é obrigado a ir para a
+  PSRAM. Mais um motivo pelo qual ele perde.
 
 ### Ajustes de `sdkconfig` que valem
 
@@ -261,8 +327,40 @@ taxa compatível com a constante de tempo real, medida na caracterização.
 - **Watchdog da bomba continua obrigatório**, por outro motivo: um ESP32 travado com
   a ISR ainda disparando mantém a bomba ligada. O `SafetyModule` precisa de um
   caminho que force `Dim` baixo em qualquer falha.
-- **Nada de `RBDDimmer`.** Usar [`banoz/PSM.Library`](https://github.com/banoz/PSM.Library),
-  que é a implementação de PSM para bomba vibratória usada pelo Gaggiuino.
+- **Nada de `RBDDimmer`.** A referência é [`banoz/PSM.Library`](https://github.com/banoz/PSM.Library),
+  usada pelo Gaggiuino — mas **portar, não depender**. Ver abaixo.
+
+### PSM: portar o algoritmo, não adicionar a dependência
+
+A `PSM.Library` é **Arduino** (`attachInterrupt`, `digitalWrite`, `Arduino.h`) e não
+roda em ESP-IDF direto. Isso é bom: o algoritmo tem ~30 linhas, então porta-se em vez
+de adicionar dependência. E a dependência não seria boa — o repositório **não tem
+README**, tem 9 estrelas e último push em jun/2024. É implementação de referência.
+
+O núcleo é um acumulador de Bresenham:
+
+```cpp
+_a += _value;
+if (_a >= _range) { _a -= _range; _skip = false; }   // deixa passar
+else                                _skip = true;    // pula
+```
+
+**Isso não é detalhe de implementação, é o que ataca o único ponto fraco documentado
+do PSM.** A [`07`](07-seguranca-e-calibracao.md) registra que o contra real é **ripple
+de pressão em duty baixo**. Um acumulador com transbordo **distribui** os pulsos
+uniformemente em vez de agrupá-los — que é exatamente o que minimiza esse ripple.
+
+Parâmetros que importam no porte:
+
+| | |
+|---|---|
+| `range` | resolução. Com 120 semiciclos/s e `range=127`, o padrão fecha em ~1,06 s → ~0,8% de resolução |
+| **`divider`** | **`2` se a bomba tiver diodo interno** (EP5/EX5 têm) — ver [02](02-arquitetura-eletrica-pinout.md#-divider--2-é-a-resposta-ao-diodo-da-bomba) |
+| `interruptMinTimeDiff` | debounce em ms contra borda espúria do ZC |
+
+> A saída é `digitalWrite` puro — **nunca calcula atraso de disparo**. É por isso que
+> o PSM não precisa saber a polaridade do semiciclo, e por isso que o mod do diodo no
+> dimmer **não é necessário**.
 - **Quantização agora é o número de semiciclos**, não 101 degraus. A 60 Hz são 120
   semiciclos/s: uma janela de 1 s dá resolução de ~0,8%, melhor que o DimmerLink. Mas
   a janela também é o tempo de resposta — janela curta responde rápido e quantiza

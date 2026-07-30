@@ -1,8 +1,16 @@
 # 04 — BOM / Lista de compras
 
-> **Status (jul/2026):** Leva 1 **fechada**. A eletrônica está comprada ou já em
-> mãos; falta só miudeza de loja local. A Leva 2 (hidráulica) continua dependendo
-> da engenharia reversa ([06](06-engenharia-reversa-checklist.md)).
+> **Status (30/07/2026): a BOM fechou.** Leva 1 encomendada em 26/07 (chega ~05/08),
+> Leva 2 já estava em mãos de projetos anteriores, e a OPV saiu do projeto.
+>
+> **Sobra uma única compra no AliExpress: o dimmer RobotDyn `8A-Standard`**
+> ([modelo exato](02-arquitetura-eletrica-pinout.md#modelo-exato-a-comprar)) — ~10 dias
+> a partir da encomenda. Fora isso, só miudeza de loja local.
+>
+> ⚠️ **O caminho crítico deixou de ser peça: virou abrir a máquina.** A
+> [`06`](06-engenharia-reversa-checklist.md) não depende de compra nenhuma e destrava
+> as últimas perguntas em aberto (modelo da bomba → `divider` do PSM, existência da
+> OPV, roscas). Pode ser feita hoje.
 
 Decisão do usuário: **sem redundância** (1 de cada). Risco assumido: se o sensor de
 pressão vier com defeito, são +2 semanas de espera.
@@ -30,8 +38,8 @@ pressão vier com defeito, são +2 semanas de espera.
 | Item | Observação |
 |---|---|
 | **ESP32-S3-WROOM-1 N16R8**, dual USB-C | substitui o Waveshare na Fase 1 — projeto começa **headless**. ⚠️ PSRAM octal: **GPIO33–37 inutilizáveis** apesar de estarem no header |
-| **Fonte HLK-5M05** (AC→5V, 5W) | ⚠️ Basta para a Fase 1 headless, mas **não** para a fase de interface: ver nota de fonte abaixo |
-| **Level shifter bidirecional** | obrigatório: ADS1115 em 5 V × I²C 3,3 V do ESP32 |
+| **Fonte HLK-5M05** (AC→5V, 5W) | ✅ **em mãos** (projeto anterior). Basta para a Fase 1 headless, mas **não** para a fase de interface: ver nota de fonte abaixo |
+| **Level shifter bidirecional** | ✅ **em mãos** (projeto anterior). Obrigatório: ADS1115 em 5 V × I²C 3,3 V do ESP32 |
 | **Módulo microSD SPI** + cartão | o devkit não tem slot; compartilha o bus SPI com o MAX31865 |
 | **Manômetro analógico** (12 bar) | já instalado na máquina |
 | **Terminais Faston / conectores da máquina** | serão reaproveitados |
@@ -64,27 +72,43 @@ pressão vier com defeito, são +2 semanas de espera.
 | ~~1~~ | ~~Flow meter Hall (YF-S401)~~ | **REMOVIDO** | Ver abaixo — não mede espresso, e com PSM não é preciso |
 | 2 | **ACS712** (20A) | "ACS712 20A module" | diagnóstico de corrente (resistência/bomba) |
 | 1 | Sensor de nível (boia magnética) | "magnetic float switch" | evitar bomba a seco |
-| 1 | **Placa com display integrado, como UI Board** | "ESP32-S3 Touch LCD 4.3 800x480" / "GUITION JC8048W550" | ver nota abaixo |
+| 1 | **GUITION JC4880P443C** — ESP32-P4 + C6, 4,3" 480×800 MIPI-DSI | [item 1005009618259341](https://pt.aliexpress.com/item/1005009618259341.html) | **placa única**: controle + interface. Ver nota abaixo |
 | 1 | **Fonte AC→5V de 10 W** | "HLK-10M05" | substitui a de 5 W quando o display entrar |
 
-### 🖥️ Display: placa integrada, mas como **UI Board** separada
+### 🖥️ Display: **GUITION JC4880P443C (ESP32-P4, 4,3")** — uma MCU só
 
-Decidido em 29/07/2026. A placa com display **não** substitui a DevKitC-1 — entra ao
-lado dela, sem receber nenhum sinal de sensor ou atuador. Só desenha e toca, como
-cliente da API que o `firmware/bringup` já serve por WebSocket.
+> 🔄 **Revisto em 30/07/2026.** Em 29/07 a decisão era comprar uma placa RGB e usá-la
+> como **UI Board separada**, ao lado da DevKitC-1 — porque nenhuma placa integrada
+> tinha pino sobrando. Pesquisa posterior encontrou uma que tem.
 
-Motivo curto: na placa RGB **sobra 1 GPIO livre em header**, e o PSM precisa de 2
-pinos reais que não podem ir no expansor I²C. Contagem completa em
-[02](02-arquitetura-eletrica-pinout.md#por-que-a-placa-com-display-rgb-não-serve-como-controlador).
+**O que mata uma placa integrada é a interface do display, não o display embutido:**
 
-| Opção | Tela | Serve de controlador? |
+| Interface | Display come | Sobra na placa |
 |---|---|---|
-| SpotPear/Waveshare **4.3"** RGB, 800×480 | grande | ❌ 1 GPIO livre |
-| GUITION **JC8048W550** 5" RGB, 800×480 | maior | ❌ idem |
-| Waveshare **3.5"** SPI/ST7796, 480×320 | menor | ✅ 12 GPIOs livres — placa única viável |
+| **RGB** paralelo | ~20 GPIOs + 3 do touch | **1** ❌ |
+| **SPI** (ST7796) | 5–7 | 12 ✅ |
+| **MIPI-DSI** (P4) | **1** (só o reset) | **12 + I²C dedicado** ✅ |
 
-⚠️ **Antes de comprar a de 4,3":** a wiki da SpotPear diz "8MB Flash", o anúncio diz
-N16R8 e a Waveshare documenta 16MB. Confirmar.
+| Opção | Tela | Preço | Controlador? |
+|---|---|---|---|
+| **GUITION JC4880P443C**, ESP32-P4+C6, 4,3" 480×800 DSI | maior | **R$ 167 + 34** | ✅ **recomendada** |
+| Waveshare ESP32-S3 3,5" SPI/ST7796, 320×480 | menor | R$ 179 + ~36 | ✅ viável (12 livres, 2 são strapping) |
+| Waveshare/SpotPear 4,3" **RGB** 800×480 | grande | R$ 167 | ❌ 1 GPIO livre |
+| GUITION JC8048W550 5" **RGB** | maior | R$ 168 | ❌ idem |
+| Display "burro" ST7796 avulso | — | R$ 135 | ❌ **mais caro que placa integrada com o mesmo painel** |
+
+**Por que a P4 ganha:** cabe em 7 dos 12 pinos livres (sobram 5), tem tela maior que a
+3,5", custa menos que a Waveshare, e o **Wi-Fi mora num ESP32-C6 separado** — o que
+tira do chip de controle a parte de tempo real duro do rádio. Mapa completo do header
+em [02](02-arquitetura-eletrica-pinout.md#o-header-de-26-pinos-da-jc4880p443c).
+
+⚠️ **Antes de comprar:**
+- Conferir quais dos GPIOs 28–35 / 49–52 são **strapping** no ESP32-P4 — `Z-C` e `Dim`
+  não podem cair num deles.
+- Confirmar se há **slot TF** (a Waveshare P4 tem; esta não foi confirmada). Sem ele o
+  microSD compartilha o SPI do MAX31865 e custa +1 CS — continua cabendo.
+- A pinagem oficial **não é publicada**: mora num ZIP em file host chinês. O mapa que
+  temos veio da imagem de "PIN DEFINITIONS" do anúncio.
 
 ### ⚡ Fonte: 5 W não aguenta as duas placas
 
@@ -138,28 +162,41 @@ RobotDyn clássico expõe `Z-C` e `PWM` em header**, prontos, por ~R$ 32.
 
 | Qtd | Item | Buscar por | Função |
 |---|---|---|---|
-| 1 | **Dimmer AC RobotDyn 8A clássico** (pinos ZC/PWM) | "RobotDyn AC dimmer 8A ZC PWM" | bomba por PSM. ⚠️ **Não** a variante UART/I²C V2 |
+| **2** | **Dimmer AC RobotDyn `8A-Standard`** | [item 32802025086](https://pt.aliexpress.com/item/32802025086.html) | bomba por PSM. Header `VCC GND Z-C `**`PSM`** (a serigrafia diz PSM, não PWM). TRIAC **BTA16-600B de aba isolada**. Comprar 2: o frete custa mais que a peça. ⚠️ **Não** a variante UART/I²C V2 |
 
 Guardar o V2 como reserva. Detalhes em
 [02](02-arquitetura-eletrica-pinout.md#bypass-do-dimmerlink-para-psm-decidido).
 
 ---
 
-## 🔧 Leva 2 — Hidráulica (comprar após abrir a máquina)
+## ✅ Leva 2 — Hidráulica — **fechada, nada a comprar**
 
-Padronizar tudo em **1/8" NPT** + mangueira **4 mm**.
+Padronizada em **1/8" NPT** + mangueira **4 mm**.
 
-| Qtd | Item | Notas |
+| Qtd | Item | Situação |
 |---|---|---|
-| 1 | **TEE 1/8" NPT** | ponto de pressão: manômetro + sensor |
-| 1 | **OPV ajustável** para espresso | confirmar entrada/saída 1/8" NPT; regular como teto de segurança |
-| — | Adaptadores **1/8" NPT → espigão/push-fit 4 mm** | conexão às mangueiras |
-| — | Mangueira de silicone/PTFE alta temperatura, 4 mm | comprimento conforme a máquina |
-| — | **Fita veda-rosca PTFE** | vedação das roscas NPT |
-| 1 | (contingência) **parafuso do chuveiro** em inox/sextavado | ver [06](06-engenharia-reversa-checklist.md) — é a peça que mais mata essa máquina |
+| 1 | **TEE 1/8" NPT** | ✅ **em mãos** — já instalado no manômetro analógico |
+| — | Adaptador **1/8" NPT → 4 mm** | ✅ **em mãos** — em uso no manômetro |
+| — | Mangueira 4 mm alta temperatura | ✅ **em mãos** |
+| — | **Fita veda-rosca PTFE** | ✅ **em mãos** |
+| ~~1~~ | ~~**OPV ajustável**~~ | ❌ **decidido não comprar** — ver abaixo |
+| 1 | (contingência) **parafuso do chuveiro** em inox/sextavado | só se quebrar — ver [06](06-engenharia-reversa-checklist.md) |
 
 > O **adaptador BSP→NPT** saiu da lista: o sensor comprado já é 1/8" NPT.
 
-> **Antes de fechar a Leva 2, confirme na máquina:** se já há OPV (e sua pressão),
-> macho/fêmea de cada rosca, espaço físico para TEE+OPV+sensor+manômetro, e o
-> comprimento de mangueira. Checklist completo em [06](06-engenharia-reversa-checklist.md).
+### ❌ OPV ajustável — fora do projeto (30/07/2026)
+
+Resumo: **a pressão de estol da própria Ulka (~15 bar) já é o teto de segurança, e a
+máquina é projetada para ele.** Não existe modo de falha em que o software faça a
+bomba passar disso. E uma OPV regulada baixo brigaria com o controle em malha
+fechada, que é quem define a pressão de extração aqui.
+
+Argumento completo em
+[03](03-esquema-hidraulico.md#-decisão-30072026-não-comprar-opv-ajustável). Se ao
+abrir a máquina existir uma OPV, a ação é no máximo **ajustar a que já está lá** —
+nunca adicionar outra.
+
+> A ressalva antiga ("antes de fechar a Leva 2, confirme na máquina roscas e espaço")
+> perdeu o objeto: as peças já estavam em mãos de projetos anteriores e já estão
+> instaladas e funcionando no manômetro analógico. O que sobra para a abertura é a
+> pergunta da OPV, que não bloqueia compra nenhuma.

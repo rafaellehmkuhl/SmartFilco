@@ -264,6 +264,59 @@ estava toda escrita abaixo — o que mudou foi parar de tratá-la como hipótese
 > ➡️ Comprar o clássico e guardar o V2 como reserva. Só encostar o ferro no V2 se
 > por algum motivo o clássico não vier.
 
+### Modelo exato a comprar
+
+**RobotDyn `8A-Standard`** ([loja oficial](https://pt.aliexpress.com/item/32802025086.html)),
+~R$ 23. Comprar **2** — o frete (~R$ 29) custa mais que a peça, e a segunda unidade
+não paga frete extra.
+
+⚠️ A mesma listagem vende três coisas diferentes. Só a **Standard** serve:
+
+| Variante | Header | Serve? |
+|---|---|---|
+| **8A-Standard** | `VCC` `GND` `Z-C` **`PSM`** | ✅ |
+| DIMMER + DimmerLink (8A UART-I2C V2) | `VCC` `GND` `TX/SDA` `RX/SCL` | ❌ é a que já temos |
+| DimmerLink avulsa | `TX/SDA` `RX/SCL` + `Z-C` `D-1` `D-2` | ❌ é só o controlador |
+
+> A serigrafia do quarto pino é literalmente **`PSM`**, não "PWM" — a própria RobotDyn
+> nomeia o pino pelo método que escolhemos.
+
+**Por que 8A e não 4A.** Não é corrente: a Ulka puxa ~0,4 A em 127 V, então 4A já é
+10× o necessário. É o encapsulamento do TRIAC:
+
+| Variante | TRIAC | Aba |
+|---|---|---|
+| **8A** | **BTA16-600B** (ST) | **isolada** — a aba metálica não é viva |
+| 4A | BT136S-600E (NXP) | não isolada |
+
+Montar dentro da máquina com aba isolada é menos perigoso, e a diferença de preço é
+irrelevante. **Não precisa de dissipador** — um usuário mediu ~60 °C, mas a 8 A; a
+0,4 A a dissipação é desprezível (diferente do SSR, que precisa).
+
+### ❌ Por que a V2 não faz PSM, nem com software
+
+Registrado porque a pergunta é natural — a V2 está comprada e é tentador economizar.
+São três impedimentos independentes, qualquer um bastaria.
+
+**1. O comando não existe.** A API completa do DimmerLink é `SET`, `GET`, `CURVE`,
+`GETCURVE`, `FREQ`, `RESET`, `SWITCH_I2C`. O único controle é "põe em X%", com escolha
+de curva. Nada de pulo de ciclo.
+
+**2. A UART é uma ordem de grandeza lenta demais.** A documentação do próprio
+fabricante manda *"add delay between commands (50-100 ms)"* e *"wait for
+acknowledgment before the next command"*. PSM precisa de uma decisão a cada **8,33 ms**.
+É 6 a 12× mais lento — arquitetura errada, não questão de otimizar.
+
+**3. Não há zero-cross no header.** A V2 expõe só `VCC`, `GND`, `TX/SDA`, `RX/SCL`.
+Sem `Z-C` não há em quê sincronizar.
+
+> E o DimmerLink é vendido como **"SEM Flicker"**: ele suaviza transições de propósito.
+> PSM quer o oposto — ligar e desligar abruptamente a cada semiciclo. O produto
+> trabalha ativamente contra o método.
+
+A V2 continua útil: é um dimmer de ângulo de fase funcional, e é o plano B caso o PSM
+decepcione na bancada.
+
 ### Como o Gaggiuino faz
 
 O Gaggiuino **não** usa ângulo de fase na bomba: usa **PSM (Pulse Skip Modulation)**,
@@ -329,11 +382,55 @@ estágios estão na mesma PCB, mas a interface entre eles continua existindo.
 3. Ligar **Z-C → GPIO de interrupção** e **Dim → GPIO de saída** no ESP32.
 4. Usar `banoz/PSM.Library`, como o Gaggiuino.
 
-⚠️ **Não é bypass puro de fiação.** Os projetos de PSM sobre dimmer RobotDyn relatam
-precisar **trocar a ponte retificadora do detector de zero-cross por um diodo**, para
-que o ZC enxergue só o semiciclo negativo — é o que permite decidir se o próximo pulso
-positivo será pulado. É dessoldagem em placa de rede AC. Verificar se a versão atual
-da PSM.Library ainda exige isso antes de encostar o ferro.
+### ✅ O mod do diodo **não é necessário** — verificado no código (30/07/2026)
+
+Circulava (e este documento repetia) que PSM sobre dimmer RobotDyn exigiria **trocar
+a ponte retificadora do detector de zero-cross por um diodo**. Fomos ler a
+[`banoz/PSM.Library`](https://github.com/banoz/PSM.Library). **Não exige.**
+
+A função de saída inteira é:
+
+```cpp
+void PSM::updateControl() {
+  if (PSM::_skip) digitalWrite(PSM::_controlPin, LOW);
+  else            digitalWrite(PSM::_controlPin, HIGH);
+}
+```
+
+**Ela nunca calcula atraso de disparo.** Só põe o gate alto ou baixo — e um TRIAC
+conduz nas duas polaridades. Logo a biblioteca **não precisa saber qual semiciclo é**.
+
+É daí que vem a confusão: bibliotecas de **ângulo de fase** precisam da polaridade,
+porque o atraso a partir do cruzamento *é* o nível de potência. Trocar a ponte por
+diodo resolve **aquele** problema. PSM não o tem.
+
+E a ZC de onda completa do RobotDyn (ponte + opto 4N25) entrega **um pulso por
+semiciclo**, que é justamente a granularidade que o PSM quer. Recurso, não defeito.
+
+**Três parâmetros do construtor cobrem em software o que o mod faria em hardware:**
+
+`PSM(sensePin, controlPin, range, mode, divider, interruptMinTimeDiff)`
+
+| Parâmetro | Resolve |
+|---|---|
+| `mode` — RISING / FALLING / CHANGE | qual borda contar |
+| **`divider`** | agir a cada N-ésimo evento de ZC |
+| `interruptMinTimeDiff` | debounce em ms, contra borda espúria de pulso largo |
+
+### 🔗 `divider = 2` é a resposta ao diodo da bomba
+
+A [`06`](06-engenharia-reversa-checklist.md) manda verificar se a Ulka tem **diodo em
+série**. Agora esse item do checklist tem ação associada.
+
+Com diodo em série a bomba trabalha em meia onda: **metade dos semiciclos não produz
+curso nenhum**. Se o PSM liberar um semiciclo da polaridade errada, gastou uma decisão
+de "ligar" em nada — e o mapeamento `value/range` → vazão fica não-linear.
+
+Como os eventos de ZC alternam de polaridade, **`divider=2` trava você sempre na mesma
+polaridade** — a que conduz. É granularidade de ciclo completo alinhada à metade útil,
+sem tocar em ferro de solda.
+
+➡️ **Tem diodo → `divider=2`. Não tem → `divider=1`.**
 
 **Custo de sair do DimmerLink:** volta a ISR de zero-cross para o firmware.
 
@@ -393,24 +490,60 @@ a PSRAM por DMA continuamente. Viável, mas é procurar briga de graça.
 > latência de I²C irrelevante), ADS1115 no I²C existente, microSD já a bordo, CS do
 > MAX31865 no expansor pagando latência. O impedimento é só `Z-C`/`Dim`.
 
-### ➡️ Decisão: a placa RGB entra como **UI Board**, em separado
+### ➡️ Decisão (30/07/2026): **GUITION JC4880P443C**, placa única
 
-Compra-se a placa com display, mas ela **não recebe sinal de sensor nem de atuador** —
-só desenha e toca, como cliente da API. O controle fica na DevKitC-1, que já está em
-mãos e tem ~20 GPIOs livres. Ver
-[05](05-firmware-arquitetura.md#divisão-em-duas-placas--agora-físicas).
+> Em 29/07 a decisão era usar a RGB como **UI Board separada**, ao lado da DevKitC-1,
+> porque nenhuma placa integrada tinha pino sobrando. Pesquisa posterior achou uma que
+> tem — e ela resolve o problema em vez de contorná-lo.
 
-Custo zero de firmware novo: o `firmware/bringup` já serve estado por WebSocket.
+O que mata a RGB é a **interface do display**, não o display embutido:
 
-### A alternativa de placa única, se for esse o objetivo
+| Interface | Display consome | Sobra |
+|---|---|---|
+| RGB paralelo | ~20 GPIOs + 3 do touch | **1** |
+| SPI (ST7796) | 5–7 | 12 |
+| **MIPI-DSI** (ESP32-P4) | **1** (só o reset) | **12 + I²C dedicado** |
 
-O que mata a RGB é a **interface**, não o fato de ter display embutido. Display **SPI**
-usa 5–7 pinos em vez de 23 — a tabela no topo deste documento registra que o Waveshare
-3,5" (SPI/ST7796) deixava **12 GPIOs livres**, contra 1 da RGB.
+### O header de 26 pinos da JC4880P443C
 
-A lista de periféricos do projeto cabe em ~11 pinos. Então **placa única é viável com
-display SPI, nunca com RGB**. Custo: tela menor, menos resolução, e o display precisa
-ir no **segundo host SPI** para não disputar com MAX31865 + microSD.
+⚠️ **A pinagem oficial não é publicada em fonte indexável** — mora num ZIP em file
+host chinês, e o repositório não-oficial da comunidade cobre outras placas da GUITION,
+não esta. O mapa abaixo foi transcrito da imagem "PIN DEFINITIONS" do anúncio. **Vale
+conferir contra o ZIP antes de ligar qualquer coisa em rede AC.**
+
+| Esquerda | Direita |
+|---|---|
+| `3V3` · `3V3` · `GND` | `5V` · `5V` · `GND` |
+| **`GPIO52` `GPIO51` `GPIO50` `GPIO49`** | **`GPIO33` `GPIO31` `GPIO30` `GPIO29`** |
+| **`GPIO35` `GPIO34` `GPIO32` `GPIO28`** | `GND` · `ESP_3V3` |
+| `I2C_SDA` · `I2C_SCL` | `C6_U0RXD` `C6_U0TXD` `C6_IO9` `C6_CHIP_PU` |
+
+**12 GPIOs livres**, mais o par I²C em pinos próprios. Encaixe do projeto:
+
+| Sinal | Pinos do header |
+|---|---|
+| `Z-C` + `Dim` (PSM) | 2 |
+| SSR | 1 |
+| MAX31865 (SPI + CS) | 4 |
+| ADS1115 | **0** — vai no I²C dedicado |
+| **Total** | **7 de 12** — sobram 5 |
+
+> Os 12 verdes são todos do **P4**: o C6 não tem GPIO52. Os quatro pinos azuis são o
+> trio de gravação do coprocessador (`IO9` é o strapping de boot, `CHIP_PU` o enable)
+> — não são I/O de uso geral, mas dão **caminho físico para regravar o esp-hosted**,
+> o que reduz o risco de ter a pilha de rede num segundo chip.
+
+**Verificar antes de comprar:** quais dos GPIOs 28–35 / 49–52 são **strapping** no P4
+(`Z-C` e `Dim` não podem cair num deles), e se há **slot TF** — sem ele o microSD
+compartilha o SPI do MAX31865 e custa +1 CS, o que ainda cabe.
+
+### A alternativa de placa única em ESP32-S3
+
+Se a P4 for descartada (ecossistema novo, documentação fraca), o **Waveshare
+ESP32-S3-Touch-LCD-3.5** (SPI/ST7796) também serve: **12 GPIOs livres** (IO17, 18, 21,
+38–42, 45–48), dos quais 45/46 são strapping — sobram 10 limpos para os 7 necessários.
+Custo: tela menor (320×480) e o display precisa do **segundo host SPI** para não
+disputar com MAX31865 + microSD.
 
 ### Se a placa RGB entrar, dois ajustes
 

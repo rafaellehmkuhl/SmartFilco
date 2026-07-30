@@ -175,11 +175,30 @@ mais linear o processo, mais simples a sintonia e mais estável em toda a faixa.
 6. Montar a **LUT de calibração** (feedforward) e usá-la como ponto de partida do PID.
 7. Ajustar ganhos do PID de pressão para resposta estável, sem oscilação.
 
-> **Verificar o diodo da bomba.** Ulkas normalmente têm um diodo em série, o que as
-> faz trabalhar em meia onda e já limita o duty máximo a ~50%. Relatos indicam perda
-> de eficácia abaixo de ~20% de duty. Confirmar a presença dele ao abrir a máquina
-> ([06](06-engenharia-reversa-checklist.md)) — muda a interpretação da faixa útil de
-> comando e é relevante se houver migração para PSM.
+> ### 🔄 O diodo da bomba é **interno** (corrigido em 30/07/2026)
+>
+> Este documento dizia "Ulkas normalmente têm um diodo em série" e mandava
+> **procurá-lo na fiação ao abrir a máquina**. Está errado no método: o diodo
+> (**1N4007P**) é **integrado ao corpo da bomba** nas Ulka **EP5 e EX5**. Não é
+> escolha do fabricante da cafeteira, e não aparece no chicote.
+>
+> ➡️ **A verificação vira identificar o modelo da bomba**, não caçar componente. A
+> [`06`](06-engenharia-reversa-checklist.md) já pede foto da etiqueta — é isso que
+> responde.
+>
+> **Consequência prática:** a bomba trabalha em meia onda, então **metade dos
+> semiciclos não produz curso nenhum**. Para o PSM isso não é detalhe: liberar um
+> semiciclo da polaridade bloqueada gasta uma decisão de "ligar" em nada, e o
+> mapeamento comando → vazão fica não-linear.
+>
+> ➡️ **`divider = 2`** na PSM.Library resolve — como os eventos de ZC alternam
+> polaridade, decidir a cada dois trava na polaridade que conduz. Detalhes em
+> [02](02-arquitetura-eletrica-pinout.md#-divider--2-é-a-resposta-ao-diodo-da-bomba).
+>
+> Sendo EP5/EX5, `divider=2` é o **padrão esperado**, não um caso condicional.
+>
+> Relatos de perda de eficácia abaixo de ~20% de duty continuam valendo como
+> expectativa para a caracterização.
 
 ### 🚦 Critério de decisão — ⚠️ resolvido antes do experimento
 

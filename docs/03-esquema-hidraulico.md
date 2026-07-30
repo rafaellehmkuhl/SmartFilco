@@ -50,7 +50,38 @@ eletrônico contra o analógico e nunca perder a referência visual.
 
 - Devolve água ao reservatório quando a pressão passa do ajuste → limita a pressão máxima.
 - Muitos usuários da Philco regulam em **~9 bar**.
-- **Interação com o controle eletrônico da bomba:** se a OPV abrir cedo demais, ela "briga" com o *pressure profiling* (você não consegue subir acima do ponto da OPV). Estratégia recomendada: regular a OPV como **teto de segurança** (ex.: ~11–12 bar) e deixar o **perfil de pressão** por conta do controle da bomba em malha fechada. A decisão final depende da caracterização da bomba — ver [07](07-seguranca-e-calibracao.md).
+- **Interação com o controle eletrônico da bomba:** se a OPV abrir cedo demais, ela "briga" com o *pressure profiling* (você não consegue subir acima do ponto da OPV). Estratégia recomendada: regular a OPV como **teto de segurança** (ex.: ~11–12 bar) e deixar o **perfil de pressão** por conta do controle da bomba em malha fechada.
+
+### ➡️ Decisão (30/07/2026): **não comprar OPV ajustável**
+
+A OPV tem dois papéis, e este projeto só precisa de um deles — que já está coberto.
+
+**Papel 1 — definir a pressão de extração.** Numa máquina de fábrica é a OPV que
+segura os ~9 bar. **Aqui quem faz isso é a malha fechada.** Uma OPV regulada baixo
+*atrapalharia*: o PID veria uma parede não-linear e o profiling não subiria acima
+dela.
+
+**Papel 2 — teto de segurança.** E aqui está o argumento que fecha a questão:
+
+> **A pressão de estol da própria Ulka já é o teto, e a máquina é projetada para
+> ele.** A bomba entrega ~15–15,5 bar no máximo — é o que o "15 Bar" da caixa
+> significa (pressão máxima da bomba, não de extração). Boiler, mangueiras e
+> conexões são de fábrica e dimensionados para isso. **Não existe modo de falha em
+> que o software faça a bomba passar disso**: não se comanda mais que 100%.
+
+O que cobre os modos de falha reais não é uma válvula nova: é o **timeout de bomba**
+do `SafetyModule`, o **termostato de vapor em série com o SSR** e o **fusível
+térmico** — todos já previstos.
+
+**O que fazer ao abrir a máquina:**
+
+| Achado | Ação |
+|---|---|
+| OPV abrindo entre ~11 e 15 bar | **Nada a comprar** — já é o teto recomendado |
+| OPV abrindo baixo (~9 bar) | Briga com o profiling. Avaliar elevar ou remover — não adicionar outra |
+| Não existe OPV | **Também nada a comprar**, pelo argumento do estol acima |
+
+Nos três casos, não se compra OPV ajustável.
 
 ## Instalação do sensor de temperatura
 

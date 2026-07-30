@@ -35,7 +35,18 @@ Reservatório → Bomba vibratória → (OPV?) → Boiler → Grupo → Porta-fi
 ### Modificações atuais (a serem removidas)
 
 - Manômetro analógico de 12 bar, ligado via TEE na linha de pressão (**rosca 1/8" NPT**, mangueira **4mm**).
-- Dimmer controlando a **bomba** (não a resistência). Problema relatado: não faz ajuste fino; raramente chega a 9 bar (trava em ~11–12 bar). Causas prováveis: resposta **não-linear** da bomba vibratória, OPV abrindo, e perda de torque do dimmer por ângulo de fase.
+- Dimmer controlando a **bomba** (não a resistência). Problema relatado: não faz ajuste fino; raramente chega a 9 bar (trava em ~11–12 bar).
+
+> 🔄 **Diagnóstico corrigido (30/07/2026).** Este documento listava "OPV abrindo"
+> entre as causas prováveis. **Não pode ser.** O sintoma é não conseguir **descer**
+> de 11–12 bar — é um **piso**, não um teto. OPV limita por cima; ela não tem como
+> impedir a pressão de baixar.
+>
+> A causa é **ângulo de fase em potência baixa**: o pulso chega cortado e atrasado,
+> o solenoide não completa o curso, e a bomba zumbe sem bombear. É exatamente o
+> problema que o [PSM resolve](02-arquitetura-eletrica-pinout.md#bypass-do-dimmerlink-para-psm-decidido).
+>
+> A pista que parecia apontar para a hidráulica apontava para o dimmer.
 
 > Ambas as modificações serão **substituídas** pela nova eletrônica.
 
@@ -46,7 +57,7 @@ Reservatório → Bomba vibratória → (OPV?) → Boiler → Grupo → Porta-fi
 | MCU | **ESP32-S3-WROOM-1 N16R8, headless** | Já em mãos. Display sai da Fase 1 → nada bloqueia o início. Sem o board Waveshare perde-se RTC (→ **NTP**) e slot SD (→ **módulo SD**), e ganha-se ~20 GPIOs livres. ⚠️ PSRAM octal inutiliza GPIO33–37. Ver [02](02-arquitetura-eletrica-pinout.md). |
 | Sensor de temperatura | **1× PT100 classe A, 3 fios, superfície + 1× MAX31865 (Rref 430 Ω)** | Ver as duas notas abaixo — é a decisão que mais mudou. |
 | Leitura analógica | **ADS1115 (ADC 16-bit por I²C), em 5 V** | 16 bits reais e leitura **direta** dos 0,5–4,5 V do sensor sem divisor resistivo. O ADC do ESP32-S3 satura em ~3,1 V. Exige **level shifter** no I²C. |
-| Sensor de pressão | **0–13,8 bar (200 PSI)**, saída 0,5–4,5 V, 1/8" NPT | Cobre o pico da bomba com folga e dá um pouco mais de resolução que a faixa de 16 bar. |
+| Sensor de pressão | **0–13,8 bar (200 PSI)**, saída 0,5–4,5 V, 1/8" NPT | Mais resolução que a faixa de 16 bar. ⚠️ **Não cobre o estol da bomba:** a Ulka vai a ~15–15,5 bar, então acima de 13,8 o sensor grampeia no máximo. Sem risco — com puck real nunca se opera lá — mas a leitura satura em vez de errar silenciosamente. |
 | Controle da resistência | SSR-40DA **+ termostato de vapor original em série** | Chaveamento silencioso. O termostato vira *backstop* de hardware contra SSR em curto ou firmware travado. Ver [07](07-seguranca-e-calibracao.md). |
 | Controle da bomba | **PSM** (pulos de semiciclo), com `Z-C` e `Dim` direto no ESP32 | 🔄 **Revisto em 29/07/2026** — antes era DimmerLink por UART. Bomba vibratória é solenoide: em potência baixa o ângulo de fase entrega curso incompleto e a bomba **zumbe sem bombear** (é o sintoma relatado na Philco, "não desce de 11–12 bar"). PSM entrega pulso **inteiro** e controla pela contagem. Custo: volta a ISR de zero-cross — mas PSM tolera **centenas** de µs de jitter, contra dezenas do ângulo de fase. Ver [02](02-arquitetura-eletrica-pinout.md#bypass-do-dimmerlink-para-psm-decidido) e [07](07-seguranca-e-calibracao.md). |
 | Hidráulica | Padronizada em **1/8" NPT**, mangueira 4mm | Casa com o manômetro/TEE que o usuário já possui. |

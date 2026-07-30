@@ -19,9 +19,11 @@ Digitalização e automação completa de uma cafeteira espresso **Philco 15 Bar
 - [x] Arquitetura elétrica definida (sensores, atuadores, MCU)
 - [x] Esquema hidráulico definido
 - [x] BOM da Leva 1 comprada e conferida contra o projeto
-- [ ] **Próximo:** bancada headless (ESP32 + sensores na mesa) — não depende de abrir a máquina
-- [ ] Abrir a máquina (engenharia reversa física) → ver [docs/06](docs/06-engenharia-reversa-checklist.md)
-- [ ] Comprar Leva 2 (hidráulica, em 1/8" NPT) após abrir a máquina
+- [x] **Primeiro firmware rodando** — [`firmware/bringup/`](firmware/bringup/) em ESP-IDF: RGB, Wi-Fi, servidor web por WebSocket
+- [x] ~~Comprar Leva 2 (hidráulica)~~ — **já estava em mãos** de projetos anteriores; a OPV saiu do projeto ([docs/03](docs/03-esquema-hidraulico.md#-decisão-30072026-não-comprar-opv-ajustável))
+- [ ] **Encomendar o dimmer RobotDyn `8A-Standard`** — única compra restante ([modelo exato](docs/02-arquitetura-eletrica-pinout.md#modelo-exato-a-comprar))
+- [ ] 🎯 **Caminho crítico: abrir a máquina** → [docs/06](docs/06-engenharia-reversa-checklist.md). Não depende de compra nenhuma e responde as últimas perguntas em aberto
+- [ ] Bancada headless (ESP32 + sensores na mesa) — em paralelo, quando a Leva 1 chegar (~05/08)
 
 ### Revisões de projeto (jul/2026)
 
@@ -64,7 +66,7 @@ Justificativas completas em [docs/01](docs/01-projeto-visao-geral.md#decisões-d
 - **Temperatura:** 1× **PT100** classe A, **3 fios**, de superfície, na parede do boiler + 1× **MAX31865** (Rref **430 Ω**). Controle por **PID → SSR**. Temperatura no bolo é **modelada**, não medida ([por quê](docs/01-projeto-visao-geral.md#por-que-um-sensor-de-temperatura-e-não-dois)).
 - **Pressão:** 1× sensor **0–13,8 bar (200 PSI) / 0,5–4,5 V**, 1/8" NPT, lido por **ADS1115 em 5 V** (PGA ±6,144 V) através de **level shifter**. Controle em **malha fechada → dimmer** na bomba.
 - **Atuadores:** **SSR-40DA + dissipador** (resistência) e **dimmer RobotDyn 8A por PSM** (bomba vibratória) — `Z-C` e `Dim` direto no ESP32, com a ISR de zero-cross em **IRAM**. Ângulo de fase foi descartado: em potência baixa entrega curso incompleto e a bomba zumbe sem bombear. Ver [docs/02](docs/02-arquitetura-eletrica-pinout.md#bypass-do-dimmerlink-para-psm-decidido).
-- **Hidráulica:** padronizada em **1/8" NPT**, mangueira **4mm**. TEE + OPV ajustável + sensor de pressão + manômetro.
+- **Hidráulica:** padronizada em **1/8" NPT**, mangueira **4mm**. TEE + sensor de pressão + manômetro — **tudo já em mãos**. ⚠️ **Sem OPV ajustável**: o estol da própria Ulka (~15 bar) já é o teto e a máquina é projetada para ele ([por quê](docs/03-esquema-hidraulico.md#-decisão-30072026-não-comprar-opv-ajustável)).
 - **Segurança:** **fusível térmico original intacto**, **termostato de vapor em série com o SSR** como backstop de hardware, fonte isolada Hi-Link, aterramento e isolação do lado AC.
 
 ⚠️ **Este projeto mexe com rede elétrica (127/220V) e água quente sob pressão.**
