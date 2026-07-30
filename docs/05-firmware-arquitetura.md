@@ -15,16 +15,41 @@
   Isso é uma vantagem arquitetural — obriga a API a ser a fonte única de verdade, e
   o LVGL entra depois como **mais um cliente** dela, não como caminho paralelo.
 
-## Divisão em duas "placas lógicas"
+## Divisão em duas placas — agora **físicas**
 
-Embora fisicamente seja um único ESP32:
+> 🔄 **Revisto em 29/07/2026.** Esta divisão nasceu lógica, num chip só. Na fase de
+> interface ela passa a ser **física**: dois ESP32-S3, um controlando e um desenhando.
+> Ver o porquê em [02](02-arquitetura-eletrica-pinout.md#por-que-a-placa-com-display-rgb-não-serve-como-controlador).
 
-- **Control Board (tempo-real):** sensores, PID de temperatura, controle de pressão, atuadores, watchdog, limites de segurança.
-- **UI Board (interface):** Wi-Fi, web server, API, logging — e, na fase de interface, o touchscreen (LVGL).
+- **Control Board (tempo-real):** a DevKitC-1 que já está em mãos. Sensores, PID de
+  temperatura, PSM da bomba, SSR, watchdog, limites de segurança, servidor da API.
+- **UI Board (interface):** a placa com display integrado. **Não recebe nenhum
+  sinal de sensor ou atuador** — só desenha e toca. É um cliente da API, igual ao
+  navegador.
 
-Na prática, sugestão de uso dos dois núcleos do ESP32-S3:
-- **Core 0:** loop de controle determinístico (amostragem de sensores, PID, disparo da bomba, SSR, proteções).
-- **Core 1:** Wi-Fi, web, gravação no microSD — e depois UI/LVGL.
+O que a separação compra:
+
+| | Chip único | Duas placas |
+|---|---|---|
+| GPIOs livres para sensores/atuadores | 1 (na placa RGB) | ~20 (na DevKitC-1) |
+| ISR de zero-cross competindo com DMA do RGB | sim | não |
+| Trabalho de API | — | **zero, já existe** (`firmware/bringup` serve estado por WebSocket) |
+
+A UI vira mais um cliente da mesma API, que é exatamente o que este documento já
+pedia — a diferença é que agora o isolamento é de hardware, não de disciplina.
+
+### Uso dos núcleos, na placa de controle
+
+- **Core 1:** laço de controle determinístico (sensores, PID, PSM, SSR, proteções).
+- **Core 0:** Wi-Fi, LWIP, web/API, gravação no microSD.
+
+> ⚠️ **Correção:** este documento sugeria o inverso (controle no core 0, Wi-Fi no
+> core 1). Está errado na prática: o ESP-IDF fixa a task de Wi-Fi no **core 0** por
+> padrão (`CONFIG_ESP_WIFI_TASK_PINNED_TO_CORE_0`), então é o controle que deve sair
+> de lá. Inverter exigiria mover o Wi-Fi contra o padrão, sem ganho.
+>
+> O `firmware/bringup` já implementa o arranjo correto — `CORE_RT 1` / `CORE_NET 0`,
+> com `LWIP_TCPIP_TASK_AFFINITY_CPU0` no `sdkconfig.defaults`.
 
 ## Módulos propostos
 
@@ -147,9 +172,11 @@ mesma API. Começar no Arduino significaria migrar depois, no pior momento.
 > ➡️ Não manter lista própria de clientes. `httpd_get_client_list()` +
 > `httpd_ws_get_fd_info()` dizem quem está conectado e quem falou WS. Isso apaga
 > registro, slots e limpeza de socket morto, e nunca dessincroniza.
-- **LVGL** só na fase 3 (ST7796 + FT6336). ⚠️ O SPI já é compartilhado entre
-  MAX31865 e microSD — o display precisa do **outro host SPI**, sozinho, ou a
-  fluidez morre.
+- **LVGL** só na fase 3, e **noutro chip**: a UI Board. Isso dissolve o alerta que
+  estava aqui — não há mais display disputando SPI com MAX31865 e microSD, porque o
+  display não está na mesma placa (e, sendo RGB, não usa SPI de todo jeito).
+  O alerta volta a valer **se** a opção de placa única com display SPI for retomada:
+  aí o display precisa do outro host SPI, sozinho, ou a fluidez morre.
 
 ### Ajustes de `sdkconfig` que valem
 

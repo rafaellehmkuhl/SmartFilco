@@ -353,40 +353,73 @@ de pulsos, não do instante do disparo.
 travar em cache miss de flash. Sem isso, o handler pode atrasar milissegundos
 quando o cache estiver ocupado — e milissegundos, aí sim, custam semiciclo.
 
-## Pinagem com placa de display RGB (se a interface virar placa integrada)
+## Por que a placa com display RGB não serve como controlador
 
 Placas tipo **Waveshare/SpotPear ESP32-S3-Touch-LCD-4.3** ou **GUITION JC8048W550**
-não são displays — são ESP32-S3 completos que **substituem** o devkit. E display RGB
-não usa SPI, o que resolve de graça a disputa de barramento com MAX31865 + microSD.
+não são displays — são ESP32-S3 completos. A pergunta natural é usar uma delas no
+lugar do devkit. **Não dá.**
 
-Em troca, o RGB come ~20 GPIOs (R3–R7, G2–G7, B3–B7, HSYNC, VSYNC, DE, PCLK) mais 3
-do touch. Por isso essas placas trazem um **CH422G**, expansor de I/O por I²C.
+Uma notícia boa primeiro: **display RGB não usa SPI**, então a disputa de barramento
+com MAX31865 + microSD, que este documento temia, deixa de existir. O problema é outro.
 
-⚠️ **`Z-C` e `Dim` não podem ir no expansor.** O CH422G é I²C: não gera interrupção,
-e cada escrita custa centenas de µs. Os dois precisam ser **GPIO reais** do ESP32.
+### A contagem que decide
 
-Na SpotPear sobra **GPIO6** (header de sensor) como único pino de fato livre. O
-segundo tem que sair de canibalização:
+GPIOs usáveis no ESP32-S3: **0–21 e 38–48 = 33 pinos** (26–32 são da flash interna,
+33–37 da PSRAM octal). A tabela de pinos da SpotPear lista **todos os 33**.
+
+O RGB come ~20 (R3–R7, G2–G7, B3–B7, HSYNC, VSYNC, DE, PCLK), o touch 3, e o resto
+vai em SD, RS485, CAN/USB e console. Por isso a placa traz um **CH422G**, expansor de
+I/O por I²C — a própria doc explica: *"the 4.3-inch screen occupies most GPIO pins"*.
+
+**Sobra exatamente um pino em header: GPIO6.**
+
+### O que não cabe no expansor
+
+⚠️ **`Z-C` e `Dim` precisam ser GPIO reais.** O CH422G é I²C: não gera interrupção, e
+cada escrita custa centenas de µs.
+
+São **2 pinos reais** e só existe 1. O segundo exigiria canibalizar:
 
 | Candidato | Custo |
 |---|---|
-| GPIO15/16 (RS485) | passam pelo SP3485; conferir no esquemático se o lado do ESP32 é sangrável |
+| GPIO15/16 (RS485) | dessoldar do SP3485 — cirurgia na placa nova |
 | GPIO19/20 (USB nativa / CAN) | perde a USB nativa — e é a porta que **grava**, ver [05](05-firmware-arquitetura.md#-o-dtr-da-usb-jtag-é-o-gpio0) |
-| GPIO43/44 (console) | perde log serial |
+| GPIO43/44 (console) | perde log serial numa placa que controla rede AC |
 
-O resto encaixa sem briga:
+Agravante independente: poria a ISR de zero-cross num chip cujo periférico RGB varre
+a PSRAM por DMA continuamente. Viável, mas é procurar briga de graça.
 
-- **SSR → expansor, tranquilo.** É slow PWM de janela longa; latência de I²C é irrelevante.
-- **ADS1115 → barramento I²C** existente, sem pino extra.
-- **microSD** já está a bordo (GPIO11/12/13, CS no EXIO4).
-- **CS do MAX31865** pode ir no expansor pagando latência por transação.
+> Para registro, o resto **encaixaria**: SSR no expansor (slow PWM de janela longa,
+> latência de I²C irrelevante), ADS1115 no I²C existente, microSD já a bordo, CS do
+> MAX31865 no expansor pagando latência. O impedimento é só `Z-C`/`Dim`.
 
-> Se essa placa entrar, **PSRAM vai a 120 MHz**: a doc da SpotPear diz que o
-> benchmark do LVGL dá 41 FPS e que habilitar 120M é necessário. O
-> `firmware/bringup/sdkconfig.defaults` está em `SPIRAM_SPEED_80M` e precisaria mudar.
+### ➡️ Decisão: a placa RGB entra como **UI Board**, em separado
+
+Compra-se a placa com display, mas ela **não recebe sinal de sensor nem de atuador** —
+só desenha e toca, como cliente da API. O controle fica na DevKitC-1, que já está em
+mãos e tem ~20 GPIOs livres. Ver
+[05](05-firmware-arquitetura.md#divisão-em-duas-placas--agora-físicas).
+
+Custo zero de firmware novo: o `firmware/bringup` já serve estado por WebSocket.
+
+### A alternativa de placa única, se for esse o objetivo
+
+O que mata a RGB é a **interface**, não o fato de ter display embutido. Display **SPI**
+usa 5–7 pinos em vez de 23 — a tabela no topo deste documento registra que o Waveshare
+3,5" (SPI/ST7796) deixava **12 GPIOs livres**, contra 1 da RGB.
+
+A lista de periféricos do projeto cabe em ~11 pinos. Então **placa única é viável com
+display SPI, nunca com RGB**. Custo: tela menor, menos resolução, e o display precisa
+ir no **segundo host SPI** para não disputar com MAX31865 + microSD.
+
+### Se a placa RGB entrar, dois ajustes
+
+> **PSRAM a 120 MHz.** A doc da SpotPear diz que o benchmark do LVGL dá 41 FPS e que
+> habilitar 120M é necessário. O `firmware/bringup/sdkconfig.defaults` está em
+> `SPIRAM_SPEED_80M`.
 >
-> ⚠️ Divergência a confirmar antes de comprar: a wiki da SpotPear diz "8MB Flash",
-> o anúncio diz **N16R8** e a Waveshare documenta **16MB**.
+> ⚠️ **Divergência de flash a confirmar antes de comprar:** a wiki da SpotPear diz
+> "8MB Flash", o anúncio diz **N16R8** e a Waveshare documenta **16MB**.
 
 ## Sensor de temperatura: PT100 3 fios + MAX31865
 
@@ -450,9 +483,20 @@ e do dimmer e pela fonte isolada Hi-Link. Chassi metálico **aterrado**.
 
 ## Apêndice — board com display (fase 3)
 
-Quando a interface local entrar, o alvo continua sendo o **Waveshare
-ESP32-S3-Touch-LCD-3.5, variante SPI/ST7796** (não a QSPI/AXS15231B: o ST7796 tem
-driver LVGL muito mais maduro, e os pinos livres no header são os mesmos).
+> 🔄 **Superado em 29/07/2026.** Este apêndice foi escrito quando o display ia
+> **substituir** o devkit, e por isso a pinagem toda tinha que migrar para lá. Com a
+> decisão de usar a placa de display como **UI Board separada**, nada disso acontece:
+> a pinagem de controle fica na DevKitC-1, intocada, e a placa de display não recebe
+> sensor nem atuador. Ver
+> [por que a RGB não serve como controlador](#por-que-a-placa-com-display-rgb-não-serve-como-controlador).
+>
+> O conteúdo abaixo continua útil como **evidência da contagem de pinos** — é o dado
+> que mostra por que display SPI (12 livres) e display RGB (1 livre) não são a mesma
+> conversa. E segue válido se algum dia a opção de placa única voltar à mesa.
+
+Quando escrito, o alvo era o **Waveshare ESP32-S3-Touch-LCD-3.5, variante
+SPI/ST7796** (não a QSPI/AXS15231B: o ST7796 tem driver LVGL muito mais maduro, e os
+pinos livres no header são os mesmos).
 
 Referências offline já levantadas, guardadas em `docs/assets/`:
 [tabela de GPIO](assets/waveshare-gpio-table.png) ·

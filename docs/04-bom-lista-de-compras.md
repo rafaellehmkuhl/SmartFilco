@@ -30,7 +30,7 @@ pressão vier com defeito, são +2 semanas de espera.
 | Item | Observação |
 |---|---|
 | **ESP32-S3-WROOM-1 N16R8**, dual USB-C | substitui o Waveshare na Fase 1 — projeto começa **headless**. ⚠️ PSRAM octal: **GPIO33–37 inutilizáveis** apesar de estarem no header |
-| **Fonte HLK-5M05** (AC→5V, 5W) | |
+| **Fonte HLK-5M05** (AC→5V, 5W) | ⚠️ Basta para a Fase 1 headless, mas **não** para a fase de interface: ver nota de fonte abaixo |
 | **Level shifter bidirecional** | obrigatório: ADS1115 em 5 V × I²C 3,3 V do ESP32 |
 | **Módulo microSD SPI** + cartão | o devkit não tem slot; compartilha o bus SPI com o MAX31865 |
 | **Manômetro analógico** (12 bar) | já instalado na máquina |
@@ -64,7 +64,39 @@ pressão vier com defeito, são +2 semanas de espera.
 | ~~1~~ | ~~Flow meter Hall (YF-S401)~~ | **REMOVIDO** | Ver abaixo — não mede espresso, e com PSM não é preciso |
 | 2 | **ACS712** (20A) | "ACS712 20A module" | diagnóstico de corrente (resistência/bomba) |
 | 1 | Sensor de nível (boia magnética) | "magnetic float switch" | evitar bomba a seco |
-| 1 | Display para a fase de interface | ver nota abaixo | Waveshare 3.5" SPI/ST7796 **ou** placa integrada com display RGB |
+| 1 | **Placa com display integrado, como UI Board** | "ESP32-S3 Touch LCD 4.3 800x480" / "GUITION JC8048W550" | ver nota abaixo |
+| 1 | **Fonte AC→5V de 10 W** | "HLK-10M05" | substitui a de 5 W quando o display entrar |
+
+### 🖥️ Display: placa integrada, mas como **UI Board** separada
+
+Decidido em 29/07/2026. A placa com display **não** substitui a DevKitC-1 — entra ao
+lado dela, sem receber nenhum sinal de sensor ou atuador. Só desenha e toca, como
+cliente da API que o `firmware/bringup` já serve por WebSocket.
+
+Motivo curto: na placa RGB **sobra 1 GPIO livre em header**, e o PSM precisa de 2
+pinos reais que não podem ir no expansor I²C. Contagem completa em
+[02](02-arquitetura-eletrica-pinout.md#por-que-a-placa-com-display-rgb-não-serve-como-controlador).
+
+| Opção | Tela | Serve de controlador? |
+|---|---|---|
+| SpotPear/Waveshare **4.3"** RGB, 800×480 | grande | ❌ 1 GPIO livre |
+| GUITION **JC8048W550** 5" RGB, 800×480 | maior | ❌ idem |
+| Waveshare **3.5"** SPI/ST7796, 480×320 | menor | ✅ 12 GPIOs livres — placa única viável |
+
+⚠️ **Antes de comprar a de 4,3":** a wiki da SpotPear diz "8MB Flash", o anúncio diz
+N16R8 e a Waveshare documenta 16MB. Confirmar.
+
+### ⚡ Fonte: 5 W não aguenta as duas placas
+
+A Waveshare especifica **450 mA** só para a placa do display. Somando o ESP32 de
+controle em pico de TX de Wi-Fi, passa de **750 mA**. A **HLK-5M05 dá 1 A** — margem
+fina demais para uma fonte de rede AC dentro de máquina quente.
+
+➡️ Subir para **10 W** (HLK-10M05) quando o display entrar. Na Fase 1 headless a de
+5 W está folgada e não precisa trocar agora.
+
+> O capacitor de bulk continua obrigatório nas duas, e por motivo diferente do
+> dimensionamento médio: o problema é o **burst** de TX, não a corrente contínua.
 
 ### ❌ Flow meter YF-S401 — fora do projeto
 
