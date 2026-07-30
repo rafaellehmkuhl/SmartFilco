@@ -21,7 +21,7 @@ que hoje usam PID comerciais (Inkbird, REX-C100, XMT7100) e nenhum microcontrola
 
 - **Modelo:** Philco 15 Bar (mesma plataforma da Philco 20 Bar — mesma carcaça, boiler, hidráulica e grupo; mudam bomba/termostato de vapor).
 - **Tipo:** single boiler, bomba vibratória (ULKA ou clone), boiler de alumínio com resistência embutida, termostatos bimetálicos (café ~95°C / vapor ~140°C) e **fusível térmico** de segurança.
-- **Alimentação:** 127/220V.
+- **Alimentação:** **220 V / 60 Hz** (confirmado 30/07/2026). Importa em dois lugares: metade da corrente no SSR em relação a 127 V, e TRIAC de **600 V** obrigatório no dimmer (pico de rede = 311 V).
 
 ### Como ela funciona (original)
 

@@ -1,6 +1,6 @@
 # 07 — Segurança e calibração
 
-## ⚠️ Segurança elétrica (rede AC 127/220V)
+## ⚠️ Segurança elétrica (rede AC **220 V / 60 Hz**)
 
 Este projeto trabalha com **tensão de rede** e **água quente sob pressão**. Erros
 podem causar choque, incêndio ou queimadura.
@@ -13,8 +13,14 @@ podem causar choque, incêndio ou queimadura.
   AC pelos **optoacopladores** do SSR e do dimmer e pela **fonte isolada Hi-Link**.
   Não criar caminhos que quebrem essa isolação.
 - **Aterramento:** chassi metálico e partes condutoras **aterrados**. Água + eletricidade exige terra.
-- **Dimensionamento:** SSR-40DA folgado para a resistência (~1000–1200 W ≈ 8–9,5 A
-  em 127 V), **com dissipador**; fios de potência AWG adequado; Faston isolados.
+- **Dimensionamento:** com **220 V confirmado**, a resistência (~1000–1200 W) puxa
+  **4,5–5,5 A** — metade do que este documento supunha ao considerar 127 V (8–9,5 A).
+  O SSR-40DA fica absurdamente folgado. **Manter o dissipador mesmo assim**: SSR sem
+  dissipador é falha clássica, e ele já está comprado. Fios de potência em AWG
+  adequado; Faston isolados.
+- ⚠️ **220 V é mais perigoso que 127 V.** Mesma corrente de fibrilação, quase o dobro
+  da tensão para empurrá-la. Nada muda no projeto (fonte isolada, aterramento, caixa),
+  mas o descuido custa mais caro.
 - **Separação física:** manter a eletrônica de sinal longe do boiler e dos fios de potência; roteirizar AC e sinal separados.
 
 ### 🔒 Backstop de hardware: termostato de vapor em série com o SSR
@@ -132,41 +138,48 @@ Bombas vibratórias (ULKA e clones) têm resposta **muito não-linear**: 50% de
 potência **não** dá 50% da pressão. Por isso o dimmer manual atual não faz ajuste
 fino e "trava" em ~11–12 bar sem chegar aos 9 bar desejados.
 
-### Método de controle — decidido pelo hardware
+### Método de controle — **PSM** (revisto em 29–30/07/2026)
 
-O módulo comprado tem o **DimmerLink integrado**, que faz **controle por ângulo de
-fase** e só isso. Isso fecha a questão:
+> 🔄 Esta seção dizia que o hardware comprado "fecha a questão" em favor do ângulo de
+> fase, e descartava ciclos inteiros como *"fora de alcance"* por exigir trocar o
+> módulo. **A conclusão se inverteu**: o dimmer clássico custa ~R$ 23, e a troca
+> ficou barata perto do que o ângulo de fase custa em desempenho.
 
-1. **Ângulo de fase (TRIAC):** ✅ é o que temos. Reduz torque em potências baixas e
-   pode fazer a bomba parar de bombear antes do ponto desejado — limitação a
-   conhecer, não a contornar.
-2. ~~**Burst firing / ciclos inteiros**~~ ❌ **fora de alcance.** O DimmerLink não
-   expõe modo de ciclos inteiros; o disparo é interno e por fase. Era a alternativa
-   preferida em teoria para bombas vibratórias, mas exigiria trocar o módulo por um
-   dimmer clássico e reimplementar a ISR no ESP32 — troca ruim, dado que o
-   DimmerLink elimina todo o jitter de timing do firmware.
+1. ~~**Ângulo de fase**~~ ❌ **descartado.** Reduz torque em potência baixa a ponto de
+   a bomba **zumbir sem bombear** — é a causa real do platô de 11–12 bar relatado
+   nesta máquina ([01](01-projeto-visao-geral.md)). O defeito é físico, não de ajuste.
+2. **PSM (pulos de semiciclo):** ✅ **adotado.** Todo pulso que passa é **inteiro e em
+   força total**; controla-se pela **contagem**. Comportamento em baixa potência é
+   muito melhor, que é exatamente onde a pré-infusão vive.
+   Ver [02](02-arquitetura-eletrica-pinout.md#bypass-do-dimmerlink-para-psm-decidido).
 3. **Malha fechada (o que faz o trabalho):** fechar o laço `pressão → PID → bomba`
-   corrige a não-linearidade automaticamente e é o que permite *pressure profiling*
-   real (2 bar de pré-infusão → 9 bar → declínio). Com só o item 1 disponível, a
-   malha fechada deixa de ser "recomendada" e passa a ser **essencial**.
+   corrige a não-linearidade e é o que permite *pressure profiling* real. Continua
+   essencial — o PSM melhora o atuador, não substitui o controle.
 
-### Curva de dimerização — testar RMS primeiro
+> ⚠️ **Medir a frequência da rede, não fixar no código.** A rede é **220 V / 60 Hz**
+> (semiciclo = 8,33 ms), mas o firmware não deve assumir: a `PSM.Library` tem `cps()`
+> para contar cruzamentos por segundo, e é proteção barata contra uma suposição
+> errada — inclusive se a máquina rodar em gerador ou em outra região.
 
-O DimmerLink oferece **Linear**, **RMS** e **Logarítmica**. "Linear" é linear no
-*ângulo de fase*, que não corresponde a nada de útil fisicamente. A curva **RMS**
-mapeia o comando para tensão RMS, muito mais próxima da grandeza que move um
-solenoide — ou seja, já lineariza boa parte do processo **antes** do PID.
+### ~~Curva de dimerização~~ — não se aplica ao PSM
 
-Incluir a escolha de curva na caracterização abaixo: levantar a tabela
-`pressão × comando` nas três curvas e ficar com a mais próxima de uma reta. Quanto
-mais linear o processo, mais simples a sintonia e mais estável em toda a faixa.
+> 🔄 **Superado.** Esta seção discutia as curvas Linear/RMS/Logarítmica do DimmerLink
+> e mandava escolher a mais linear. **Com PSM não há curva a escolher:** o comando é
+> a fração de semiciclos liberados, e a relação comando → energia é **linear por
+> construção**. O que resta de não-linearidade é da bomba e do puck, e é isso que a
+> LUT + PID resolvem.
+>
+> Sobra uma escolha equivalente, essa sim relevante: o **`range`** do acumulador, que
+> define resolução × tempo de resposta. Com 120 semiciclos/s e `range=127` o padrão
+> fecha em ~1,06 s.
 
 ### Procedimento de caracterização (na bancada, com a máquina instrumentada)
 
-1. Com o sensor de pressão já lendo, varrer o comando da bomba de 0 a 100 **de 1 em 1**
-   (a resolução do DimmerLink é inteira — não há passo mais fino).
+1. Com o sensor de pressão já lendo, varrer o comando da bomba de 0 a `range` **de 1
+   em 1** (a resolução é o número de semiciclos da janela).
 2. Registrar **pressão × comando** (com porta-filtro cego / restrição conhecida).
-3. **Repetir nas três curvas** do DimmerLink (Linear / RMS / Log) e escolher a mais linear.
+3. Repetir com **`divider=1` e `divider=2`** — se a bomba tiver o diodo interno
+   (EP5/EX5 têm), `divider=2` deve dar resposta visivelmente mais linear.
 4. Anotar o **comando mínimo em que a bomba realmente bombeia** — abaixo disso ela
    zumbe sem vazão, e o PID precisa saturar ali em vez de continuar reduzindo.
 5. **Medir a constante de tempo de descida:** estabilizar em 9 bar com puck real,

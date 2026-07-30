@@ -3,9 +3,9 @@
 > **Status (30/07/2026): a BOM fechou.** Leva 1 encomendada em 26/07 (chega ~05/08),
 > Leva 2 já estava em mãos de projetos anteriores, e a OPV saiu do projeto.
 >
-> **Sobra uma única compra no AliExpress: o dimmer RobotDyn `8A-Standard`**
-> ([modelo exato](02-arquitetura-eletrica-pinout.md#modelo-exato-a-comprar)) — ~10 dias
-> a partir da encomenda. Fora isso, só miudeza de loja local.
+> ✅ **Última compra feita em 30/07: dimmer RobotDyn `8A-Standard`**
+> ([modelo exato](02-arquitetura-eletrica-pinout.md#modelo-exato-a-comprar)), chegada
+> ~10 dias depois. **Nada mais a comprar no AliExpress** — só miudeza de loja local.
 >
 > ⚠️ **O caminho crítico deixou de ser peça: virou abrir a máquina.** A
 > [`06`](06-engenharia-reversa-checklist.md) não depende de compra nenhuma e destrava
@@ -30,7 +30,7 @@ pressão vier com defeito, são +2 semanas de espera.
 | **Emendas termo-retráteis com solda** (50 pçs) | R$ 12,90 | |
 | **Dissipador para SSR** | R$ 11,25 | não estava na BOM — **acerto**, SSR-40DA sem dissipador não segura a resistência |
 | **PT100 classe A, superfície, 3 fios, alta temp., 1 m** | R$ 21,29 | ⚠️ é PT100, não PT1000 — decisão revisada, ver [01](01-projeto-visao-geral.md#por-que-pt100-e-não-pt1000) |
-| **SSR-40DA** | R$ 17,99 | 900 avaliações / 4,9 · usuário testou 1400 W com dissipador. Resistência da Philco ~1000–1200 W → folgadíssimo |
+| **SSR-40DA** | R$ 17,99 | 900 avaliações / 4,9 · usuário testou 1400 W com dissipador. Com **220 V confirmado**, a resistência (~1000–1200 W) puxa só **4,5–5,5 A** — metade do que se supunha em 127 V. Folgadíssimo |
 | **MAX31865** | R$ 20,24 | ⚠️ **confirmar Rref = 430 Ω** (marcação `4300`/`431`) e **configurar 3 fios** |
 
 ### Já em mãos (não comprar)

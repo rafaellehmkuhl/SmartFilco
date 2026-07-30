@@ -281,17 +281,34 @@ não paga frete extra.
 > A serigrafia do quarto pino é literalmente **`PSM`**, não "PWM" — a própria RobotDyn
 > nomeia o pino pelo método que escolhemos.
 
-**Por que 8A e não 4A.** Não é corrente: a Ulka puxa ~0,4 A em 127 V, então 4A já é
-10× o necessário. É o encapsulamento do TRIAC:
+**8A ou 4A? Os dois servem. O 4A não é compromisso.**
 
-| Variante | TRIAC | Aba |
-|---|---|---|
-| **8A** | **BTA16-600B** (ST) | **isolada** — a aba metálica não é viva |
-| 4A | BT136S-600E (NXP) | não isolada |
+A máquina é **220 V** (confirmado 30/07/2026), e a Ulka de 48 W puxa **~0,22 A**:
 
-Montar dentro da máquina com aba isolada é menos perigoso, e a diferença de preço é
-irrelevante. **Não precisa de dissipador** — um usuário mediu ~60 °C, mas a 8 A; a
-0,4 A a dissipação é desprezível (diferente do SSR, que precisa).
+| Variante | TRIAC | Encapsulamento | Margem sobre 0,22 A |
+|---|---|---|---|
+| **8A** | BTA16-600B (ST) | TO-220, **aba isolada** | ~36× |
+| 4A | BT136S-600E (WeEn) | **TO-252 (DPAK) SMD**, tab vivo no pad | **~18×** |
+
+**Tensão não diferencia:** ambos são **600 V**, que é o rating correto para 220 V
+(pico de rede = 311 V, ~2× de margem). Em 127 V daria para usar peça de 400 V; em
+220 V, 600 V é a escolha padrão — e as duas têm.
+
+**Térmica não diferencia:** a 0,22 A o TRIAC dissipa ~0,3 W. O DPAK segura isso no
+cobre da própria PCB, mesmo derratando para os ~50–60 °C de dentro da máquina.
+Nenhum dos dois precisa de dissipador (diferente do SSR, que precisa).
+
+> ⚠️ **Correção de ênfase (30/07/2026).** Este documento dizia que a aba isolada
+> tornava o 8A "menos perigoso" de montar. É verdade no princípio, mas **o peso
+> estava exagerado**: a vantagem da aba isolada é poder parafusar o **dissipador** no
+> chassi sem criar perigo — e a 0,22 A não há dissipador. Além disso, as duas placas
+> têm rede AC nos terminais de parafuso: nenhuma é segura de tocar, as duas precisam
+> de caixa. O pad vivo do DPAK é o mesmo perigo que as trilhas que já estão lá.
+
+➡️ **Recomendação: 8A**, por razões fracas e cumulativas — through-hole é mais robusto
+que SMD numa máquina que vibra por projeto (a bomba é um solenoide batendo 60×/s), a
+diferença de preço é ruído perto do frete, e sobra margem para a peça reserva.
+**Se só houver 4A disponível, comprar sem hesitar.**
 
 ### ❌ Por que a V2 não faz PSM, nem com software
 

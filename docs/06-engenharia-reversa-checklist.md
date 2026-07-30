@@ -44,8 +44,12 @@ sozinho custa mais que boa parte da BOM deste projeto.
 - [ ] Anotar a **temperatura de abertura** marcada em cada termostato (extração ~95 °C,
       vapor ~135–145 °C conforme o modelo) e a do fusível térmico (~165 °C).
 - [ ] Confirmar que o **dimmer atual controla a bomba** (e não a resistência).
-- [ ] Anotar tensão de trabalho (127 ou 220V) e potência da resistência (etiqueta) —
-      define a corrente real no SSR.
+- [x] ~~Anotar tensão de trabalho~~ — **220 V**, confirmado 30/07/2026. Resistência
+      de ~1000–1200 W → **4,5–5,5 A** no SSR ([07](07-seguranca-e-calibracao.md)).
+- [ ] **Confirmar a potência da resistência na etiqueta** — fecha o número acima.
+- [ ] **Confirmar que a bomba é a variante 230 V** (Ulka vende 120 V e 230 V). A foto
+      da etiqueta da seção C responde, e disso depende a corrente calculada no dimmer
+      (~0,22 A).
 - [ ] Fotografar os **terminais Faston existentes** (tamanho e tipo) — serão reaproveitados.
 - [ ] Desenhar o esquema elétrico original (mesmo à mão) para o arquivo.
 

@@ -21,7 +21,7 @@ Digitalização e automação completa de uma cafeteira espresso **Philco 15 Bar
 - [x] BOM da Leva 1 comprada e conferida contra o projeto
 - [x] **Primeiro firmware rodando** — [`firmware/bringup/`](firmware/bringup/) em ESP-IDF: RGB, Wi-Fi, servidor web por WebSocket
 - [x] ~~Comprar Leva 2 (hidráulica)~~ — **já estava em mãos** de projetos anteriores; a OPV saiu do projeto ([docs/03](docs/03-esquema-hidraulico.md#-decisão-30072026-não-comprar-opv-ajustável))
-- [ ] **Encomendar o dimmer RobotDyn `8A-Standard`** — única compra restante ([modelo exato](docs/02-arquitetura-eletrica-pinout.md#modelo-exato-a-comprar))
+- [x] **Dimmer RobotDyn `8A-Standard` encomendado** (30/07) — fecha a BOM; chega ~10 dias depois
 - [ ] 🎯 **Caminho crítico: abrir a máquina** → [docs/06](docs/06-engenharia-reversa-checklist.md). Não depende de compra nenhuma e responde as últimas perguntas em aberto
 - [ ] Bancada headless (ESP32 + sensores na mesa) — em paralelo, quando a Leva 1 chegar (~05/08)
 
@@ -69,7 +69,7 @@ Justificativas completas em [docs/01](docs/01-projeto-visao-geral.md#decisões-d
 - **Hidráulica:** padronizada em **1/8" NPT**, mangueira **4mm**. TEE + sensor de pressão + manômetro — **tudo já em mãos**. ⚠️ **Sem OPV ajustável**: o estol da própria Ulka (~15 bar) já é o teto e a máquina é projetada para ele ([por quê](docs/03-esquema-hidraulico.md#-decisão-30072026-não-comprar-opv-ajustável)).
 - **Segurança:** **fusível térmico original intacto**, **termostato de vapor em série com o SSR** como backstop de hardware, fonte isolada Hi-Link, aterramento e isolação do lado AC.
 
-⚠️ **Este projeto mexe com rede elétrica (127/220V) e água quente sob pressão.**
+⚠️ **Este projeto mexe com rede elétrica (220 V) e água quente sob pressão.**
 Leia [docs/07 — Segurança](docs/07-seguranca-e-calibracao.md) antes de qualquer coisa.
 
 ⚠️ **Antes de abrir a máquina**, leia a seção 0 de
