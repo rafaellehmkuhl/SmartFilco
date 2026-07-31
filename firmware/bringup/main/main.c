@@ -17,7 +17,7 @@
 #include "esp_wifi.h"
 #include "driver/i2c_master.h"
 #include "bme680.h"
-#include "vl53l1x.h"
+#include "tof.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
@@ -53,7 +53,7 @@ static const char *TAG = "bringup";
 #define I2C_HI 0x77
 #define MAX_I2C 16       // achados por varredura — mais que isso não cabe no barramento na prática
 #define SCAN_MS 2000
-#define SENSOR_MS 200    // leitura dos sensores; a varredura sai a cada 10 destas
+#define SENSOR_MS 100    // leitura dos sensores = 10 Hz; a varredura sai a cada 20 destas
 #define ADDR_TOF 0x29
 #define BME_MS 1000      // BME680 em modo forçado com aquecedor bloqueia ~400 ms:
                          // task própria, senão o tanque engasgaria junto
@@ -79,18 +79,18 @@ static volatile uint8_t i2c_n;
 // Leituras publicadas. Inteiros de propósito: evita formatar float no firmware e
 // deixa a página decidir a apresentação.
 static bme680_handle_t bme;
-static vl53l1x_t tof;
 static volatile bool bme_ok, tof_ok;
 static volatile int32_t s_temp_c100;
 static volatile uint32_t s_press_pa, s_umid_pct100, s_gas_ohm;
 static volatile uint16_t s_dist_mm;
 static volatile uint8_t s_dist_status = 0xFF;   // 0 = medida válida
-// sigma e sinal saem junto porque sem eles não dá para julgar a distância: o
-// driver é o ULP da ST, que devolve ESTIMATIVA (VL53L1X_ULP_DumpDebugData) e não
-// tem calibração de offset nem de crosstalk. Número sozinho não diz se o alvo
-// encheu o cone de 27° ou se a medida é uma mistura de alvo + fundo.
+// sigma e sinal saem junto porque sem eles não dá para julgar a distância:
+// número sozinho não diz se o alvo encheu o cone de 27° ou se a medida é uma
+// mistura de alvo + fundo.
 static volatile uint16_t s_dist_sigma, s_dist_sinal;
-static volatile uint8_t s_macro = 100;   // o que config_long_100ms deixa
+static volatile int16_t s_offset_mm;   // calibração de offset, só em RAM
+static volatile uint16_t s_dist_n;     // nº da medida; a página usa p/ não contar repetida
+static volatile uint16_t s_dist_mm2;   // contraprova via GetDistance
 
 static volatile int ws_falhas;         // sends recusados, acumulado
 static volatile uint32_t ws_enviados;  // frames entregues, acumulado
@@ -263,18 +263,19 @@ static void tarefa_bme(void *arg)
 
 static void sensores_iniciar(void)
 {
-    uint16_t id = 0;
-    tof_ok = (vl53l1x_init(&tof, i2c_bus, ADDR_TOF) == ESP_OK)
-             && (vl53l1x_get_sensor_id(&tof, &id) == ESP_OK)
-             && (id == 0xEACC)                       // valor de fábrica; outro = não é VL53L1X
-             && (vl53l1x_sensor_init(&tof) == ESP_OK)
-             // O exemplo do componente faz init -> config -> start. Sem a config o
-             // sensor fica no default "short range, fast" do ULP, e foi assim que
-             // ele leu 38 cm para um alvo a 2 cm e o fundo para um alvo a 7 cm.
-             // Aqui: macro timing 100 (mais integração), 10 Hz, todos os SPADs.
-             && (vl53l1x_config_long_100ms(&tof) == ESP_OK)
-             && (vl53l1x_start(&tof) == ESP_OK);
-    ESP_LOGI(TAG, "vl53l1x: %s (id=0x%04x)", tof_ok ? "ok" : "AUSENTE", id);
+    // Modo curto (~1,3 m): é o certo para reservatório (4-25 cm) e presença de
+    // copo, e é mais imune a luz ambiente que o longo.
+    //
+    // Orçamento 50 ms, período 60 ms — de propósito MAIS RÁPIDO que os 10 Hz da
+    // task. Se o sensor medisse a 100 ms igual à task, as duas cadências andariam
+    // em fase deslizante e cada leitura pegaria a medida ora pronta ora não,
+    // bloqueando a task para esperar. Com o sensor à frente, todo ciclo encontra
+    // dado fresco e `tof_ler` volta na hora. O orçamento continua 50 ms porque foi
+    // o que deu sigma baixo — encurtar isso é comprar ruído.
+    tof_ok = (tof_iniciar(i2c_bus, ADDR_TOF) == ESP_OK)
+             && (tof_config_curta(50, 60) == ESP_OK)
+             && (tof_start() == ESP_OK);
+    ESP_LOGI(TAG, "vl53l1x (ULD): %s", tof_ok ? "ok" : "AUSENTE");
 }
 
 static void tarefa_i2c(void *arg)
@@ -287,14 +288,20 @@ static void tarefa_i2c(void *arg)
 
     while (1) {
         if (tof_ok) {
-            vl53l1x_result_t r;
+            tof_leitura_t r;
             // timeout curto: se a medida não estiver pronta, tenta de novo no
             // próximo ciclo em vez de segurar a task
-            if (vl53l1x_read(&tof, &r, 60) == ESP_OK) {
-                s_dist_mm = r.distance_mm;
+            if (tof_ler(&r, 30) == ESP_OK) {
+                s_dist_mm = r.mm;
+                s_dist_mm2 = r.mm_direto;
                 s_dist_status = r.status;
                 s_dist_sigma = r.sigma_mm;
-                s_dist_sinal = r.signal_kcps;
+                s_dist_sinal = r.sinal_kcps;
+                // Contador de medida. O WebSocket empurra a 30 Hz e o sensor mede
+                // a 10 — sem isto a página conta a mesma leitura três vezes, o que
+                // infla "30/30 válidas" e estreita a faixa. Diagnóstico que se
+                // auto-engana é pior que diagnóstico nenhum.
+                s_dist_n++;
             }
         }
 
@@ -418,12 +425,12 @@ static int montar_json(char *buf, size_t tam)
     }
     p += snprintf(buf + p, tam - p,
                   "],\"bme\":%d,\"t\":%ld,\"pa\":%lu,\"rh\":%lu,\"gas\":%lu,"
-                  "\"tof\":%d,\"mm\":%u,\"dst\":%u,\"sg\":%u,\"sn\":%u}",
+                  "\"tof\":%d,\"mm\":%u,\"dst\":%u,\"sg\":%u,\"sn\":%u,\"tn\":%u}",
                   bme_ok ? 680 : 0,
                   (long)s_temp_c100, (unsigned long)s_press_pa, (unsigned long)s_umid_pct100,
                   (unsigned long)s_gas_ohm,
                   tof_ok ? 1 : 0, s_dist_mm, s_dist_status,
-                  s_dist_sigma, s_dist_sinal);
+                  s_dist_sigma, s_dist_sinal, s_dist_n);
     return p;
 }
 
@@ -438,33 +445,53 @@ static esp_err_t h_rgb(httpd_req_t *req)
     return httpd_resp_send(req, buf, n);
 }
 
-// ---------------------------------------------------- bancada: varredura do ToF
+// ------------------------------------------------- bancada: calibração do ToF
 //
-// ⚠️ DIAGNÓSTICO, não funcionalidade. Existe porque o VL53L1X está com ERRO DE
-// ESCALA, não de offset: medido em 31/07/2026 com macro timing 100, lido = 3,50 ×
-// real (5→15, 10→35, 15→50 cm), intercepto ~0.
+// `GET /tof`                — leitura crua atual
+// `GET /tof?cal=140`        — roda a calibração de offset da ST com o alvo a 140 mm
+// `GET /tof?off=-12`        — grava um offset direto, em mm
 //
-// O suspeito é o próprio macro timing: `VL53L1X_ULP_SetMacroTiming` escreve WORD
-// em 0x005E/0x0061, que no mapa da ST são os registradores de período do VCSEL — e
-// é o período que define quantos milímetros vale cada contagem.
+// A calibração de offset É a calibração normal de um ToF, ao contrário da escala
+// 3,5x que o driver ULP anterior apresentava — aquilo era bug, isto é rotina.
+// Procedimento da ST: alvo plano parado, refletância ~88%, distância conhecida.
 //
-// Sem este endpoint, achar o valor certo é uma regravação por tentativa. Com ele,
-// dá para varrer com o alvo parado na bancada:  curl '/tof?mt=16'
+// ⚠️ O offset vive só em RAM. Reiniciou, foi embora. Persistir em NVS quando o
+// valor estiver confirmado — gravar um número ainda em dúvida é pior que não ter.
 static esp_err_t h_tof(httpd_req_t *req)
 {
-    char q[48], v[12];
-    if (httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK
-        && httpd_query_key_value(q, "mt", v, sizeof(v)) == ESP_OK) {
-        int mt = atoi(v);
-        if (mt >= 1 && mt <= 255) {            // faixa aceita pela API ULP
-            vl53l1x_set_macro_timing(&tof, (uint16_t)mt);
-            s_macro = (uint8_t)mt;
+    char q[64], v[12];
+    const char *acao = "leitura";
+    if (httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK) {
+        if (httpd_query_key_value(q, "cal", v, sizeof(v)) == ESP_OK) {
+            int alvo = atoi(v);
+            int16_t achado = 0;
+            // bloqueia alguns segundos: a ST tira a média de 50 medidas
+            acao = (alvo > 0 && tof_calibrar_offset((uint16_t)alvo, &achado) == ESP_OK)
+                   ? "calibrado" : "falhou";
+            if (achado) s_offset_mm = achado;
+        } else if (httpd_query_key_value(q, "im", v, sizeof(v)) == ESP_OK) {
+            // Muda só o período entre medidas, para comparar a taxa PEDIDA com a
+            // taxa REAL (contador tn). Divergirem por um fator acusa o relógio.
+            int ms = atoi(v);
+            acao = (ms > 0 && tof_set_periodo_ms((uint16_t)ms) == ESP_OK)
+                   ? "periodo" : "falhou";
+        } else if (httpd_query_key_value(q, "off", v, sizeof(v)) == ESP_OK) {
+            int16_t off = (int16_t)atoi(v);
+            acao = (tof_set_offset_mm(off) == ESP_OK) ? "offset gravado" : "falhou";
+            s_offset_mm = off;
         }
     }
-    char buf[160];
+    tof_get_offset_mm((int16_t *)&s_offset_mm);
+    uint16_t osc = 0, modo = 0, orc = 0, per = 0;
+    tof_dump(&osc, &modo, &orc, &per);
+    char buf[280];
     int n = snprintf(buf, sizeof(buf),
-                     "{\"mt\":%u,\"mm\":%u,\"dst\":%u,\"sg\":%u,\"sn\":%u}",
-                     s_macro, s_dist_mm, s_dist_status, s_dist_sigma, s_dist_sinal);
+                     "{\"acao\":\"%s\",\"off\":%d,\"mm\":%u,\"mm2\":%u,\"dst\":%u,"
+                     "\"sg\":%u,\"sn\":%u,\"tn\":%u,"
+                     "\"osc\":%u,\"modo\":%u,\"orc\":%u,\"per\":%u}",
+                     acao, s_offset_mm, s_dist_mm, s_dist_mm2, s_dist_status,
+                     s_dist_sigma, s_dist_sinal, s_dist_n,
+                     osc, modo, orc, per);
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
     return httpd_resp_send(req, buf, n);
