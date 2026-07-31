@@ -5,6 +5,7 @@
 // LED, que depois vira o laço de controle), core 0 = Wi-Fi/HTTP.
 
 #include <assert.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "esp_event.h"
@@ -30,7 +31,7 @@ static const char *TAG = "bringup";
 #define PIN_A 48
 #define PIN_B 38
 
-#define MAXV 80          // brilho (V). WS2812 no máximo ofusca e puxa ~60 mA
+#define MAXV 80          // teto de brilho (V). WS2812 no máximo ofusca e puxa ~60 mA
 #define SAT 255          // saturação cheia — é o que impede o cinza
 #define FRAME_MS 20      // 50 fps
 #define TRANSICAO_MS 3000
@@ -47,6 +48,10 @@ extern const char index_html_end[] asm("_binary_index_html_end");
 static led_strip_handle_t tiras[2];
 static int64_t t0;
 static httpd_handle_t servidor;
+// Brilho corrente, 0..MAXV. Ajustável pela página via WebSocket; 0 = apagado.
+// O passeio de matiz continua rodando com brilho 0 — ao reacender, a cor está no
+// ponto em que estaria, em vez de saltar.
+static volatile uint8_t brilho = MAXV;
 static volatile int ws_falhas;         // sends recusados, acumulado
 static volatile uint32_t ws_enviados;  // frames entregues, acumulado
 
@@ -152,7 +157,7 @@ static void tarefa_led(void *arg)
             prog = 0;
         }
         matiz = interp_matiz(de, para, prog, TRANSICAO_MS);
-        hsv_para_rgb(matiz, SAT, MAXV, cor);
+        hsv_para_rgb(matiz, SAT, brilho, cor);
 
         for (int t = 0; t < 2; t++) {
             ESP_ERROR_CHECK(led_strip_set_pixel(tiras[t], 0, cor[0], cor[1], cor[2]));
@@ -163,8 +168,8 @@ static void tarefa_led(void *arg)
         // confiável (o reset derruba a própria USB), então o firmware precisa
         // falar sozinho — senão a placa fica indepurável sem monitor interativo.
         if (++quadros % (2000 / FRAME_MS) == 0) {
-            ESP_LOGI(TAG, "matiz=%u  rgb=%u,%u,%u  heap=%lu  core=%d",
-                     matiz, cor[0], cor[1], cor[2],
+            ESP_LOGI(TAG, "matiz=%u  brilho=%u  rgb=%u,%u,%u  heap=%lu  core=%d",
+                     matiz, brilho, cor[0], cor[1], cor[2],
                      (unsigned long)esp_get_free_heap_size(), xPortGetCoreID());
         }
 
@@ -244,9 +249,9 @@ static int montar_json(char *buf, size_t tam)
     }
 
     return snprintf(buf, tam,
-                    "{\"rgb\":[%u,%u,%u],\"max\":%d,\"ip\":\"" IPSTR "\",\"rssi\":%d,"
+                    "{\"rgb\":[%u,%u,%u],\"max\":%d,\"brilho\":%u,\"ip\":\"" IPSTR "\",\"rssi\":%d,"
                     "\"up\":%lld,\"ws\":%d,\"wserr\":%d,\"wstx\":%lu}",
-                    cor[0], cor[1], cor[2], MAXV, IP2STR(&ip.ip), rssi,
+                    cor[0], cor[1], cor[2], MAXV, brilho, IP2STR(&ip.ip), rssi,
                     (esp_timer_get_time() - t0) / 1000000,
                     assinantes, ws_falhas, (unsigned long)ws_enviados);
 }
@@ -269,13 +274,25 @@ static esp_err_t h_rgb(httpd_req_t *req)
 // websocket handshake, then do not call the uri->handler". O padrão antigo de
 // registrar o fd num `if (req->method == HTTP_GET)` não dispara mais.
 //
-// Esta função só vê frames de dados. A página não manda nenhum, mas um frame
-// que chegue e não seja drenado trava o socket.
+// Esta função vê os frames de dados do cliente. Hoje só existe um comando: o
+// brilho, como número decimal em texto ("0" a "80"). Formato mínimo de propósito —
+// não vale JSON para um inteiro.
+//
+// Drenar o frame é obrigatório mesmo que não se use: frame não lido trava o socket.
 static esp_err_t h_ws(httpd_req_t *req)
 {
-    uint8_t lixo[64];
-    httpd_ws_frame_t f = { .type = HTTPD_WS_TYPE_TEXT, .payload = lixo };
-    return httpd_ws_recv_frame(req, &f, sizeof(lixo));
+    uint8_t buf[16] = { 0 };
+    httpd_ws_frame_t f = { .type = HTTPD_WS_TYPE_TEXT, .payload = buf };
+
+    esp_err_t e = httpd_ws_recv_frame(req, &f, sizeof(buf) - 1);
+    if (e != ESP_OK || f.len == 0) {
+        return e;
+    }
+    buf[f.len] = '\0';
+
+    int v = atoi((char *)buf);
+    brilho = v < 0 ? 0 : (v > MAXV ? MAXV : v);   // clamp: cliente não define o teto
+    return ESP_OK;
 }
 
 // Sem lista própria de clientes: o servidor já sabe quem está conectado e quem
