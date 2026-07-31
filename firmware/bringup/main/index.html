@@ -1,156 +1,277 @@
 <!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SmartFilco — RGB</title>
+<title>SmartFilco</title>
 <style>
-:root{color-scheme:dark}
-body{margin:0;min-height:100vh;display:flex;flex-direction:column;
-justify-content:center;align-items:center;gap:2rem;padding:2rem;
-background:#12110f;color:#e8e3da;
-font:15px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}
-#sw{width:min(58vw,260px);aspect-ratio:1;border-radius:18px;
-border:1px solid #33302b;transition:background .15s linear}
-.ch{display:grid;grid-template-columns:1.2rem 3ch 1fr;gap:.55rem .7rem;
-align-items:center;width:min(80vw,320px)}
-.ch b{font-weight:500;color:#8a8175}
-.ch i{font-style:normal;text-align:right;font-size:1.05rem}
-.t{height:6px;background:#1e1c19;border-radius:3px;overflow:hidden}
-.t>div{height:100%;border-radius:3px;transition:width .15s linear}
-.sub{color:#8a8175;font-size:.75rem;letter-spacing:.04em}
-.dim{display:grid;grid-template-columns:1fr 7ch;gap:.8rem;align-items:center;
-width:min(80vw,320px)}
-.dim input{width:100%;accent-color:#e8e3da}
-.dim span{color:#8a8175;font-size:.8rem;text-align:right;font-variant-numeric:tabular-nums}
-.i2c{display:flex;flex-wrap:wrap;gap:.4rem;justify-content:center;
-width:min(80vw,340px);min-height:1.9rem}
-.i2c b{display:inline-flex;align-items:baseline;gap:.4rem;font-weight:400;
-background:#1e1c19;border:1px solid #33302b;border-radius:5px;padding:.25rem .5rem;
-font-size:.78rem;color:#e8e3da}
-.i2c b i{font-style:normal;color:#8a8175;font-size:.72rem}
-.i2c .vazio{color:#6b645a;font-size:.75rem;letter-spacing:.04em}
-.sens{display:grid;grid-template-columns:auto 1fr;gap:1.5rem;align-items:center;
-width:min(80vw,340px)}
-.tanque{position:relative;width:78px;height:152px;border:1.5px solid #33302b;
-border-radius:7px;overflow:hidden;background:#16140f}
+/* Alvo primário: GUITION JC4880P443C — 480x800 nativo, montada em LANDSCAPE = 800x480.
+   Painel de máquina não rola: se precisa arrastar a tela com o dedo sujo de café
+   para ver a pressão, o painel falhou. Tudo cabe na altura da viewport.
+   Telefone é o caso secundário, e aí sim vira coluna rolável.                    */
+:root{color-scheme:dark;
+  --graf:#14120f; --painel:#1c1915; --linha:#2b2620;
+  --osso:#ece7dd; --cinza:#8f877a; --fosco:#5d564c;
+  --crema:#c9a06a; --brasa:#d4553f; --agua:#4a8cc4;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
+  font:400 14px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace}
+.app{height:100%;display:grid;grid-template-columns:64px 1fr;grid-template-rows:auto 1fr;
+  gap:10px;padding:8px 10px 10px}
+:focus-visible{outline:2px solid var(--crema);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ---- barra de estado ---- */
+.topo{grid-column:1/-1;display:flex;align-items:center;gap:.8rem;
+  padding-bottom:7px;border-bottom:1px solid var(--linha)}
+.marca{font-family:ui-sans-serif,system-ui,sans-serif;font-weight:700;font-size:.78rem;
+  letter-spacing:.22em;text-transform:uppercase}
+.estado{display:flex;align-items:center;gap:.4rem;
+  font-family:ui-sans-serif,system-ui,sans-serif;font-size:.73rem;color:var(--cinza)}
+.led{width:7px;height:7px;border-radius:50%;background:var(--fosco);flex:none}
+.led.viva{background:var(--crema);box-shadow:0 0 0 3px rgba(201,160,106,.16)}
+
+/* ---- bandeja de ambiente (canto superior direito) ---- */
+.tray{margin-left:auto;position:relative}
+.tray>button{display:flex;align-items:center;gap:.45rem;background:var(--painel);
+  color:var(--cinza);border:1px solid var(--linha);border-radius:6px;
+  padding:.28rem .5rem;font:inherit;font-size:.72rem;cursor:pointer;
+  font-variant-numeric:tabular-nums}
+.tray>button:hover{border-color:var(--fosco);color:var(--osso)}
+.tray svg{width:11px;height:11px;flex:none;stroke:var(--cinza);fill:none;stroke-width:1.6}
+.painelAmb{position:absolute;top:calc(100% + 6px);right:0;z-index:5;min-width:186px;
+  background:var(--painel);border:1px solid var(--linha);border-radius:8px;
+  padding:.6rem .7rem;box-shadow:0 10px 28px rgba(0,0,0,.55);display:none}
+.tray.aberta .painelAmb{display:block}
+.painelAmb dl{display:grid;grid-template-columns:1fr auto;gap:.28rem .8rem;margin:.45rem 0 0}
+.painelAmb dt{font-family:ui-sans-serif,system-ui,sans-serif;font-size:.68rem;color:var(--cinza)}
+.painelAmb dd{margin:0;font-size:.76rem;text-align:right;font-variant-numeric:tabular-nums}
+.painelAmb .fonte{margin-top:.5rem;padding-top:.45rem;border-top:1px solid var(--linha);
+  font-family:ui-sans-serif,system-ui,sans-serif;font-size:.62rem;color:var(--fosco)}
+
+/* ---- trilho de nível (lateral) ---- */
+.nivel{display:flex;min-height:0}
+.nivel .eixo{position:absolute;top:9px;left:50%;z-index:2;
+  transform:translateX(-50%) rotate(180deg);writing-mode:vertical-rl;
+  font-family:ui-sans-serif,system-ui,sans-serif;font-size:.53rem;font-weight:600;
+  letter-spacing:.2em;text-transform:uppercase;color:var(--fosco);pointer-events:none}
+.trilho{position:relative;flex:1;min-height:0;border:1.5px solid var(--linha);
+  border-radius:7px;overflow:hidden;background:var(--graf)}
 .agua{position:absolute;left:0;right:0;bottom:0;height:0;
-background:linear-gradient(#4a8cc4,#26557f);transition:height .3s ease-out}
-.agua::before{content:'';position:absolute;left:0;right:0;top:0;height:2px;
-background:#8fd0f0}
-.tanque b{position:absolute;inset:0;display:grid;place-items:center;font-size:1.1rem;
-font-weight:600;color:#e8e3da;text-shadow:0 1px 4px #000,0 0 10px #000}
-.tanque.ruim{opacity:.3}
-.dados{display:grid;grid-template-columns:1fr auto;gap:.4rem .9rem;font-size:.82rem}
-.dados i{font-style:normal;color:#8a8175}
-.dados b{font-weight:500;text-align:right;font-variant-numeric:tabular-nums;color:#e8e3da}
-.dados .off{color:#5a544c}
+  background:linear-gradient(var(--agua),#26557f);transition:height .35s ease-out}
+.agua::before{content:'';position:absolute;left:0;right:0;top:0;height:2px;background:#8fd0f0}
+.trilho b{position:absolute;left:0;right:0;top:50%;z-index:2;transform:translateY(-50%);
+  text-align:center;font-size:.95rem;font-weight:500;
+  text-shadow:0 1px 4px #000,0 0 10px #000}
+.trilho.ruim{opacity:.3}
+.nivel .cm{position:absolute;left:0;right:0;bottom:6px;z-index:2;text-align:center;
+  font-size:.58rem;color:var(--fosco);font-variant-numeric:tabular-nums;
+  text-shadow:0 1px 4px #000}
+
+/* ---- corpo ---- */
+.corpo{display:grid;grid-template-rows:1fr auto;gap:10px;min-height:0}
+.leituras{display:grid;grid-template-columns:1fr 1fr;gap:10px;min-height:0}
+.card{background:var(--painel);border:1px solid var(--linha);border-radius:10px;
+  padding:.85rem 1rem 1rem;display:flex;flex-direction:column;min-height:0;
+  justify-content:space-between;overflow:hidden}
+.rot{font-family:ui-sans-serif,system-ui,sans-serif;font-size:.62rem;font-weight:600;
+  letter-spacing:.17em;text-transform:uppercase;color:var(--cinza)}
+.rot s{text-decoration:none;color:var(--fosco);font-weight:400;letter-spacing:.07em}
+.big{font-size:4.4rem;line-height:.95;letter-spacing:-.045em;
+  font-variant-numeric:tabular-nums}
+.big u{text-decoration:none;font-size:1.1rem;letter-spacing:0;color:var(--cinza);
+  margin-left:.3rem}
+/* slot ainda sem sensor: guarda o lugar sem fingir um número. Traço no tamanho
+   do dado seria dois blocos flutuando — menor e com a unidade na mesma linha. */
+.card.frio .big{color:var(--fosco);font-size:2.4rem;line-height:1}
+.card.frio .big u{font-size:1rem;vertical-align:.55em;margin-left:.15rem}
+.nota{font-family:ui-sans-serif,system-ui,sans-serif;font-size:.68rem;color:var(--fosco);
+  line-height:1.35}
+
+/* ---- assinatura: trem de pulsos ---- */
+.psm{border:1px solid var(--linha);border-radius:10px;background:var(--painel);
+  padding:.7rem .9rem .75rem}
+.cab{display:flex;align-items:baseline;gap:.6rem;margin-bottom:.5rem}
+.duty{margin-left:auto;font-size:1.05rem;font-variant-numeric:tabular-nums}
+.duty u{text-decoration:none;font-size:.75rem;color:var(--cinza);margin-left:.12rem}
+#trem{display:block;width:100%;height:36px}
+.pe{display:flex;justify-content:space-between;gap:1rem;margin-top:.35rem;
+  font-family:ui-sans-serif,system-ui,sans-serif;font-size:.63rem;color:var(--fosco)}
+.ctrl{display:flex;align-items:center;gap:.85rem;margin-top:.6rem;padding-top:.6rem;
+  border-top:1px solid var(--linha)}
+.ctrl input{flex:1;min-width:0;accent-color:var(--crema);height:26px}  /* alvo de dedo */
+.ctrl .val{font-size:.73rem;color:var(--cinza);font-variant-numeric:tabular-nums;
+  min-width:4.4em;text-align:right}
+
+/* ---- telefone: vira coluna rolável ---- */
+@media (max-width:700px){
+  body{overflow:auto}
+  .app{height:auto;grid-template-columns:1fr;grid-template-rows:none;padding-bottom:2rem}
+  .nivel{height:80px}
+  .nivel .eixo{writing-mode:horizontal-tb;transform:translateX(-50%);top:6px}
+  .leituras{grid-template-columns:1fr 1fr}
+  .big{font-size:3rem}
+  .card{min-height:130px}
+}
 </style></head><body>
-<div id="sw"></div>
-<div class="ch">
-<b>R</b><i id="vr">-</i><div class="t"><div id="br" style="background:#d4553f"></div></div>
-<b>G</b><i id="vg">-</i><div class="t"><div id="bg" style="background:#6b8e5a"></div></div>
-<b>B</b><i id="vb">-</i><div class="t"><div id="bb" style="background:#5a7d9e"></div></div>
+<div class="app">
+
+<div class="topo">
+  <span class="marca">SmartFilco</span>
+  <span class="estado"><i class="led" id="led"></i><span id="txtEstado">conectando</span></span>
+
+  <div class="tray" id="tray">
+    <button id="btAmb" aria-expanded="false" aria-controls="painelAmb">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v10.6a3.4 3.4 0 1 1-2 0V3a1 1 0 0 1 2 0z"/></svg>
+      <span id="trayResumo">&mdash;</span>
+    </button>
+    <div class="painelAmb" id="painelAmb" role="region" aria-label="ambiente">
+      <div class="rot">Ambiente</div>
+      <dl>
+        <dt>temperatura</dt><dd id="aT">&mdash;</dd>
+        <dt>umidade</dt><dd id="aU">&mdash;</dd>
+        <dt>pressão do ar</dt><dd id="aP">&mdash;</dd>
+        <dt>gás (VOC)</dt><dd id="aG">&mdash;</dd>
+      </dl>
+      <div class="fonte" id="aFonte">&mdash;</div>
+    </div>
+  </div>
 </div>
-<div class="dim">
-<input id="sl" type="range" min="0" max="80" value="80" aria-label="brilho">
-<span id="pct">-</span>
+
+<div class="nivel">
+  <div class="trilho" id="trilho">
+    <div class="agua" id="agua"></div>
+    <span class="eixo">Reservatório</span>
+    <b id="nivel">&mdash;</b>
+    <span class="cm" id="nDist">&mdash;</span>
+  </div>
 </div>
-<div class="sens">
-<div class="tanque" id="tanque"><div class="agua" id="agua"></div><b id="nivel">-</b></div>
-<div class="dados">
-<i>distância</i><b id="dist">-</b>
-<i>temperatura</i><b id="temp">-</b>
-<i>pressão</i><b id="pres">-</b>
-<i>umidade</i><b id="umid">-</b>
-<i>gás (VOC)</i><b id="gas">-</b>
+
+<div class="corpo">
+  <div class="leituras">
+    <div class="card">
+      <div class="rot">Temperatura <s>ambiente</s></div>
+      <div class="big" id="vTemp">&mdash;<u>°C</u></div>
+      <div class="nota">PT100 no boiler chega 05/08</div>
+    </div>
+    <div class="card frio">
+      <div class="rot">Pressão</div>
+      <div class="big">&mdash;<u>bar</u></div>
+      <div class="nota">Sensor 200 PSI chega 05/08</div>
+    </div>
+  </div>
+
+  <div class="psm">
+    <div class="cab">
+      <span class="rot">Bomba <s>PSM &middot; previsão</s></span>
+      <span class="duty" id="vDuty">0<u>%</u></span>
+    </div>
+    <canvas id="trem"></canvas>
+    <div class="pe">
+      <span>120 semiciclos &middot; 1 s a 60 Hz &middot; sem dimmer até ~09/08</span>
+      <span id="conta">&mdash;</span>
+    </div>
+    <div class="ctrl">
+      <span class="rot">Brilho do LED</span>
+      <input id="sl" type="range" min="0" max="80" value="80" aria-label="brilho do LED">
+      <span class="val" id="vBrilho">&mdash;</span>
+    </div>
+  </div>
 </div>
 </div>
-<div class="i2c" id="i2c"></div>
-<div class="sub" id="meta">carregando...</div>
+
 <script>
-var tNum=0, tMexeu=0, ws=null, vmax=80, i2cAnt='';
-// Endereços que o projeto espera. O scan vira verificação, não descoberta:
-// faltar um significa fiação, e isso se depura muito mais rápido.
+var CHEIO=40, VAZIO=250, N=120;
+var ws=null, tNum=0, tMexeu=0, vmax=80, i2cAnt='';
 var NOMES={0x29:'VL53L1X',0x48:'ADS1115',0x57:'EEPROM',0x68:'DS3231',
            0x76:'BME680',0x77:'BME680'};
 function hex(a){return '0x'+(a<16?'0':'')+a.toString(16);}
+function pctNivel(mm){return Math.max(0,Math.min(100,Math.round(100*(VAZIO-mm)/(VAZIO-CHEIO))));}
 
-// Calibração do reservatório: 4 cm de distância = cheio, 25 cm = vazio.
-// O firmware manda milímetros crus; a conversão para nível mora aqui porque é
-// geometria do tanque, não física do sensor.
-var CHEIO=40, VAZIO=250;
-function vazio(el){el.textContent='-';el.classList.add('off');}
+// bandeja por clique, não por hover: numa tela sensível ao toque hover não existe
+btAmb.onclick=function(){
+ var ab=tray.classList.toggle('aberta');
+ btAmb.setAttribute('aria-expanded',ab?'true':'false');
+};
+addEventListener('click',function(e){
+ if(!tray.contains(e.target)){tray.classList.remove('aberta');
+  btAmb.setAttribute('aria-expanded','false');}
+},true);
 
-function rotulo(v){return v>0?Math.round(100*v/vmax)+'%':'apagado';}
+/* -------------------------------------------------------------- assinatura
+   Trem de pulsos do PSM. Não é enfeite nem dado inventado: é o acumulador de
+   Bresenham da PSM.Library rodando aqui, mostrando como o mesmo duty do slider
+   seria entregue à bomba, semiciclo a semiciclo.
+
+   Torna visível o que a docs/07 aponta como único contra real do PSM — ripple de
+   pressão em duty baixo. O acumulador DISTRIBUI os disparos em vez de agrupá-los,
+   e isso se enxerga arrastando o slider.                                        */
+function psmPadrao(duty,range,n){
+ var a=0,out=[];
+ for(var i=0;i<n;i++){a+=duty;if(a>=range){a-=range;out.push(1);}else out.push(0);}
+ return out;
+}
+function desenhaTrem(duty,range){
+ var cv=trem,ctx=cv.getContext('2d'),dpr=devicePixelRatio||1;
+ var w=cv.clientWidth,h=cv.clientHeight;
+ if(!w)return;
+ if(cv.width!==Math.round(w*dpr)){cv.width=w*dpr;cv.height=h*dpr;}
+ ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+ var passo=w/N, lg=Math.max(1,passo-Math.max(.6,passo*.3)), disp=0;
+ psmPadrao(duty,range,N).forEach(function(v,i){
+  if(v){disp++;ctx.fillStyle='#c9a06a';ctx.fillRect(i*passo,3,lg,h-6);}
+  else{ctx.fillStyle='#2b2620';ctx.fillRect(i*passo,h-5,lg,2);}
+ });
+ conta.textContent=disp+' disparo'+(disp===1?'':'s');
+ vDuty.innerHTML=Math.round(100*duty/range)+'<u>%</u>';
+}
+addEventListener('resize',function(){desenhaTrem(+sl.value,+sl.max);});
 
 function pinta(d){
- var c=d.rgb, k=function(x){return Math.round(x*255/d.max);};  // 0..max -> 0..255
- sw.style.background='rgb('+k(c[0])+','+k(c[1])+','+k(c[2])+')';
- var b=[br,bg,bb];
- for(var i=0;i<3;i++){b[i].style.width=(100*c[i]/d.max)+'%';}
- // Texto num ritmo humano. Cor e barras acompanham os 30 Hz porque são
- // movimento; dígito trocando 30x/s ninguem le, so treme.
+ led.classList.add('viva');txtEstado.textContent='ocioso';
+ vmax=d.max;sl.max=d.max;
+ if(d.tof){
+  var pc=pctNivel(d.mm);
+  agua.style.height=pc+'%';nivel.textContent=pc+'%';
+  nDist.textContent=(d.mm/10).toFixed(1)+' cm';
+  trilho.classList.toggle('ruim',d.dst!==0);
+ }
  var t=performance.now();
- if(t-tNum>125){
+ if(t-tNum>250){   // ritmo humano: dígito trocando 30x/s ninguém lê, só treme
   tNum=t;
-  var v=[vr,vg,vb];
-  for(var j=0;j<3;j++){v[j].textContent=c[j];}
-  meta.textContent=d.ip+' · '+d.rssi+' dBm · up '+d.up+'s';
-
-  if(d.tof){
-   var mm=d.mm, valida=(d.dst===0);
-   var pc=Math.max(0,Math.min(100,Math.round(100*(VAZIO-mm)/(VAZIO-CHEIO))));
-   agua.style.height=pc+'%';
-   nivel.textContent=pc+'%';
-   dist.textContent=(mm/10).toFixed(1)+' cm';
-   dist.classList.remove('off');
-   // status != 0 é medida fraca ou fora de alcance — mostra, mas esmaecida,
-   // em vez de sumir com o número e deixar a tela em branco
-   tanque.classList.toggle('ruim',!valida);
-  }else{
-   vazio(dist);vazio(nivel);
-  }
-
   if(d.bme){
-   temp.textContent=(d.t/100).toFixed(1)+' °C';
-   pres.textContent=(d.pa/100).toFixed(1)+' hPa';
-   umid.textContent=(d.rh/100).toFixed(1)+' %';
-   // resistência de gás CAI quando há mais VOC. Em kΩ porque ohm cru enche a linha.
-   gas.textContent=(d.gas/1000).toFixed(1)+' kΩ';
-   [temp,pres,umid,gas].forEach(function(e){e.classList.remove('off');});
-  }else{
-   vazio(temp);vazio(pres);vazio(umid);vazio(gas);
+   var tc=(d.t/100).toFixed(1), rh=(d.rh/100).toFixed(0);
+   vTemp.innerHTML=tc+'<u>°C</u>';
+   trayResumo.textContent=tc+'° '+rh+'%';
+   aT.textContent=tc+' °C';
+   aU.textContent=(d.rh/100).toFixed(1)+' %';
+   aP.textContent=(d.pa/100).toFixed(1)+' hPa';
+   aG.textContent=(d.gas/1000).toFixed(1)+' kΩ';
+  }
+  if(i2cAnt!==d.i2c.join(',')){
+   i2cAnt=d.i2c.join(',');
+   aFonte.textContent=d.i2c.map(function(a){return (NOMES[a]||'?')+' '+hex(a);})
+    .join(' · ')+' · '+d.ip;
   }
  }
- // O servidor manda o brilho 30x/s. Sem esta guarda, cada frame sobrescreveria
- // o slider debaixo do dedo do usuário. Solta o controle 800 ms depois do último
- // toque — cobre mouse, dedo e seta do teclado, sem rastrear ponteiro.
- vmax=d.max;
- sl.max=d.max;
- if(t-tMexeu>800){sl.value=d.brilho;pct.textContent=rotulo(d.brilho);}
-
- // Só redesenha quando a lista muda — plugar/desplugar aparece na hora, mas os
- // 30 frames por segundo não ficam recriando DOM à toa.
- var chave=d.i2c.join(',');
- if(chave!==i2cAnt){
-  i2cAnt=chave;
-  i2c.innerHTML=d.i2c.length
-   ? d.i2c.map(function(a){
-       return '<b>'+hex(a)+'<i>'+(NOMES[a]||'?')+'</i></b>';}).join('')
-   : '<span class="vazio">I\u00b2C: nenhum dispositivo</span>';
- }
+ // guarda de 800 ms: o servidor manda o brilho 30x/s e sobrescreveria o slider
+ // debaixo do dedo. Solta depois do último toque — cobre mouse, dedo e teclado.
+ if(t-tMexeu>800){sl.value=d.brilho;mostraBrilho(d.brilho);}
 }
-
+function mostraBrilho(v){
+ vBrilho.textContent=v>0?Math.round(100*v/vmax)+'%':'apagado';
+ desenhaTrem(+v,+sl.max);
+}
 sl.oninput=function(){
- tMexeu=performance.now();
- pct.textContent=rotulo(+sl.value);
- if(ws&&ws.readyState===1){ws.send(sl.value);}   // texto puro; não vale JSON p/ um int
+ tMexeu=performance.now();mostraBrilho(+sl.value);
+ if(ws&&ws.readyState===1)ws.send(sl.value);   // texto puro; não vale JSON p/ um int
 };
-
 function liga(){
  ws=new WebSocket('ws://'+location.host+'/ws');
  ws.onmessage=function(e){pinta(JSON.parse(e.data));};
  ws.onerror=function(){ws.close();};
- // a placa reinicia bastante durante bring-up; reconectar sozinho evita F5
- ws.onclose=function(){meta.textContent='reconectando...';setTimeout(liga,1000);};
+ ws.onclose=function(){led.classList.remove('viva');txtEstado.textContent='reconectando';
+  setTimeout(liga,1000);};
 }
-liga();
-</script></body></html>
+mostraBrilho(80);liga();
+</script>
+</body></html>

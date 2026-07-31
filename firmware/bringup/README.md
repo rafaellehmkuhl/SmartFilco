@@ -19,6 +19,36 @@ O que faz:
 O JSON traz `ws` (assinantes conectados), `wstx` e `wserr`, que é como se depura
 o push sem terminal serial.
 
+## A página
+
+Não é mais um painel de bancada: é o **primeiro rascunho da tela da máquina**.
+Desenhada para **800×480 em landscape** — a GUITION JC4880P443C montada deitada.
+
+**A regra que dita o layout: painel de máquina não rola.** Se você precisa arrastar
+a tela com o dedo sujo de café para ver a pressão, o painel falhou. Tudo cabe na
+altura da viewport; `overflow:hidden` no `body` é a trava. Abaixo de 700 px de
+largura (telefone) ela vira coluna rolável.
+
+| Região | O que mora ali |
+|---|---|
+| **Topo** | marca, LED de estado, e a **bandeja de ambiente** à direita |
+| **Lateral esquerda** | trilho vertical do reservatório, `%` no meio, cm no pé |
+| **Corpo** | dois cartões-herói: temperatura e pressão |
+| **Faixa inferior** | trem de pulsos do PSM + brilho do LED |
+
+**A bandeja abre por clique, não por hover.** Numa tela sensível ao toque hover não
+existe; um painel que só revela dado ao passar o mouse não revela nada na máquina.
+
+**O trem de pulsos roda o acumulador de Bresenham de verdade**, com o duty do
+slider — não é enfeite nem dado inventado. É o que a
+[`docs/07`](../../docs/07-seguranca-e-calibracao.md) descreve como o único contra
+real do PSM (ripple em duty baixo) ficando visível: arrastando o slider dá para ver
+os disparos se **distribuírem** em vez de se agruparem.
+
+**O cartão de pressão é um vazio honesto** — `— bar` em cinza, com a data em que o
+sensor chega. Slot menor que o dado vivo, para não competir com ele. Número
+inventado em painel de máquina é como sensor mentindo: pior que nenhum.
+
 ## Varredura I²C
 
 Task no **core 0** varrendo `0x08`–`0x77` a cada 2 s com `i2c_master_probe()`. Fica
