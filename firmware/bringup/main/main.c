@@ -90,6 +90,7 @@ static volatile uint8_t s_dist_status = 0xFF;   // 0 = medida válida
 // tem calibração de offset nem de crosstalk. Número sozinho não diz se o alvo
 // encheu o cone de 27° ou se a medida é uma mistura de alvo + fundo.
 static volatile uint16_t s_dist_sigma, s_dist_sinal;
+static volatile uint8_t s_macro = 100;   // o que config_long_100ms deixa
 
 static volatile int ws_falhas;         // sends recusados, acumulado
 static volatile uint32_t ws_enviados;  // frames entregues, acumulado
@@ -267,6 +268,11 @@ static void sensores_iniciar(void)
              && (vl53l1x_get_sensor_id(&tof, &id) == ESP_OK)
              && (id == 0xEACC)                       // valor de fábrica; outro = não é VL53L1X
              && (vl53l1x_sensor_init(&tof) == ESP_OK)
+             // O exemplo do componente faz init -> config -> start. Sem a config o
+             // sensor fica no default "short range, fast" do ULP, e foi assim que
+             // ele leu 38 cm para um alvo a 2 cm e o fundo para um alvo a 7 cm.
+             // Aqui: macro timing 100 (mais integração), 10 Hz, todos os SPADs.
+             && (vl53l1x_config_long_100ms(&tof) == ESP_OK)
              && (vl53l1x_start(&tof) == ESP_OK);
     ESP_LOGI(TAG, "vl53l1x: %s (id=0x%04x)", tof_ok ? "ok" : "AUSENTE", id);
 }
@@ -432,6 +438,38 @@ static esp_err_t h_rgb(httpd_req_t *req)
     return httpd_resp_send(req, buf, n);
 }
 
+// ---------------------------------------------------- bancada: varredura do ToF
+//
+// ⚠️ DIAGNÓSTICO, não funcionalidade. Existe porque o VL53L1X está com ERRO DE
+// ESCALA, não de offset: medido em 31/07/2026 com macro timing 100, lido = 3,50 ×
+// real (5→15, 10→35, 15→50 cm), intercepto ~0.
+//
+// O suspeito é o próprio macro timing: `VL53L1X_ULP_SetMacroTiming` escreve WORD
+// em 0x005E/0x0061, que no mapa da ST são os registradores de período do VCSEL — e
+// é o período que define quantos milímetros vale cada contagem.
+//
+// Sem este endpoint, achar o valor certo é uma regravação por tentativa. Com ele,
+// dá para varrer com o alvo parado na bancada:  curl '/tof?mt=16'
+static esp_err_t h_tof(httpd_req_t *req)
+{
+    char q[48], v[12];
+    if (httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK
+        && httpd_query_key_value(q, "mt", v, sizeof(v)) == ESP_OK) {
+        int mt = atoi(v);
+        if (mt >= 1 && mt <= 255) {            // faixa aceita pela API ULP
+            vl53l1x_set_macro_timing(&tof, (uint16_t)mt);
+            s_macro = (uint8_t)mt;
+        }
+    }
+    char buf[160];
+    int n = snprintf(buf, sizeof(buf),
+                     "{\"mt\":%u,\"mm\":%u,\"dst\":%u,\"sg\":%u,\"sn\":%u}",
+                     s_macro, s_dist_mm, s_dist_status, s_dist_sigma, s_dist_sinal);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    return httpd_resp_send(req, buf, n);
+}
+
 // ---------------------------------------------------------------- websocket
 
 // ⚠️ O handshake NÃO passa por aqui. O esp_http_server responde o 101 e retorna
@@ -511,11 +549,13 @@ static void http_iniciar(void)
 
     httpd_uri_t u_pag = { .uri = "/", .method = HTTP_GET, .handler = h_pagina };
     httpd_uri_t u_rgb = { .uri = "/rgb", .method = HTTP_GET, .handler = h_rgb };
+    httpd_uri_t u_tof = { .uri = "/tof", .method = HTTP_GET, .handler = h_tof };
     httpd_uri_t u_ws = {
         .uri = "/ws", .method = HTTP_GET, .handler = h_ws, .is_websocket = true
     };
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_pag));
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_rgb));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_tof));
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_ws));
 
     // push fica no core da rede: mandar frame do core 1 furaria a separação
