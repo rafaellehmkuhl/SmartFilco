@@ -442,8 +442,14 @@ resolveu de forma confiável.
 ```bash
 source ~/esp/esp-idf/export.sh
 idf.py -C firmware/bringup build
-idf.py -C firmware/bringup -p /dev/cu.usbmodem1101 flash monitor
+idf.py -C firmware/bringup -p $(ls /dev/cu.usbmodem*) flash monitor
 ```
+
+⚠️ **Não fixe o número da porta.** A USB-JTAG nativa reenumera: já apareceu como
+`usbmodem1101` e como `usbmodem101` **na mesma placa**, entre sessões. Número
+gravado no comando vira "a placa sumiu" quando o que mudou foi só o enumerador do
+macOS. O glob acima resolve enquanto houver **um** devkit plugado — com dois, aí sim
+escolha na mão.
 
 `idf.py monitor` faz a sequência de linhas na ordem certa — mas **exige TTY**, não
 roda em pipe nem em CI. Para captura não-interativa não há solução boa: o jeito é

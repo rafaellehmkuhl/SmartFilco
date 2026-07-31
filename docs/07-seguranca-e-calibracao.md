@@ -304,6 +304,11 @@ não completa o curso. Extração a 9 bar deve ir bem em qualquer cenário.
       suspeito nº1 é pull-up/alimentação no lado HV do shifter.
 - [ ] MAX31865: Rref 430 Ω confirmado, modo 3 fios configurado, leitura de ambiente coerente.
 - [ ] PGA do ADS1115 em ±6,144 V **antes** de ligar o sensor de pressão.
+- [ ] **`MISO` do módulo microSD medido em alta impedância com o `CS` inativo** —
+      fazer isto **antes** de montar o chicote, com multímetro
+      ([02](02-arquitetura-eletrica-pinout.md#-2-o-miso-do-módulo-microsd-solta-o-barramento--falta-medir)).
+      Módulo que não solta o barramento impede o MAX31865 de responder, e a falha só
+      aparece com os dois juntos.
 - [ ] microSD monta e grava (SPI compartilhado com o MAX31865 → conferir que ambos
       leem alternadamente sem se corromper).
 - [ ] Testar SSR e dimmer com **carga de teste** (lâmpada) antes da resistência/bomba reais.

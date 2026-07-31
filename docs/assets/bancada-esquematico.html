@@ -185,9 +185,9 @@ code{background:var(--ground);padding:.1em .4em;border-radius:4px;font-size:.92e
     <line x1="270" y1="500" x2="270" y2="264" stroke="var(--gnd)"/><circle cx="270" cy="264" r="4" fill="var(--gnd)"/>
   </g>
 
-  <!-- BME280 -->
+  <!-- BME680 -->
   <rect x="410" y="500" width="230" height="150" rx="8" fill="none" stroke="var(--i2c)" stroke-width="1.5"/>
-  <text x="428" y="527" font-size="13" font-weight="700" fill="var(--ink)">BME280 / BMP280</text>
+  <text x="428" y="527" font-size="13" font-weight="700" fill="var(--ink)">BME680</text>
   <text x="428" y="546" font-size="10.5" fill="var(--ink-3)">I²C 0x77 — medido</text>
   <g font-size="11.5" fill="var(--ink-2)">
     <text x="428" y="573">SCL · SDA · VCC → 3V3</text>
@@ -306,8 +306,8 @@ code{background:var(--ground);padding:.1em .4em;border-radius:4px;font-size:.92e
   <table>
     <thead><tr><th>GPIO</th><th>Sinal</th><th>Vai em</th><th>Tensão</th></tr></thead>
     <tbody>
-      <tr><td><span class="pin" style="background:var(--i2c)">8</span></td><td>I²C SDA</td><td>BME280 + DS3231 + VL53L1X</td><td>3,3 V</td></tr>
-      <tr><td><span class="pin" style="background:var(--i2c)">9</span></td><td>I²C SCL</td><td>BME280 + DS3231 + VL53L1X</td><td>3,3 V</td></tr>
+      <tr><td><span class="pin" style="background:var(--i2c)">8</span></td><td>I²C SDA</td><td>BME680 + DS3231 + VL53L1X</td><td>3,3 V</td></tr>
+      <tr><td><span class="pin" style="background:var(--i2c)">9</span></td><td>I²C SCL</td><td>BME680 + DS3231 + VL53L1X</td><td>3,3 V</td></tr>
       <tr><td><span class="pin" style="background:var(--spi)">11</span></td><td>SPI MOSI</td><td>MicroSD</td><td>3,3 V</td></tr>
       <tr><td><span class="pin" style="background:var(--spi)">12</span></td><td>SPI SCK</td><td>MicroSD</td><td>3,3 V</td></tr>
       <tr><td><span class="pin" style="background:var(--spi)">13</span></td><td>SPI MISO</td><td>MicroSD</td><td>3,3 V</td></tr>
@@ -342,22 +342,42 @@ code{background:var(--ground);padding:.1em .4em;border-radius:4px;font-size:.92e
     </div>
 
     <div class="card trap">
-      <h3>3 · O <code>5V-IN</code> pode ser entrada isolada</h3>
-      <p>A serigrafia diz <strong>IN</strong>, não 5V. Em vários clones da DevKitC-1 esse pino tem <strong>diodo Schottky</strong>: serve para alimentar a placa, mas não deixa tirar 5 V quando ela está na USB. Sem isso, o HC-SR04 e o microSD ficam sem alimentação.</p>
-      <p><strong>Teste de 10 s:</strong> placa na USB, multímetro entre <code>5V-IN</code> e <code>GND</code>. <strong>~5 V</strong> → pode puxar dali. <strong>~0 V</strong> → 5 V tem que vir de fora, com o GND comum.</p>
+      <h3>3 · O <code>5V-IN</code> não entrega 5 V — <span class="muted">medido</span></h3>
+      <p><strong>Medido em 30/07/2026, placa na USB:</strong> <code>5V-IN</code> → <code>GND</code> dá <strong>0,25 V</strong>. Na mesma medição o <code>3V3</code> dá 3,3 V certinho, então não é ponta de prova nem GND ruim — o pino <strong>é entrada, não saída</strong>, como a serigrafia <code>IN</code> já sugeria. Vários clones da DevKitC-1 põem um Schottky ali: alimenta a placa, não deixa puxar dela.</p>
+      <p><strong>Consequência direta na bancada:</strong> o <strong>HC-SR04</strong> (5 V) e o <strong>módulo microSD</strong> (regulador de 5 V a bordo) precisam de <strong>fonte externa de 5 V com o GND em comum com o ESP32</strong>. Sem o GND comum o eco do ultrassônico vira ruído e o SD não monta.</p>
+      <p>Não muda a <a href="../02-arquitetura-eletrica-pinout.md">02</a>: lá o 5 V vem do <strong>HLK-5M05</strong> e é o devkit que recebe, não o contrário. A armadilha é só de bancada, enquanto a alimentação é USB.</p>
     </div>
 
     <div class="card">
       <h3>Pull-ups de I²C somam em paralelo</h3>
-      <p>Confirmado na placa: o DS3231 traz dois resistores marcados <code>472</code> — 4,7 kΩ. Com BME280 e VL53L1X trazendo os deles, ficam <strong>três pares em paralelo ≈ 1,6 kΩ</strong>.</p>
+      <p>Confirmado na placa: o DS3231 traz dois resistores marcados <code>472</code> — 4,7 kΩ. Com BME680 e VL53L1X trazendo os deles, ficam <strong>três pares em paralelo ≈ 1,6 kΩ</strong>.</p>
       <p>Funciona em 3,3 V (puxa ~2 mA, dentro do que o ESP32 drena), mas é o <strong>primeiro suspeito</strong> se o barramento der erro. Solução: remover os pull-ups de dois dos três módulos.</p>
     </div>
 
     <div class="card trap">
-      <h3>BME280 — amarrar o <code>SDO</code>, não deixar solto</h3>
+      <h3>BME680 — amarrar o <code>SDO</code>, não deixar solto</h3>
       <p>O scan achou o sensor em <strong><code>0x77</code></strong>, não no <code>0x76</code> que este documento previa. Isso significa que o <code>SDO</code> está em <strong>nível alto</strong> — a placa roxa traz pull-up nele.</p>
       <p>Funciona, mas <strong><code>SDO</code> flutuante é endereço instável</strong>: ruído ou capacitância podem mudá-lo entre boots. Amarrar de propósito — GND para <code>0x76</code>, VCC para <code>0x77</code>.</p>
       <p>O <code>CS</code> também precisa estar em 3V3: sem isso o sensor pode entrar em modo SPI e sumir do barramento. Como ele respondeu, esse já está resolvido.</p>
+    </div>
+
+    <div class="card trap">
+      <h3>O sensor não era um BME280 — <code>chip_id</code> <code>0x61</code></h3>
+      <p>Este esquemático dizia <strong>BME280</strong> até 31/07/2026. É um <strong>BME680</strong>: mesmo endereço, mesmo encapsulamento roxo, registradores e fórmulas de compensação <strong>diferentes</strong> — o driver do BME280 falha nele.</p>
+      <p>Só apareceu porque a inicialização <strong>reporta o id lido</strong> em vez de falhar calada. <code>0x60</code> seria BME280, <code>0x58</code> BMP280, <code>0x61</code> é BME680. Vale manter esse hábito em todo driver novo.</p>
+    </div>
+
+    <div class="card trap">
+      <h3>A pressão do BME680 vem em <strong>Pa</strong>, não hPa</h3>
+      <p>O header do componente <code>k0i05/esp_bme680</code> documenta o campo como hPa e devolve <strong>pascal</strong>. Acreditar no comentário dá <strong>100× a pressão real</strong> — 954 hPa vira 95423.</p>
+      <p>Passou despercebido em temperatura e umidade porque ali a escala do firmware e a da página se cancelavam. Pegou <strong>porque sabíamos o valor esperado</strong>: ~945–955 hPa para os ~600 m de São José dos Campos. Sem essa âncora, o erro teria ficado.</p>
+    </div>
+
+    <div class="card trap">
+      <h3>⏳ microSD e MAX31865 no mesmo SPI — <span class="muted">falta testar</span></h3>
+      <p>A <a href="../02-arquitetura-eletrica-pinout.md">02</a> planeja os dois no mesmo barramento, com <code>CS</code> separados. O risco não são os modos SPI (o IDF troca por transação): é o <strong><code>MISO</code> do módulo microSD</strong>.</p>
+      <p>Muito módulo barato usa um <strong>74LVC125</strong> só nas linhas de entrada e liga o <code>MISO</code> do cartão direto ao header, ou por um buffer <strong>sempre habilitado</strong>. Aí ele <strong>não solta o barramento</strong> com <code>CS</code> alto, e o MAX31865 não consegue responder. Falha traiçoeira: o SD funciona sozinho, o MAX31865 funciona sozinho, os dois juntos leem lixo.</p>
+      <p><strong>Teste, com o módulo alimentado e <code>CS</code> em 3V3:</strong> medir <code>MISO</code> contra <code>GND</code>. <strong>Alta impedância / segue o pull-up</strong> → compartilha. <strong>Preso em nível fixo</strong> → o módulo precisa de um buffer com <code>OE</code>, ou o MAX31865 vai para o segundo host SPI.</p>
     </div>
 
     <div class="card">
@@ -381,7 +401,7 @@ code{background:var(--ground);padding:.1em .4em;border-radius:4px;font-size:.92e
       <tr><td><code>0x29</code></td><td>VL53L1X — <strong>confirmado na bancada</strong></td></tr>
       <tr><td><code>0x57</code></td><td>AT24C32 — EEPROM do módulo DS3231</td></tr>
       <tr><td><code>0x68</code></td><td>DS3231</td></tr>
-      <tr><td><code>0x77</code></td><td>BME280 / BMP280 — <strong>confirmado na bancada</strong> <span class="muted">(0x76 se SDO em GND)</span></td></tr>
+      <tr><td><code>0x77</code></td><td>BME680 — <strong>confirmado na bancada</strong> <span class="muted">(0x76 se SDO em GND)</span></td></tr>
     </tbody>
   </table>
   </div>

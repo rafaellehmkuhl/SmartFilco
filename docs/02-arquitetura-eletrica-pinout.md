@@ -118,13 +118,42 @@ para o chicote e para a peça 3D.
 
 ### SPI compartilhado entre MAX31865 e microSD
 
-Funciona, e é o caminho mais curto: mesmo SCLK/MOSI/MISO, CS separados.
+O caminho mais curto: mesmo SCLK/MOSI/MISO, CS separados. Depende de **duas**
+condições — uma resolvida em software, outra que é do módulo e **ainda não foi
+medida**.
 
-O detalhe que importa: o **MAX31865 é SPI modo 1** (CPOL=0, CPHA=1) e o **cartão SD
-é modo 0**. Tanto o driver SPI do ESP-IDF quanto `SPI.beginTransaction()` do
-Arduino trocam o modo por transação, então a convivência é transparente — desde
+**1. Modos SPI diferentes — resolvido.** O **MAX31865 é modo 1** (CPOL=0, CPHA=1) e
+o **cartão SD é modo 0**. Tanto o driver do ESP-IDF quanto o `SPI.beginTransaction()`
+do Arduino trocam o modo por transação, então a convivência é transparente — desde
 que **todo acesso** seja feito dentro de uma transação com o `SPISettings` correto.
 Acesso "solto" fora de transação é o bug clássico aqui.
+
+#### ⏳ 2. O `MISO` do módulo microSD solta o barramento? — **falta medir**
+
+Este é o risco real, e não é sobre modo SPI. Um escravo SPI só pode dividir barramento
+se soltar o `MISO` em **alta impedância** quando o `CS` dele está alto. Muito módulo
+microSD barato **não faz isso**: usa um **74LVC125** só nas linhas de entrada
+(`SCK`/`MOSI`/`CS`) e liga o `MISO` do cartão direto ao header — ou por um buffer com
+o `OE` amarrado em GND, **sempre habilitado**.
+
+Quando isso acontece, o módulo segura o `MISO` e o **MAX31865 não consegue
+responder**. A falha é traiçoeira porque **cada um funciona sozinho**: o SD monta, o
+MAX31865 lê, e só juntos as leituras viram lixo — o que manda você procurar o bug no
+software, onde ele não está.
+
+**Teste, com o módulo alimentado e o `CS` dele em 3V3 (inativo):**
+
+| `MISO` contra GND | Leitura | Conclusão |
+|---|---|---|
+| alta impedância / segue o pull-up | flutua ou fica no nível do pull-up | **compartilha** — segue o plano |
+| preso em nível fixo | 0 V ou 3,3 V firmes | **não compartilha** |
+
+Se não compartilhar, duas saídas: buffer externo com `OE` no `MISO` do módulo, ou o
+microSD vai para o **segundo host SPI** do S3 — que existe e está livre, custando só
+mais 3 GPIOs da folga (`GPIO1, 2, 7, 15–18, 21, 38–42, 47`).
+
+> Vale medir **antes** da chegada do MAX31865 (05/08): é multímetro e 2 minutos, e o
+> resultado decide se o chicote leva 1 ou 2 barramentos.
 
 ### Canais do ADS1115
 
