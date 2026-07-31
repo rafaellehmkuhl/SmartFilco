@@ -16,6 +16,8 @@
 #include "esp_timer.h"
 #include "esp_wifi.h"
 #include "driver/i2c_master.h"
+#include "bme680.h"
+#include "vl53l1x.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
@@ -51,6 +53,10 @@ static const char *TAG = "bringup";
 #define I2C_HI 0x77
 #define MAX_I2C 16       // achados por varredura — mais que isso não cabe no barramento na prática
 #define SCAN_MS 2000
+#define SENSOR_MS 200    // leitura dos sensores; a varredura sai a cada 10 destas
+#define ADDR_TOF 0x29
+#define BME_MS 1000      // BME680 em modo forçado com aquecedor bloqueia ~400 ms:
+                         // task própria, senão o tanque engasgaria junto
 
 extern const char index_html_start[] asm("_binary_index_html_start");
 extern const char index_html_end[] asm("_binary_index_html_end");
@@ -69,6 +75,16 @@ static i2c_master_bus_handle_t i2c_bus;
 // (n, dados) coerente. Trocar por mutex quando isto virar algo além de bancada.
 static volatile uint8_t i2c_achados[MAX_I2C];
 static volatile uint8_t i2c_n;
+
+// Leituras publicadas. Inteiros de propósito: evita formatar float no firmware e
+// deixa a página decidir a apresentação.
+static bme680_handle_t bme;
+static vl53l1x_t tof;
+static volatile bool bme_ok, tof_ok;
+static volatile int32_t s_temp_c100;
+static volatile uint32_t s_press_pa, s_umid_pct100, s_gas_ohm;
+static volatile uint16_t s_dist_mm;
+static volatile uint8_t s_dist_status = 0xFF;   // 0 = medida válida
 
 static volatile int ws_falhas;         // sends recusados, acumulado
 static volatile uint32_t ws_enviados;  // frames entregues, acumulado
@@ -213,12 +229,67 @@ static void i2c_iniciar(void)
     ESP_ERROR_CHECK(i2c_new_master_bus(&cfg, &i2c_bus));
 }
 
+// Task própria porque `bme680_get_data` faz a medida em modo forçado — liga o
+// aquecedor e espera. Junto com o ToF, esse bloqueio viraria engasgo no tanque.
+static void tarefa_bme(void *arg)
+{
+    bme680_config_t cfg = I2C_BME680_CONFIG_DEFAULT;   // já vem em 0x77, que é o medido
+    bme_ok = (bme680_init(i2c_bus, &cfg, &bme) == ESP_OK && bme != NULL);
+    ESP_LOGI(TAG, "bme680: %s", bme_ok ? "ok" : "AUSENTE");
+
+    while (1) {
+        if (bme_ok) {
+            bme680_data_t d;
+            if (bme680_get_data(bme, &d) == ESP_OK) {
+                s_temp_c100 = (int32_t)(d.air_temperature * 100.0f);
+                s_umid_pct100 = (uint32_t)(d.relative_humidity * 100.0f);
+                // ⚠️ O header do componente documenta este campo como hPa. É PASCAL.
+                // Multiplicar por 100 confiando no comentário dá 100x a pressão real
+                // (954 hPa vira 95423) — e passa despercebido se ninguém souber o
+                // valor esperado. Aqui, ~954 hPa bate com os ~600 m de São José.
+                s_press_pa = (uint32_t)d.barometric_pressure;
+                s_gas_ohm = (uint32_t)d.gas_resistance;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(BME_MS));
+    }
+}
+
+static void sensores_iniciar(void)
+{
+    uint16_t id = 0;
+    tof_ok = (vl53l1x_init(&tof, i2c_bus, ADDR_TOF) == ESP_OK)
+             && (vl53l1x_get_sensor_id(&tof, &id) == ESP_OK)
+             && (id == 0xEACC)                       // valor de fábrica; outro = não é VL53L1X
+             && (vl53l1x_sensor_init(&tof) == ESP_OK)
+             && (vl53l1x_start(&tof) == ESP_OK);
+    ESP_LOGI(TAG, "vl53l1x: %s (id=0x%04x)", tof_ok ? "ok" : "AUSENTE", id);
+}
+
 static void tarefa_i2c(void *arg)
 {
     uint8_t ant[MAX_I2C] = { 0 };
     uint8_t ant_n = 0xFF;              // força o primeiro log
+    int ciclo = 0;
+
+    sensores_iniciar();
 
     while (1) {
+        if (tof_ok) {
+            vl53l1x_result_t r;
+            // timeout curto: se a medida não estiver pronta, tenta de novo no
+            // próximo ciclo em vez de segurar a task
+            if (vl53l1x_read(&tof, &r, 60) == ESP_OK) {
+                s_dist_mm = r.distance_mm;
+                s_dist_status = r.status;
+            }
+        }
+
+        if (ciclo++ % (SCAN_MS / SENSOR_MS) != 0) {
+            vTaskDelay(pdMS_TO_TICKS(SENSOR_MS));
+            continue;
+        }
+
         uint8_t achou[MAX_I2C];
         uint8_t n = 0;
 
@@ -246,7 +317,7 @@ static void tarefa_i2c(void *arg)
             ant_n = n;
         }
 
-        vTaskDelay(pdMS_TO_TICKS(SCAN_MS));
+        vTaskDelay(pdMS_TO_TICKS(SENSOR_MS));
     }
 }
 
@@ -332,7 +403,13 @@ static int montar_json(char *buf, size_t tam)
     for (uint8_t i = 0; i < n && p < (int)tam - 8; i++) {
         p += snprintf(buf + p, tam - p, i ? ",%u" : "%u", i2c_achados[i]);
     }
-    p += snprintf(buf + p, tam - p, "]}");
+    p += snprintf(buf + p, tam - p,
+                  "],\"bme\":%d,\"t\":%ld,\"pa\":%lu,\"rh\":%lu,\"gas\":%lu,"
+                  "\"tof\":%d,\"mm\":%u,\"dst\":%u}",
+                  bme_ok ? 680 : 0,
+                  (long)s_temp_c100, (unsigned long)s_press_pa, (unsigned long)s_umid_pct100,
+                  (unsigned long)s_gas_ohm,
+                  tof_ok ? 1 : 0, s_dist_mm, s_dist_status);
     return p;
 }
 
@@ -340,7 +417,7 @@ static int montar_json(char *buf, size_t tam)
 // WebSocket; este aqui é para checar a placa de um terminal sem cliente WS.
 static esp_err_t h_rgb(httpd_req_t *req)
 {
-    char buf[320];
+    char buf[420];
     int n = montar_json(buf, sizeof(buf));
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
@@ -380,7 +457,7 @@ static esp_err_t h_ws(httpd_req_t *req)
 // morto — e nunca fica dessincronizado.
 static void tarefa_ws(void *arg)
 {
-    char buf[320];
+    char buf[420];
     int fds[MAX_SOCKS];
 
     while (1) {
@@ -457,7 +534,8 @@ void app_main(void)
 
     i2c_iniciar();
     // varredura fora do core de tempo-real: probe bloqueia por até 20 ms/endereço
-    xTaskCreatePinnedToCore(tarefa_i2c, "i2c", 3072, NULL, 3, NULL, CORE_NET);
+    xTaskCreatePinnedToCore(tarefa_i2c, "i2c", 4096, NULL, 3, NULL, CORE_NET);
+    xTaskCreatePinnedToCore(tarefa_bme, "bme", 4096, NULL, 3, NULL, CORE_NET);
 
     // o LED sobe antes da rede: dá feedback visual mesmo se o Wi-Fi falhar
     xTaskCreatePinnedToCore(tarefa_led, "led", 3072, NULL, 5, NULL, CORE_RT);

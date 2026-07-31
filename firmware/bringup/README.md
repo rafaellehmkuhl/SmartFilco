@@ -12,6 +12,8 @@ O que faz:
 - **Controle de brilho** na página, de 0 (apagado) ao teto — pelo mesmo WebSocket
 - `/rgb` devolve o mesmo JSON por HTTP — teste de fumaça curl-ável
 - **Varredura I²C** a cada 2 s em GPIO 8/9, reportada na página e na serial
+- **BME680** (temperatura, umidade, pressão, gás) e **VL53L1X** (distância), ao vivo
+- **Nível de reservatório** desenhado a partir do ToF — 4 cm cheio, 25 cm vazio
 - Heartbeat na serial a cada 2 s (matiz, brilho, RGB, heap, core)
 
 O JSON traz `ws` (assinantes conectados), `wstx` e `wserr`, que é como se depura
@@ -42,6 +44,48 @@ Medido em 30/07/2026, com VL53L1X e BME280 ligados:
 > VCC → `0x77`.
 
 O JSON traz `"i2c":[41,119]` em decimal; a página formata em hex e resolve o nome.
+
+## Sensores
+
+| Sensor | Endereço | Driver | Task |
+|---|---|---|---|
+| **VL53L1X** ToF | `0x29` | `grrtzm/vl53l1x_library` | junto com a varredura, 200 ms |
+| **BME680** | `0x77` | `k0i05/esp_bme680` | **task própria**, 1 s |
+
+Os dois componentes usam o **`i2c_master` novo** e aceitam um barramento já criado —
+foi o critério de escolha. Alternativas populares (`espressif/bme280`,
+`esp-idf-lib/bme680`, `francisduvivier/bme68x_sensorapi_espidf`) dependem de
+`i2c_bus`/`i2cdev`, que usam o driver **legado** — e legado não divide porta com
+`i2c_master` no IDF 5.x.
+
+**Por que o BME680 tem task própria:** em modo forçado ele liga o aquecedor e
+espera, bloqueando ~400 ms. No mesmo laço do ToF, isso viraria engasgo visível no
+desenho do tanque.
+
+### ⚠️ Duas armadilhas encontradas medindo
+
+**O sensor não é BME280, é BME680.** `chip_id` lido = `0x61` (BME280 seria `0x60`,
+BMP280 `0x58`). Mesmo endereço, mesmo encapsulamento, registradores e fórmulas de
+compensação diferentes. Só apareceu porque o driver reporta o id em vez de falhar
+calado — vale manter esse hábito.
+
+**O componente documenta a pressão em hPa e devolve Pa.** Confiar no comentário do
+header dá **100× a pressão real** (954 hPa vira 95423). Passou despercebido em
+temperatura e umidade porque ali a escala do firmware e a da página se cancelavam.
+Pegou porque sabíamos o valor esperado: ~945–955 hPa para os ~600 m de São José dos
+Campos.
+
+### Nível de água
+
+O firmware manda **milímetros crus**; a conversão para nível mora na página, porque
+é geometria do reservatório e não física do sensor:
+
+```
+nível% = (250 − mm) / (250 − 40) × 100,  limitado a 0..100
+```
+
+`status != 0` (medida fraca ou fora de alcance) **esmaece o tanque em vez de sumir
+com o número** — tela em branco não diz se o sensor caiu ou se está sem alvo.
 
 ## Controle de brilho
 
