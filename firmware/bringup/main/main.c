@@ -85,6 +85,11 @@ static volatile int32_t s_temp_c100;
 static volatile uint32_t s_press_pa, s_umid_pct100, s_gas_ohm;
 static volatile uint16_t s_dist_mm;
 static volatile uint8_t s_dist_status = 0xFF;   // 0 = medida válida
+// sigma e sinal saem junto porque sem eles não dá para julgar a distância: o
+// driver é o ULP da ST, que devolve ESTIMATIVA (VL53L1X_ULP_DumpDebugData) e não
+// tem calibração de offset nem de crosstalk. Número sozinho não diz se o alvo
+// encheu o cone de 27° ou se a medida é uma mistura de alvo + fundo.
+static volatile uint16_t s_dist_sigma, s_dist_sinal;
 
 static volatile int ws_falhas;         // sends recusados, acumulado
 static volatile uint32_t ws_enviados;  // frames entregues, acumulado
@@ -282,6 +287,8 @@ static void tarefa_i2c(void *arg)
             if (vl53l1x_read(&tof, &r, 60) == ESP_OK) {
                 s_dist_mm = r.distance_mm;
                 s_dist_status = r.status;
+                s_dist_sigma = r.sigma_mm;
+                s_dist_sinal = r.signal_kcps;
             }
         }
 
@@ -405,11 +412,12 @@ static int montar_json(char *buf, size_t tam)
     }
     p += snprintf(buf + p, tam - p,
                   "],\"bme\":%d,\"t\":%ld,\"pa\":%lu,\"rh\":%lu,\"gas\":%lu,"
-                  "\"tof\":%d,\"mm\":%u,\"dst\":%u}",
+                  "\"tof\":%d,\"mm\":%u,\"dst\":%u,\"sg\":%u,\"sn\":%u}",
                   bme_ok ? 680 : 0,
                   (long)s_temp_c100, (unsigned long)s_press_pa, (unsigned long)s_umid_pct100,
                   (unsigned long)s_gas_ohm,
-                  tof_ok ? 1 : 0, s_dist_mm, s_dist_status);
+                  tof_ok ? 1 : 0, s_dist_mm, s_dist_status,
+                  s_dist_sigma, s_dist_sinal);
     return p;
 }
 
