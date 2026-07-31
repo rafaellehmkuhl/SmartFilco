@@ -6,6 +6,13 @@
    Painel de máquina não rola: se precisa arrastar a tela com o dedo sujo de café
    para ver a pressão, o painel falhou. Tudo cabe na altura da viewport.
    Telefone é o caso secundário, e aí sim vira coluna rolável.                    */
+/* ESCALA — uma trava só para o painel inteiro.
+   Tudo abaixo é rem, então mudar a raiz redimensiona o painel como uma foto, em vez
+   de esticar a moldura em volta de conteúdo do mesmo tamanho (era o que acontecia:
+   em 1680px a caixa crescia 2x e o número continuava de 14px).
+   min(vw,vh) porque painel tem proporção: quem manda é a dimensão que aperta.
+   Em 800x480 dá ~14px, o tamanho para o qual o layout foi desenhado.             */
+:root{font-size:clamp(13px,min(1.75vw,2.9vh),22px)}
 :root{color-scheme:dark;
   --graf:#14120f; --painel:#1c1915; --linha:#2b2620;
   --osso:#ece7dd; --cinza:#8f877a; --fosco:#5d564c;
@@ -18,32 +25,34 @@
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
-  font:400 14px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace}
-.app{height:100%;display:grid;grid-template-columns:64px 1fr;grid-template-rows:auto 1fr;
-  gap:10px;padding:8px 10px 10px}
+  font:400 1rem/1.45 ui-monospace,SFMono-Regular,Menlo,monospace}
+.app{height:100%;display:grid;grid-template-columns:4.6rem 1fr;grid-template-rows:auto 1fr;
+  gap:.7rem;padding:.55rem .7rem .7rem;
+  /* trava a proporção: sem isso um monitor ultrawide estica o painel numa tira */
+  max-width:calc(100vh * 1.9);margin-inline:auto;width:100%}
 :focus-visible{outline:2px solid var(--crema);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 
 /* ---- barra de estado ---- */
 .topo{grid-column:1/-1;display:flex;align-items:center;gap:.8rem;
-  padding-bottom:7px;border-bottom:1px solid var(--linha)}
+  padding-bottom:.5rem;border-bottom:1px solid var(--linha)}
 .marca{font-family:ui-sans-serif,system-ui,sans-serif;font-weight:700;font-size:.78rem;
   letter-spacing:.22em;text-transform:uppercase}
 .estado{display:flex;align-items:center;gap:.4rem;
   font-family:ui-sans-serif,system-ui,sans-serif;font-size:.73rem;color:var(--cinza)}
-.led{width:7px;height:7px;border-radius:50%;background:var(--fosco);flex:none}
+.led{width:.5rem;height:.5rem;border-radius:50%;background:var(--fosco);flex:none}
 .led.viva{background:var(--crema);box-shadow:0 0 0 3px rgba(201,160,106,.16)}
 
 /* ---- bandeja de ambiente (canto superior direito) ---- */
 .tray{margin-left:auto;position:relative}
 .tray>button{display:flex;align-items:center;gap:.45rem;background:var(--painel);
-  color:var(--cinza);border:1px solid var(--linha);border-radius:6px;
+  color:var(--cinza);border:1px solid var(--linha);border-radius:.43rem;
   padding:.28rem .5rem;font:inherit;font-size:.72rem;cursor:pointer;
   font-variant-numeric:tabular-nums}
 .tray>button:hover{border-color:var(--fosco);color:var(--osso)}
-.tray svg{width:11px;height:11px;flex:none;stroke:var(--cinza);fill:none;stroke-width:1.6}
-.painelAmb{position:absolute;top:calc(100% + 6px);right:0;z-index:5;min-width:186px;
-  background:var(--painel);border:1px solid var(--linha);border-radius:8px;
+.tray svg{width:.8rem;height:.8rem;flex:none;stroke:var(--cinza);fill:none;stroke-width:1.6}
+.painelAmb{position:absolute;top:calc(100% + .43rem);right:0;z-index:5;min-width:13.3rem;
+  background:var(--painel);border:1px solid var(--linha);border-radius:.57rem;
   padding:.6rem .7rem;box-shadow:0 10px 28px rgba(0,0,0,.55);display:none}
 .tray.aberta .painelAmb{display:block}
 .painelAmb dl{display:grid;grid-template-columns:1fr auto;gap:.28rem .8rem;margin:.45rem 0 0}
@@ -54,38 +63,38 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
 
 /* ---- trilho de nível (lateral) ---- */
 .nivel{display:flex;min-height:0}
-.nivel .eixo{position:absolute;top:9px;left:50%;z-index:2;
+.nivel .eixo{position:absolute;top:.65rem;left:50%;z-index:2;
   transform:translateX(-50%) rotate(180deg);writing-mode:vertical-rl;
   font-family:ui-sans-serif,system-ui,sans-serif;font-size:.53rem;font-weight:600;
   letter-spacing:.2em;text-transform:uppercase;color:var(--fosco);pointer-events:none}
-.trilho{position:relative;flex:1;min-height:0;border:1.5px solid var(--linha);
-  border-radius:7px;overflow:hidden;background:var(--graf)}
+.trilho{position:relative;flex:1;min-height:0;border:.11rem solid var(--linha);
+  border-radius:.5rem;overflow:hidden;background:var(--graf)}
 .agua{position:absolute;left:0;right:0;bottom:0;height:0;
   background:linear-gradient(var(--agua),#26557f);transition:height .35s ease-out}
-.agua::before{content:'';position:absolute;left:0;right:0;top:0;height:2px;background:#8fd0f0}
+.agua::before{content:'';position:absolute;left:0;right:0;top:0;height:.14rem;background:#8fd0f0}
 .trilho b{position:absolute;left:0;right:0;top:50%;z-index:2;transform:translateY(-50%);
   text-align:center;font-size:.95rem;font-weight:500;
   text-shadow:0 1px 4px #000,0 0 10px #000}
 .trilho.ruim{opacity:.3}
-.nivel .cm{position:absolute;left:0;right:0;bottom:6px;z-index:2;text-align:center;
+.nivel .cm{position:absolute;left:0;right:0;bottom:.43rem;z-index:2;text-align:center;
   font-size:.58rem;color:var(--fosco);font-variant-numeric:tabular-nums;
   text-shadow:0 1px 4px #000}
 
 /* ---- corpo ---- */
-.corpo{display:grid;grid-template-rows:1fr auto;gap:10px;min-height:0}
+.corpo{display:grid;grid-template-rows:1fr auto;gap:.7rem;min-height:0}
 
 /* Números grandes à esquerda, gráfico à direita: a coluna dos valores não rouba
    altura do plot, e cada valor fica colado na linha que ele representa.          */
-.graf{background:var(--painel);border:1px solid var(--linha);border-radius:10px;
-  padding:.8rem .9rem .6rem;display:grid;grid-template-columns:190px 1fr;
-  grid-template-rows:1fr auto;column-gap:16px;min-height:0;min-width:0}
+.graf{background:var(--painel);border:1px solid var(--linha);border-radius:.72rem;
+  padding:.8rem .9rem .6rem;display:grid;grid-template-columns:13.6rem 1fr;
+  grid-template-rows:1fr auto;column-gap:1.15rem;min-height:0;min-width:0}
 .pilha{display:flex;flex-direction:column;justify-content:space-evenly;min-height:0}
 .rot{font-family:ui-sans-serif,system-ui,sans-serif;font-size:.62rem;font-weight:600;
   letter-spacing:.17em;text-transform:uppercase;color:var(--cinza)}
 .rot s{text-decoration:none;color:var(--fosco);font-weight:400;letter-spacing:.07em}
 /* identidade da série vem da marca colorida, não do número: valor é tinta de texto */
 .metr .rot{display:flex;align-items:center;gap:.42rem;white-space:nowrap}
-.pt{width:9px;height:9px;border-radius:2px;flex:none}
+.pt{width:.65rem;height:.65rem;border-radius:.14rem;flex:none}
 .big{font-size:3.6rem;line-height:1;letter-spacing:-.045em;margin-top:.1rem;
   font-variant-numeric:tabular-nums}
 .big u{text-decoration:none;font-size:1rem;letter-spacing:0;color:var(--cinza);
@@ -101,17 +110,17 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
 .rodape span+span{white-space:nowrap}
 
 /* ---- assinatura: trem de pulsos ---- */
-.psm{border:1px solid var(--linha);border-radius:10px;background:var(--painel);
+.psm{border:1px solid var(--linha);border-radius:.72rem;background:var(--painel);
   padding:.6rem .9rem .65rem}
 .cab{display:flex;align-items:baseline;gap:.6rem;margin-bottom:.4rem}
 .duty{margin-left:auto;font-size:1.05rem;font-variant-numeric:tabular-nums}
 .duty u{text-decoration:none;font-size:.75rem;color:var(--cinza);margin-left:.12rem}
-#trem{display:block;width:100%;height:30px}
+#trem{display:block;width:100%;height:2.15rem}
 .pe{display:flex;justify-content:space-between;gap:1rem;margin-top:.3rem;
   font-family:ui-sans-serif,system-ui,sans-serif;font-size:.63rem;color:var(--fosco)}
 .ctrl{display:flex;align-items:center;gap:.85rem;margin-top:.5rem;padding-top:.5rem;
   border-top:1px solid var(--linha)}
-.ctrl input{flex:1;min-width:0;accent-color:var(--crema);height:24px}  /* alvo de dedo */
+.ctrl input{flex:1;min-width:0;accent-color:var(--crema);height:1.7rem}  /* alvo de dedo */
 .ctrl .val{font-size:.73rem;color:var(--cinza);font-variant-numeric:tabular-nums;
   min-width:4.4em;text-align:right}
 
@@ -232,6 +241,8 @@ addEventListener('click',function(e){
      longe você está dos 9 bar, que é a única coisa que importa olhar;
    · temperatura AUTO com vão mínimo de 3 °C — sem isso, variação de 0,3 °C
      vira linha reta morta (foi o que aconteceu nos gráficos anteriores).       */
+// canvas desenha em px cru: lê a raiz para acompanhar a escala do resto do painel
+function REM(){return parseFloat(getComputedStyle(document.documentElement).fontSize)||14;}
 var PASSO=250, NPT=240;          // 4 Hz x 240 pontos = janela de 60 s
 var serT=[], serP=[], tAmostra=0;
 
@@ -247,7 +258,8 @@ function traca(ctx,s,f,cor,x0,pw,y0,ph,len){
  if(!f)return;
  var px=function(i){return x0+pw*(i+NPT-len)/(NPT-1);};
  var py=function(v){return y0+ph-(v-f[0])/(f[1]-f[0])*ph;};
- ctx.strokeStyle=cor;ctx.lineWidth=2;ctx.lineJoin='round';ctx.lineCap='round';
+ var r=REM();
+ ctx.strokeStyle=cor;ctx.lineWidth=Math.max(2,r/7);ctx.lineJoin='round';ctx.lineCap='round';
  ctx.beginPath();
  var atras=false,ux=0,uy=0;
  for(var i=0;i<len;i++){
@@ -259,8 +271,8 @@ function traca(ctx,s,f,cor,x0,pw,y0,ph,len){
  }
  ctx.stroke();
  if(!atras)return;
- ctx.fillStyle=cor;ctx.beginPath();ctx.arc(ux,uy,4,0,6.284);ctx.fill();
- ctx.strokeStyle='#1c1915';ctx.lineWidth=2;ctx.stroke();   // anel: linhas se cruzam
+ ctx.fillStyle=cor;ctx.beginPath();ctx.arc(ux,uy,Math.max(4,r*.29),0,6.284);ctx.fill();
+ ctx.strokeStyle='#1c1915';ctx.lineWidth=Math.max(2,r/7);ctx.stroke();   // anel: linhas se cruzam
 }
 function desenhaPlot(){
  var cv=plot,ctx=cv.getContext('2d'),dpr=devicePixelRatio||1;
@@ -269,12 +281,13 @@ function desenhaPlot(){
  if(cv.width!==Math.round(w*dpr)){cv.width=w*dpr;cv.height=h*dpr;}
  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
 
- var EL=42,ER=34,ET=9,EB=15;
+ // EB folgado: o "−60 s" não pode encostar no rótulo do eixo de temperatura
+ var r=REM(), EL=3*r, ER=2.4*r, ET=.65*r, EB=1.5*r;
  var x0=EL,y0=ET,pw=w-EL-ER,ph=h-ET-EB;
- if(pw<40||ph<30)return;
+ if(pw<3*r||ph<2*r)return;
  var fT=faixa(serT,3), fP=[0,12], temP=serP.some(function(v){return v!=null;});
 
- ctx.font='10px ui-monospace,Menlo,monospace';ctx.textBaseline='middle';
+ ctx.font=(.72*r).toFixed(1)+'px ui-monospace,Menlo,monospace';ctx.textBaseline='middle';
  for(var k=0;k<=3;k++){
   var y=Math.round(y0+ph*k/3)+.5;
   ctx.strokeStyle='#2b2620';ctx.lineWidth=1;
@@ -292,9 +305,9 @@ function desenhaPlot(){
  traca(ctx,serP,fP,'#3d86c8',x0,pw,y0,ph,len);
  traca(ctx,serT,fT,'#c98330',x0,pw,y0,ph,len);
 
- ctx.fillStyle='#5d564c';ctx.font='9px ui-monospace,Menlo,monospace';
- ctx.textAlign='left';ctx.fillText('−60 s',x0,h-6);
- ctx.textAlign='right';ctx.fillText('agora',x0+pw,h-6);
+ ctx.fillStyle='#5d564c';ctx.font=(.64*r).toFixed(1)+'px ui-monospace,Menlo,monospace';
+ ctx.textAlign='left';ctx.fillText('−60 s',x0,h-.45*r);
+ ctx.textAlign='right';ctx.fillText('agora',x0+pw,h-.45*r);
 }
 function amostra(t,p){
  serT.push(t);serP.push(p);
@@ -323,8 +336,8 @@ function desenhaTrem(duty,range){
  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
  var passo=w/N, lg=Math.max(1,passo-Math.max(.6,passo*.3)), disp=0;
  psmPadrao(duty,range,N).forEach(function(v,i){
-  if(v){disp++;ctx.fillStyle='#c9a06a';ctx.fillRect(i*passo,3,lg,h-6);}
-  else{ctx.fillStyle='#2b2620';ctx.fillRect(i*passo,h-5,lg,2);}
+  if(v){disp++;ctx.fillStyle='#c9a06a';ctx.fillRect(i*passo,h*.09,lg,h*.82);}
+  else{ctx.fillStyle='#2b2620';ctx.fillRect(i*passo,h*.82,lg,Math.max(2,h*.07));}
  });
  conta.textContent=disp+' disparo'+(disp===1?'':'s');
  vDuty.innerHTML=Math.round(100*duty/range)+'<u>%</u>';
