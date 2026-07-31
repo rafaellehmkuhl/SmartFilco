@@ -15,6 +15,7 @@
 #include "esp_random.h"
 #include "esp_timer.h"
 #include "esp_wifi.h"
+#include "driver/i2c_master.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
@@ -42,6 +43,15 @@ static const char *TAG = "bringup";
 #define MAX_SOCKS 7      // = httpd_config_t.max_open_sockets
 #define WS_HZ 30         // taxa de push do estado (33 ms)
 
+// Barramento I²C da bancada. Mesmos pinos que a docs/02 reserva ao projeto, para
+// a prototipagem não virar refação de chicote depois.
+#define I2C_SDA 8
+#define I2C_SCL 9
+#define I2C_LO 0x08      // faixa 7-bit válida; fora disso é endereço reservado
+#define I2C_HI 0x77
+#define MAX_I2C 16       // achados por varredura — mais que isso não cabe no barramento na prática
+#define SCAN_MS 2000
+
 extern const char index_html_start[] asm("_binary_index_html_start");
 extern const char index_html_end[] asm("_binary_index_html_end");
 
@@ -52,6 +62,14 @@ static httpd_handle_t servidor;
 // O passeio de matiz continua rodando com brilho 0 — ao reacender, a cor está no
 // ponto em que estaria, em vez de saltar.
 static volatile uint8_t brilho = MAXV;
+static i2c_master_bus_handle_t i2c_bus;
+
+// ponytail: escrita sem lock, lida pelo handler HTTP. A ordem importa — o array é
+// preenchido ANTES de publicar a contagem, então um leitor vê sempre um par
+// (n, dados) coerente. Trocar por mutex quando isto virar algo além de bancada.
+static volatile uint8_t i2c_achados[MAX_I2C];
+static volatile uint8_t i2c_n;
+
 static volatile int ws_falhas;         // sends recusados, acumulado
 static volatile uint32_t ws_enviados;  // frames entregues, acumulado
 
@@ -177,6 +195,61 @@ static void tarefa_led(void *arg)
     }
 }
 
+// ---------------------------------------------------------------- i²c
+
+static void i2c_iniciar(void)
+{
+    i2c_master_bus_config_t cfg = {
+        .i2c_port = I2C_NUM_0,
+        .sda_io_num = I2C_SDA,
+        .scl_io_num = I2C_SCL,
+        .clk_source = I2C_CLK_SRC_DEFAULT,
+        .glitch_ignore_cnt = 7,
+        // Os módulos já trazem pull-up de 4,7 k; o interno (~45 k) só entra em
+        // paralelo e não atrapalha. Fica ligado como rede de segurança para
+        // testar um dispositivo que venha sem pull-up próprio.
+        .flags.enable_internal_pullup = true,
+    };
+    ESP_ERROR_CHECK(i2c_new_master_bus(&cfg, &i2c_bus));
+}
+
+static void tarefa_i2c(void *arg)
+{
+    uint8_t ant[MAX_I2C] = { 0 };
+    uint8_t ant_n = 0xFF;              // força o primeiro log
+
+    while (1) {
+        uint8_t achou[MAX_I2C];
+        uint8_t n = 0;
+
+        for (uint16_t a = I2C_LO; a <= I2C_HI && n < MAX_I2C; a++) {
+            if (i2c_master_probe(i2c_bus, a, 20) == ESP_OK) {
+                achou[n++] = (uint8_t)a;
+            }
+        }
+
+        for (uint8_t i = 0; i < n; i++) {
+            i2c_achados[i] = achou[i];
+        }
+        i2c_n = n;                     // publica a contagem só depois dos dados
+
+        // Loga só quando MUDA. Na bancada isso vira "apareceu / sumiu" ao plugar,
+        // em vez de encher a serial com a mesma lista a cada 2 s.
+        if (n != ant_n || memcmp(ant, achou, n) != 0) {
+            char lista[MAX_I2C * 6 + 1] = { 0 };
+            int p = 0;
+            for (uint8_t i = 0; i < n; i++) {
+                p += snprintf(lista + p, sizeof(lista) - p, "0x%02x ", achou[i]);
+            }
+            ESP_LOGI(TAG, "i2c: %d dispositivo(s)  %s", n, n ? lista : "(nenhum)");
+            memcpy(ant, achou, n);
+            ant_n = n;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(SCAN_MS));
+    }
+}
+
 // ---------------------------------------------------------------- wi-fi
 
 static void ao_evento(void *arg, esp_event_base_t base, int32_t id, void *dados)
@@ -248,19 +321,26 @@ static int montar_json(char *buf, size_t tam)
         }
     }
 
-    return snprintf(buf, tam,
-                    "{\"rgb\":[%u,%u,%u],\"max\":%d,\"brilho\":%u,\"ip\":\"" IPSTR "\",\"rssi\":%d,"
-                    "\"up\":%lld,\"ws\":%d,\"wserr\":%d,\"wstx\":%lu}",
-                    cor[0], cor[1], cor[2], MAXV, brilho, IP2STR(&ip.ip), rssi,
-                    (esp_timer_get_time() - t0) / 1000000,
-                    assinantes, ws_falhas, (unsigned long)ws_enviados);
+    int p = snprintf(buf, tam,
+                     "{\"rgb\":[%u,%u,%u],\"max\":%d,\"brilho\":%u,\"ip\":\"" IPSTR "\",\"rssi\":%d,"
+                     "\"up\":%lld,\"ws\":%d,\"wserr\":%d,\"wstx\":%lu,\"i2c\":[",
+                     cor[0], cor[1], cor[2], MAXV, brilho, IP2STR(&ip.ip), rssi,
+                     (esp_timer_get_time() - t0) / 1000000,
+                     assinantes, ws_falhas, (unsigned long)ws_enviados);
+
+    uint8_t n = i2c_n;
+    for (uint8_t i = 0; i < n && p < (int)tam - 8; i++) {
+        p += snprintf(buf + p, tam - p, i ? ",%u" : "%u", i2c_achados[i]);
+    }
+    p += snprintf(buf + p, tam - p, "]}");
+    return p;
 }
 
 // Mantido de propósito: é o teste de fumaça curl-ável. O caminho ao vivo é o
 // WebSocket; este aqui é para checar a placa de um terminal sem cliente WS.
 static esp_err_t h_rgb(httpd_req_t *req)
 {
-    char buf[192];
+    char buf[320];
     int n = montar_json(buf, sizeof(buf));
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
@@ -300,7 +380,7 @@ static esp_err_t h_ws(httpd_req_t *req)
 // morto — e nunca fica dessincronizado.
 static void tarefa_ws(void *arg)
 {
-    char buf[192];
+    char buf[320];
     int fds[MAX_SOCKS];
 
     while (1) {
@@ -374,6 +454,10 @@ void app_main(void)
 
     tiras[0] = criar_tira(PIN_A);
     tiras[1] = criar_tira(PIN_B);
+
+    i2c_iniciar();
+    // varredura fora do core de tempo-real: probe bloqueia por até 20 ms/endereço
+    xTaskCreatePinnedToCore(tarefa_i2c, "i2c", 3072, NULL, 3, NULL, CORE_NET);
 
     // o LED sobe antes da rede: dá feedback visual mesmo se o Wi-Fi falhar
     xTaskCreatePinnedToCore(tarefa_led, "led", 3072, NULL, 5, NULL, CORE_RT);

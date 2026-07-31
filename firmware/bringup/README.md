@@ -11,10 +11,37 @@ O que faz:
 - Página em `/` alimentada por **WebSocket** (`/ws`), push a 30 Hz
 - **Controle de brilho** na página, de 0 (apagado) ao teto — pelo mesmo WebSocket
 - `/rgb` devolve o mesmo JSON por HTTP — teste de fumaça curl-ável
+- **Varredura I²C** a cada 2 s em GPIO 8/9, reportada na página e na serial
 - Heartbeat na serial a cada 2 s (matiz, brilho, RGB, heap, core)
 
 O JSON traz `ws` (assinantes conectados), `wstx` e `wserr`, que é como se depura
 o push sem terminal serial.
+
+## Varredura I²C
+
+Task no **core 0** varrendo `0x08`–`0x77` a cada 2 s com `i2c_master_probe()`. Fica
+fora do core de tempo-real porque o probe bloqueia até 20 ms por endereço ausente.
+
+Os pinos são **GPIO 8 (SDA) e 9 (SCL)** — os mesmos que a
+[`docs/02`](../../docs/02-arquitetura-eletrica-pinout.md) reserva ao ADS1115.
+Prototipar no pino definitivo evita refazer chicote depois.
+
+**O log sai só quando a lista muda.** Na bancada isso vira "apareceu / sumiu" ao
+plugar, em vez de encher a serial com a mesma lista a cada 2 s. Na página, o DOM
+também só é recriado na mudança — 30 quadros por segundo não ficam remontando
+elementos à toa.
+
+Medido em 30/07/2026, com VL53L1X e BME280 ligados:
+
+| Endereço | Dispositivo |
+|---|---|
+| `0x29` | VL53L1X |
+| `0x77` | BME280 — ⚠️ não `0x76`: o `SDO` da placa roxa tem pull-up |
+
+> `SDO` flutuante é **endereço instável**. Amarrar de propósito: GND → `0x76`,
+> VCC → `0x77`.
+
+O JSON traz `"i2c":[41,119]` em decimal; a página formata em hex e resolve o nome.
 
 ## Controle de brilho
 

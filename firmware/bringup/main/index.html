@@ -20,6 +20,13 @@ align-items:center;width:min(80vw,320px)}
 width:min(80vw,320px)}
 .dim input{width:100%;accent-color:#e8e3da}
 .dim span{color:#8a8175;font-size:.8rem;text-align:right;font-variant-numeric:tabular-nums}
+.i2c{display:flex;flex-wrap:wrap;gap:.4rem;justify-content:center;
+width:min(80vw,340px);min-height:1.9rem}
+.i2c b{display:inline-flex;align-items:baseline;gap:.4rem;font-weight:400;
+background:#1e1c19;border:1px solid #33302b;border-radius:5px;padding:.25rem .5rem;
+font-size:.78rem;color:#e8e3da}
+.i2c b i{font-style:normal;color:#8a8175;font-size:.72rem}
+.i2c .vazio{color:#6b645a;font-size:.75rem;letter-spacing:.04em}
 </style></head><body>
 <div id="sw"></div>
 <div class="ch">
@@ -31,9 +38,15 @@ width:min(80vw,320px)}
 <input id="sl" type="range" min="0" max="80" value="80" aria-label="brilho">
 <span id="pct">-</span>
 </div>
+<div class="i2c" id="i2c"></div>
 <div class="sub" id="meta">carregando...</div>
 <script>
-var tNum=0, tMexeu=0, ws=null, vmax=80;
+var tNum=0, tMexeu=0, ws=null, vmax=80, i2cAnt='';
+// Endereços que o projeto espera. O scan vira verificação, não descoberta:
+// faltar um significa fiação, e isso se depura muito mais rápido.
+var NOMES={0x29:'VL53L1X',0x48:'ADS1115',0x57:'EEPROM',0x68:'DS3231',
+           0x76:'BME280',0x77:'BME280'};
+function hex(a){return '0x'+(a<16?'0':'')+a.toString(16);}
 
 function rotulo(v){return v>0?Math.round(100*v/vmax)+'%':'apagado';}
 
@@ -57,6 +70,17 @@ function pinta(d){
  vmax=d.max;
  sl.max=d.max;
  if(t-tMexeu>800){sl.value=d.brilho;pct.textContent=rotulo(d.brilho);}
+
+ // Só redesenha quando a lista muda — plugar/desplugar aparece na hora, mas os
+ // 30 frames por segundo não ficam recriando DOM à toa.
+ var chave=d.i2c.join(',');
+ if(chave!==i2cAnt){
+  i2cAnt=chave;
+  i2c.innerHTML=d.i2c.length
+   ? d.i2c.map(function(a){
+       return '<b>'+hex(a)+'<i>'+(NOMES[a]||'?')+'</i></b>';}).join('')
+   : '<span class="vazio">I\u00b2C: nenhum dispositivo</span>';
+ }
 }
 
 sl.oninput=function(){
