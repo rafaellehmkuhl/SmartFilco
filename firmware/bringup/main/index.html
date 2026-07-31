@@ -51,7 +51,7 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
   font-variant-numeric:tabular-nums}
 .tray>button:hover{border-color:var(--fosco);color:var(--osso)}
 .tray svg{width:.8rem;height:.8rem;flex:none;stroke:var(--cinza);fill:none;stroke-width:1.6}
-.painelAmb{position:absolute;top:calc(100% + .43rem);right:0;z-index:5;min-width:13.3rem;
+.painelAmb{position:absolute;top:calc(100% + .43rem);right:0;z-index:5;min-width:16.2rem;
   background:var(--painel);border:1px solid var(--linha);border-radius:.57rem;
   padding:.6rem .7rem;box-shadow:0 10px 28px rgba(0,0,0,.55);display:none}
 .tray.aberta .painelAmb{display:block}
@@ -158,6 +158,7 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
       <div class="rot" style="margin-top:.7rem">Reservatório <s>VL53L1X</s></div>
       <dl>
         <dt>distância</dt><dd id="dD">&mdash;</dd>
+        <dt>faixa</dt><dd id="dF">&mdash;</dd>
         <dt>qualidade</dt><dd id="dQ">&mdash;</dd>
         <dt>sigma</dt><dd id="dS">&mdash;</dd>
         <dt>sinal</dt><dd id="dN">&mdash;</dd>
@@ -355,20 +356,42 @@ function desenhaTrem(duty,range){
 }
 addEventListener('resize',function(){desenhaTrem(+sl.value,+sl.max);desenhaPlot();});
 
+/* O ToF chega a 30 Hz e é ruidoso: o dígito trocando 30x/s não é leitura, é
+   tremor. Como o uso hoje é MEDIR (régua na mão, comparando com o valor), o
+   painel acumula ~1 s de amostras e mostra média, faixa e quantas foram válidas.
+   Faixa e contagem de válidas dizem se dá para confiar na média — média sozinha
+   esconde exatamente o que a gente está investigando.                          */
+var tofBuf=[], tTof=0;
+function mostraTof(){
+ var n=tofBuf.length; if(!n)return;
+ var mm=0,sg=0,sn=0,ok=0,lo=1/0,hi=-1/0,ruim=0;
+ for(var i=0;i<n;i++){
+  var b=tofBuf[i];
+  mm+=b[0];sg+=b[2];sn+=b[3];
+  if(b[0]<lo)lo=b[0];
+  if(b[0]>hi)hi=b[0];
+  if(b[1]===0)ok++; else ruim=b[1];
+ }
+ var med=mm/n;
+ dD.textContent=(med/10).toFixed(1)+' cm';
+ dF.textContent=(lo/10).toFixed(1)+'–'+(hi/10).toFixed(1)+' cm';
+ dQ.textContent=ok+'/'+n+(ok===n?' válidas':' · '+(QUAL[ruim]||('cód '+ruim)));
+ dS.textContent=Math.round(sg/n)+' mm';
+ dN.textContent=Math.round(sn/n)+' kcps';
+ var pc=pctNivel(med);
+ agua.style.height=pc+'%';nivel.textContent=pc+'%';
+ nDist.textContent=(med/10).toFixed(1)+' cm';
+ trilho.classList.toggle('ruim',ok===0);
+}
 function pinta(d){
+ var t=performance.now();
  led.classList.add('viva');txtEstado.textContent='ocioso';
  vmax=d.max;sl.max=d.max;
  if(d.tof){
-  var pc=pctNivel(d.mm);
-  agua.style.height=pc+'%';nivel.textContent=pc+'%';
-  nDist.textContent=(d.mm/10).toFixed(1)+' cm';
-  trilho.classList.toggle('ruim',d.dst!==0);
-  dD.textContent=(d.mm/10).toFixed(1)+' cm';
-  dQ.textContent=QUAL[d.dst]||('cód '+d.dst);
-  dS.textContent=d.sg+' mm';
-  dN.textContent=d.sn+' kcps';
+  tofBuf.push([d.mm,d.dst,d.sg,d.sn]);
+  if(tofBuf.length>30)tofBuf.shift();      // ~1 s a 30 Hz
+  if(t-tTof>500){tTof=t;mostraTof();}
  }
- var t=performance.now();
  // a série é do ar da bancada, não do boiler: só existirá temperatura de máquina
  // quando o PT100 entrar. Pressão do grupo entra como null até o sensor chegar.
  if(d.bme&&t-tAmostra>PASSO){tAmostra=t;amostra(d.t/100,null);}
