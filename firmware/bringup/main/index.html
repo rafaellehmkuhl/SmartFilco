@@ -162,6 +162,7 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
         <dt>qualidade</dt><dd id="dQ">&mdash;</dd>
         <dt>sigma</dt><dd id="dS">&mdash;</dd>
         <dt>sinal</dt><dd id="dN">&mdash;</dd>
+        <dt>luz ambiente</dt><dd id="dA">&mdash;</dd>
       </dl>
       <div class="fonte" id="aFonte">&mdash;</div>
     </div>
@@ -369,10 +370,10 @@ var tofBuf=[], tofN=-1;
 function mediana(v){var c=v.slice().sort(function(a,b){return a-b;});return c[c.length>>1];}
 function mostraTof(){
  var n=tofBuf.length; if(!n)return;
- var sg=0,sn=0,ok=0,lo=1/0,hi=-1/0,ruim=0;
+ var sg=0,sn=0,am=0,ok=0,lo=1/0,hi=-1/0,ruim=0;
  for(var i=0;i<n;i++){
   var b=tofBuf[i];
-  sg+=b[2];sn+=b[3];
+  sg+=b[2];sn+=b[3];am+=b[4];
   if(b[0]<lo)lo=b[0];
   if(b[0]>hi)hi=b[0];
   if(b[1]===0)ok++; else ruim=b[1];
@@ -384,6 +385,14 @@ function mostraTof(){
  dQ.textContent=ok+'/'+n+(ok===n?' válidas':' · '+(QUAL[ruim]||('cód '+ruim)));
  dS.textContent=Math.round(sg/n)+' mm';
  dN.textContent=Math.round(sn/n)+' kcps';
+ // Luz ambiente é IV que entra sem ter saído do sensor. Ela não só suja a medida:
+ // ENVIESA a distância, e como o sinal do alvo cai com o quadrado da distância
+ // enquanto o ambiente é constante, o viés cresce com a distância — o que se
+ // parece com erro de escala. Por isso ela fica ao lado do sinal: o que importa
+ // é a RAZÃO entre os dois, não cada um sozinho.
+ var amb=Math.round(am/n);
+ dA.textContent=amb+' kcps';
+ dA.style.color=amb>sn/n?'var(--brasa)':'';
  var pc=pctNivel(med);
  agua.style.height=pc+'%';nivel.textContent=pc+'%';
  nDist.textContent=(med/10).toFixed(1)+' cm';
@@ -396,7 +405,7 @@ function pinta(d){
  if(d.tof){
   if(d.tn!==tofN){                         // só amostra nova
    tofN=d.tn;
-   tofBuf.push([d.mm,d.dst,d.sg,d.sn]);
+   tofBuf.push([d.mm,d.dst,d.sg,d.sn,d.amb]);
    if(tofBuf.length>10)tofBuf.shift();     // 1 s a 10 Hz
    mostraTof();
   }

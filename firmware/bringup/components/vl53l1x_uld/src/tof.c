@@ -171,6 +171,19 @@ esp_err_t tof_set_periodo_ms(uint16_t ms)
     return VL53L1X_SetInterMeasurementInMs(0, ms) == 0 ? ESP_OK : ESP_FAIL;
 }
 
+esp_err_t tof_set_orcamento_ms(uint16_t ms)
+{
+    if (VL53L1X_SetTimingBudgetInMs(0, ms) != 0) return ESP_FAIL;
+    // O período entre medidas precisa caber o orçamento. Subir o orçamento sem
+    // subir o período deixa a ULD numa configuração inconsistente SEM RECLAMAR —
+    // e config ignorada em silêncio já custou caro nesta investigação.
+    uint16_t per = 0;
+    VL53L1X_GetInterMeasurementInMs(0, &per);
+    if (per < ms + 10) return VL53L1X_SetInterMeasurementInMs(0, ms + 10) == 0
+                              ? ESP_OK : ESP_FAIL;
+    return ESP_OK;
+}
+
 esp_err_t tof_start(void) { return VL53L1X_StartRanging(0) == 0 ? ESP_OK : ESP_FAIL; }
 esp_err_t tof_stop(void) { return VL53L1X_StopRanging(0) == 0 ? ESP_OK : ESP_FAIL; }
 
@@ -231,6 +244,14 @@ esp_err_t tof_calibrar_offset(uint16_t distancia_real_mm, int16_t *achado)
 {
     int16_t off = 0;
     int8_t e = VL53L1X_CalibrateOffset(0, distancia_real_mm, &off);
+
+    // ⚠️ A CalibrateOffset da ST termina em StopRanging e NÃO religa (mesma coisa
+    // na CalibrateXtalk). Sem este start o sensor fica mudo e a página passa a
+    // repetir o último valor — o que parece medida estável, não sensor parado.
+    // Religar mesmo em caso de erro: sair daqui com o sensor desligado é pior que
+    // o erro que causou.
+    if (VL53L1X_StartRanging(0) != 0) ESP_LOGE(TAG, "falhou religar após calibrar");
+
     if (e != 0) return ESP_FAIL;
     if (achado) *achado = off;
     ESP_LOGI(TAG, "offset calibrado: %d mm (alvo a %u mm)", off, distancia_real_mm);

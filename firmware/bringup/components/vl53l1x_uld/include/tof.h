@@ -51,6 +51,10 @@ esp_err_t tof_dump(uint16_t *osc, uint16_t *modo, uint16_t *orcamento_ms,
 // contra a pedida: se divergirem por um fator, o relógio do sensor está errado.
 esp_err_t tof_set_periodo_ms(uint16_t ms);
 
+// Orçamento de tempo por medida. Mais longo = mais imune a luz ambiente, menos
+// taxa. A ULD só aceita 15, 20, 33, 50, 100, 200 ou 500 ms.
+esp_err_t tof_set_orcamento_ms(uint16_t ms);
+
 esp_err_t tof_start(void);
 esp_err_t tof_stop(void);
 
@@ -58,8 +62,15 @@ esp_err_t tof_stop(void);
 // próxima. Devolve ESP_ERR_TIMEOUT se não ficou pronta.
 esp_err_t tof_ler(tof_leitura_t *out, uint32_t timeout_ms);
 
-// Offset em mm somado a toda leitura, persistido só em RAM. É a calibração
-// NORMAL de um ToF — corrige deslocamento, não escala.
+// Offset em mm somado a toda leitura. É a calibração NORMAL de um ToF: corrige
+// DESLOCAMENTO, não escala.
+//
+// ⚠️ Ele NÃO vive na RAM do ESP32 — mora no registrador
+// ALGO__PART_TO_PART_RANGE_OFFSET_MM (0x001E) do próprio sensor. Verificado em
+// 31/07/2026: sobreviveu a regravação + reboot do ESP32. O VL53L1X_SensorInit
+// escreve a configuração default a partir de 0x2D, então não passa por cima dele.
+// Só some quando o SENSOR perde alimentação. Consequência prática: uma calibração
+// ruim fica lá, silenciosa, até alguém escrever por cima.
 esp_err_t tof_set_offset_mm(int16_t mm);
 esp_err_t tof_get_offset_mm(int16_t *mm);
 

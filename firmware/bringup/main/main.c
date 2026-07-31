@@ -87,7 +87,7 @@ static volatile uint8_t s_dist_status = 0xFF;   // 0 = medida válida
 // sigma e sinal saem junto porque sem eles não dá para julgar a distância:
 // número sozinho não diz se o alvo encheu o cone de 27° ou se a medida é uma
 // mistura de alvo + fundo.
-static volatile uint16_t s_dist_sigma, s_dist_sinal;
+static volatile uint16_t s_dist_sigma, s_dist_sinal, s_dist_amb;
 static volatile int16_t s_offset_mm;   // calibração de offset, só em RAM
 static volatile uint16_t s_dist_n;     // nº da medida; a página usa p/ não contar repetida
 static volatile uint16_t s_dist_mm2;   // contraprova via GetDistance
@@ -297,6 +297,7 @@ static void tarefa_i2c(void *arg)
                 s_dist_status = r.status;
                 s_dist_sigma = r.sigma_mm;
                 s_dist_sinal = r.sinal_kcps;
+                s_dist_amb = r.ambiente_kcps;
                 // Contador de medida. O WebSocket empurra a 30 Hz e o sensor mede
                 // a 10 — sem isto a página conta a mesma leitura três vezes, o que
                 // infla "30/30 válidas" e estreita a faixa. Diagnóstico que se
@@ -425,12 +426,12 @@ static int montar_json(char *buf, size_t tam)
     }
     p += snprintf(buf + p, tam - p,
                   "],\"bme\":%d,\"t\":%ld,\"pa\":%lu,\"rh\":%lu,\"gas\":%lu,"
-                  "\"tof\":%d,\"mm\":%u,\"dst\":%u,\"sg\":%u,\"sn\":%u,\"tn\":%u}",
+                  "\"tof\":%d,\"mm\":%u,\"dst\":%u,\"sg\":%u,\"sn\":%u,\"amb\":%u,\"tn\":%u}",
                   bme_ok ? 680 : 0,
                   (long)s_temp_c100, (unsigned long)s_press_pa, (unsigned long)s_umid_pct100,
                   (unsigned long)s_gas_ohm,
                   tof_ok ? 1 : 0, s_dist_mm, s_dist_status,
-                  s_dist_sigma, s_dist_sinal, s_dist_n);
+                  s_dist_sigma, s_dist_sinal, s_dist_amb, s_dist_n);
     return p;
 }
 
@@ -455,8 +456,10 @@ static esp_err_t h_rgb(httpd_req_t *req)
 // 3,5x que o driver ULP anterior apresentava — aquilo era bug, isto é rotina.
 // Procedimento da ST: alvo plano parado, refletância ~88%, distância conhecida.
 //
-// ⚠️ O offset vive só em RAM. Reiniciou, foi embora. Persistir em NVS quando o
-// valor estiver confirmado — gravar um número ainda em dúvida é pior que não ter.
+// ⚠️ O offset fica no registrador do SENSOR, não em RAM do ESP32 — sobrevive a
+// reboot e só some quando o sensor perde alimentação. Calibração ruim fica lá
+// calada. Sempre conferir `sinal` depois de calibrar: offset tirado com sinal
+// fraco embute viés de luz ambiente em vez do desvio real da peça.
 static esp_err_t h_tof(httpd_req_t *req)
 {
     char q[64], v[12];
@@ -475,6 +478,13 @@ static esp_err_t h_tof(httpd_req_t *req)
             int ms = atoi(v);
             acao = (ms > 0 && tof_set_periodo_ms((uint16_t)ms) == ESP_OK)
                    ? "periodo" : "falhou";
+        } else if (httpd_query_key_value(q, "tb", v, sizeof(v)) == ESP_OK) {
+            // Orçamento de tempo. Integração mais longa = mais rejeição de luz
+            // ambiente, ao custo de taxa. Valores aceitos pela ULD:
+            // 15, 20, 33, 50, 100, 200, 500 ms.
+            int ms = atoi(v);
+            acao = (ms > 0 && tof_set_orcamento_ms((uint16_t)ms) == ESP_OK)
+                   ? "orcamento" : "falhou";
         } else if (httpd_query_key_value(q, "off", v, sizeof(v)) == ESP_OK) {
             int16_t off = (int16_t)atoi(v);
             acao = (tof_set_offset_mm(off) == ESP_OK) ? "offset gravado" : "falhou";
@@ -487,10 +497,10 @@ static esp_err_t h_tof(httpd_req_t *req)
     char buf[280];
     int n = snprintf(buf, sizeof(buf),
                      "{\"acao\":\"%s\",\"off\":%d,\"mm\":%u,\"mm2\":%u,\"dst\":%u,"
-                     "\"sg\":%u,\"sn\":%u,\"tn\":%u,"
+                     "\"sg\":%u,\"sn\":%u,\"amb\":%u,\"tn\":%u,"
                      "\"osc\":%u,\"modo\":%u,\"orc\":%u,\"per\":%u}",
                      acao, s_offset_mm, s_dist_mm, s_dist_mm2, s_dist_status,
-                     s_dist_sigma, s_dist_sinal, s_dist_n,
+                     s_dist_sigma, s_dist_sinal, s_dist_amb, s_dist_n,
                      osc, modo, orc, per);
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
