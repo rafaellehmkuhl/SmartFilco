@@ -33,7 +33,7 @@ largura (telefone) ela vira coluna rolável.
 |---|---|
 | **Topo** | marca, LED de estado, e a **bandeja de ambiente** à direita |
 | **Lateral esquerda** | trilho vertical do reservatório, `%` no meio, cm no pé |
-| **Corpo** | dois cartões-herói: temperatura e pressão |
+| **Corpo** | os dois valores grandes à esquerda, gráfico sobreposto à direita |
 | **Faixa inferior** | trem de pulsos do PSM + brilho do LED |
 
 **A bandeja abre por clique, não por hover.** Numa tela sensível ao toque hover não
@@ -48,6 +48,38 @@ os disparos se **distribuírem** em vez de se agruparem.
 **O cartão de pressão é um vazio honesto** — `— bar` em cinza, com a data em que o
 sensor chega. Slot menor que o dado vivo, para não competir com ele. Número
 inventado em painel de máquina é como sensor mentindo: pior que nenhum.
+
+### O gráfico sobreposto
+
+Temperatura e pressão dividem **um plot**, com **duas escalas**. Janela de 60 s,
+amostra a 4 Hz (240 pontos), buffer circular na página — o firmware não guarda
+histórico.
+
+**Dois eixos é o que a cartilha de dataviz proíbe** e é exatamente a convenção do
+gráfico de extração — Decent, Acaia e Flair desenham assim, porque quem puxa um
+shot lê as duas curvas **uma contra a outra no tempo**. A ambiguidade de "qual
+escala é de quem" se paga com três coisas: os rótulos de cada eixo saem **na cor da
+sua série**, cada linha tem um ponto vivo na ponta, e cada número grande leva o
+quadradinho da sua cor ao lado.
+
+As escalas são **assimétricas de propósito**:
+
+| Série | Escala | Por quê |
+|---|---|---|
+| Pressão | **fixa em 0–12 bar** | eixo que se ajusta sozinho mente sobre o quão longe você está dos 9 bar |
+| Temperatura | **auto, vão mínimo de 3 °C** | sem o vão, variação de 0,3 °C vira linha reta morta — foi o que aconteceu nos gráficos anteriores |
+
+**O par de cores foi validado, não escolhido no olho:** `#c98330` / `#3d86c8` passam
+nas 6 checagens de `dataviz/scripts/validate_palette.js` sobre o `#1c1915` do painel
+— ΔE 22,1 no pior caso protanope. São versões mais saturadas do crema/água do
+painel; o crema da marca (`#c9a06a`) **reprova** por croma baixo e clareza fora da
+banda escura, e por isso não vira linha.
+
+⚠️ **A linha quente é o ar da sala, não o boiler.** Enquanto o PT100 não chega
+(05/08), o painel plota o BME680 — e diz isso no rodapé do gráfico, em vez de
+deixar o número grande passar por temperatura de máquina. A série de pressão fica
+`null` até o sensor de 200 PSI entrar: o eixo dela aparece esmaecido, sem linha
+inventada para preencher o vazio.
 
 ## Varredura I²C
 

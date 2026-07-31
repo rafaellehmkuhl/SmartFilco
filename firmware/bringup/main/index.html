@@ -10,6 +10,10 @@
   --graf:#14120f; --painel:#1c1915; --linha:#2b2620;
   --osso:#ece7dd; --cinza:#8f877a; --fosco:#5d564c;
   --crema:#c9a06a; --brasa:#d4553f; --agua:#4a8cc4;
+  /* séries do gráfico: par quente/frio validado (scripts/validate_palette.js,
+     modo escuro sobre #1c1915) — 6/6 checagens, ΔE protan 22,1. São versões mais
+     saturadas do crema/água do painel, não cores novas soltas.                   */
+  --serT:#c98330; --serP:#3d86c8;
 }
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -69,36 +73,45 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
 
 /* ---- corpo ---- */
 .corpo{display:grid;grid-template-rows:1fr auto;gap:10px;min-height:0}
-.leituras{display:grid;grid-template-columns:1fr 1fr;gap:10px;min-height:0}
-.card{background:var(--painel);border:1px solid var(--linha);border-radius:10px;
-  padding:.85rem 1rem 1rem;display:flex;flex-direction:column;min-height:0;
-  justify-content:space-between;overflow:hidden}
+
+/* Números grandes à esquerda, gráfico à direita: a coluna dos valores não rouba
+   altura do plot, e cada valor fica colado na linha que ele representa.          */
+.graf{background:var(--painel);border:1px solid var(--linha);border-radius:10px;
+  padding:.8rem .9rem .6rem;display:grid;grid-template-columns:190px 1fr;
+  grid-template-rows:1fr auto;column-gap:16px;min-height:0;min-width:0}
+.pilha{display:flex;flex-direction:column;justify-content:space-evenly;min-height:0}
 .rot{font-family:ui-sans-serif,system-ui,sans-serif;font-size:.62rem;font-weight:600;
   letter-spacing:.17em;text-transform:uppercase;color:var(--cinza)}
 .rot s{text-decoration:none;color:var(--fosco);font-weight:400;letter-spacing:.07em}
-.big{font-size:4.4rem;line-height:.95;letter-spacing:-.045em;
+/* identidade da série vem da marca colorida, não do número: valor é tinta de texto */
+.metr .rot{display:flex;align-items:center;gap:.42rem;white-space:nowrap}
+.pt{width:9px;height:9px;border-radius:2px;flex:none}
+.big{font-size:3.6rem;line-height:1;letter-spacing:-.045em;margin-top:.1rem;
   font-variant-numeric:tabular-nums}
-.big u{text-decoration:none;font-size:1.1rem;letter-spacing:0;color:var(--cinza);
-  margin-left:.3rem}
-/* slot ainda sem sensor: guarda o lugar sem fingir um número. Traço no tamanho
-   do dado seria dois blocos flutuando — menor e com a unidade na mesma linha. */
-.card.frio .big{color:var(--fosco);font-size:2.4rem;line-height:1}
-.card.frio .big u{font-size:1rem;vertical-align:.55em;margin-left:.15rem}
-.nota{font-family:ui-sans-serif,system-ui,sans-serif;font-size:.68rem;color:var(--fosco);
-  line-height:1.35}
+.big u{text-decoration:none;font-size:1rem;letter-spacing:0;color:var(--cinza);
+  margin-left:.25rem}
+/* slot ainda sem sensor: guarda o lugar sem fingir um número */
+.metr.frio .big{color:var(--fosco);font-size:2.2rem}
+.metr.frio .big u{vertical-align:.42em;margin-left:.18rem}
+.tela{position:relative;min-width:0;min-height:0}
+#plot{position:absolute;inset:0;width:100%;height:100%}
+.rodape{grid-column:1/-1;display:flex;justify-content:space-between;gap:1rem;
+  margin-top:.5rem;padding-top:.45rem;border-top:1px solid var(--linha);
+  font-family:ui-sans-serif,system-ui,sans-serif;font-size:.63rem;color:var(--fosco)}
+.rodape span+span{white-space:nowrap}
 
 /* ---- assinatura: trem de pulsos ---- */
 .psm{border:1px solid var(--linha);border-radius:10px;background:var(--painel);
-  padding:.7rem .9rem .75rem}
-.cab{display:flex;align-items:baseline;gap:.6rem;margin-bottom:.5rem}
+  padding:.6rem .9rem .65rem}
+.cab{display:flex;align-items:baseline;gap:.6rem;margin-bottom:.4rem}
 .duty{margin-left:auto;font-size:1.05rem;font-variant-numeric:tabular-nums}
 .duty u{text-decoration:none;font-size:.75rem;color:var(--cinza);margin-left:.12rem}
-#trem{display:block;width:100%;height:36px}
-.pe{display:flex;justify-content:space-between;gap:1rem;margin-top:.35rem;
+#trem{display:block;width:100%;height:30px}
+.pe{display:flex;justify-content:space-between;gap:1rem;margin-top:.3rem;
   font-family:ui-sans-serif,system-ui,sans-serif;font-size:.63rem;color:var(--fosco)}
-.ctrl{display:flex;align-items:center;gap:.85rem;margin-top:.6rem;padding-top:.6rem;
+.ctrl{display:flex;align-items:center;gap:.85rem;margin-top:.5rem;padding-top:.5rem;
   border-top:1px solid var(--linha)}
-.ctrl input{flex:1;min-width:0;accent-color:var(--crema);height:26px}  /* alvo de dedo */
+.ctrl input{flex:1;min-width:0;accent-color:var(--crema);height:24px}  /* alvo de dedo */
 .ctrl .val{font-size:.73rem;color:var(--cinza);font-variant-numeric:tabular-nums;
   min-width:4.4em;text-align:right}
 
@@ -108,9 +121,10 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
   .app{height:auto;grid-template-columns:1fr;grid-template-rows:none;padding-bottom:2rem}
   .nivel{height:80px}
   .nivel .eixo{writing-mode:horizontal-tb;transform:translateX(-50%);top:6px}
-  .leituras{grid-template-columns:1fr 1fr}
-  .big{font-size:3rem}
-  .card{min-height:130px}
+  .graf{grid-template-columns:1fr 1fr;grid-template-rows:auto 170px auto}
+  .pilha{flex-direction:row;justify-content:space-between;gap:1rem}
+  .tela{grid-column:1/-1}
+  .big{font-size:2.6rem}
 }
 </style></head><body>
 <div class="app">
@@ -147,16 +161,24 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
 </div>
 
 <div class="corpo">
-  <div class="leituras">
-    <div class="card">
-      <div class="rot">Temperatura <s>ambiente</s></div>
-      <div class="big" id="vTemp">&mdash;<u>°C</u></div>
-      <div class="nota">PT100 no boiler chega 05/08</div>
+  <div class="graf">
+    <div class="pilha">
+      <div class="metr">
+        <div class="rot"><i class="pt" style="background:var(--serT)"></i>Temperatura
+          <s>bancada</s></div>
+        <div class="big" id="vTemp">&mdash;<u>°C</u></div>
+      </div>
+      <div class="metr frio">
+        <div class="rot"><i class="pt" style="background:var(--serP)"></i>Pressão
+          <s>grupo</s></div>
+        <div class="big" id="vPress">&mdash;<u>bar</u></div>
+      </div>
     </div>
-    <div class="card frio">
-      <div class="rot">Pressão</div>
-      <div class="big">&mdash;<u>bar</u></div>
-      <div class="nota">Sensor 200 PSI chega 05/08</div>
+    <div class="tela"><canvas id="plot"></canvas></div>
+    <div class="rodape">
+      <span>A linha quente é o ar da sala (BME680), não o boiler &mdash;
+        PT100 e sensor 200 PSI chegam 05/08.</span>
+      <span>janela 60 s</span>
     </div>
   </div>
 
@@ -197,6 +219,89 @@ addEventListener('click',function(e){
   btAmb.setAttribute('aria-expanded','false');}
 },true);
 
+/* ------------------------------------------------------ gráfico sobreposto
+   Temperatura e pressão no MESMO plot, duas escalas. Dois eixos é o que a
+   cartilha de dataviz proíbe — e é exatamente a convenção do gráfico de
+   extração (Decent, Acaia, Flair fazem assim), porque quem puxa um shot lê as
+   duas curvas uma contra a outra no tempo. A ambiguidade de "qual escala é de
+   quem" se paga com os rótulos de cada eixo NA COR da sua série, o ponto vivo
+   na ponta de cada linha, e o quadradinho colorido ao lado de cada número.
+
+   Escalas assimétricas de propósito:
+   · pressão FIXA em 0–12 bar — eixo que se ajusta sozinho mente sobre o quão
+     longe você está dos 9 bar, que é a única coisa que importa olhar;
+   · temperatura AUTO com vão mínimo de 3 °C — sem isso, variação de 0,3 °C
+     vira linha reta morta (foi o que aconteceu nos gráficos anteriores).       */
+var PASSO=250, NPT=240;          // 4 Hz x 240 pontos = janela de 60 s
+var serT=[], serP=[], tAmostra=0;
+
+function faixa(s,vao){
+ var lo=1/0,hi=-1/0,n=0;
+ for(var i=0;i<s.length;i++){var v=s[i];if(v==null)continue;
+  n++;if(v<lo)lo=v;if(v>hi)hi=v;}
+ if(!n)return null;
+ var c=(lo+hi)/2, d=Math.max(hi-lo,vao)*1.2/2;
+ return [c-d,c+d];
+}
+function traca(ctx,s,f,cor,x0,pw,y0,ph,len){
+ if(!f)return;
+ var px=function(i){return x0+pw*(i+NPT-len)/(NPT-1);};
+ var py=function(v){return y0+ph-(v-f[0])/(f[1]-f[0])*ph;};
+ ctx.strokeStyle=cor;ctx.lineWidth=2;ctx.lineJoin='round';ctx.lineCap='round';
+ ctx.beginPath();
+ var atras=false,ux=0,uy=0;
+ for(var i=0;i<len;i++){
+  var v=s[i];
+  if(v==null){atras=false;continue;}
+  ux=px(i);uy=py(Math.max(f[0],Math.min(f[1],v)));
+  if(atras)ctx.lineTo(ux,uy);else ctx.moveTo(ux,uy);
+  atras=true;
+ }
+ ctx.stroke();
+ if(!atras)return;
+ ctx.fillStyle=cor;ctx.beginPath();ctx.arc(ux,uy,4,0,6.284);ctx.fill();
+ ctx.strokeStyle='#1c1915';ctx.lineWidth=2;ctx.stroke();   // anel: linhas se cruzam
+}
+function desenhaPlot(){
+ var cv=plot,ctx=cv.getContext('2d'),dpr=devicePixelRatio||1;
+ var w=cv.clientWidth,h=cv.clientHeight;
+ if(!w||!h)return;
+ if(cv.width!==Math.round(w*dpr)){cv.width=w*dpr;cv.height=h*dpr;}
+ ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+
+ var EL=42,ER=34,ET=9,EB=15;
+ var x0=EL,y0=ET,pw=w-EL-ER,ph=h-ET-EB;
+ if(pw<40||ph<30)return;
+ var fT=faixa(serT,3), fP=[0,12], temP=serP.some(function(v){return v!=null;});
+
+ ctx.font='10px ui-monospace,Menlo,monospace';ctx.textBaseline='middle';
+ for(var k=0;k<=3;k++){
+  var y=Math.round(y0+ph*k/3)+.5;
+  ctx.strokeStyle='#2b2620';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x0+pw,y);ctx.stroke();
+  ctx.textAlign='right';
+  ctx.fillStyle=fT?'#c98330':'#5d564c';
+  ctx.fillText(fT?(fT[1]-(fT[1]-fT[0])*k/3).toFixed(1):'--',x0-7,y);
+  ctx.textAlign='left';
+  ctx.globalAlpha=temP?1:.4;          // eixo sem linha não disputa o olho
+  ctx.fillStyle='#3d86c8';
+  ctx.fillText((fP[1]-(fP[1]-fP[0])*k/3).toFixed(0),x0+pw+7,y);
+  ctx.globalAlpha=1;
+ }
+ var len=serT.length;
+ traca(ctx,serP,fP,'#3d86c8',x0,pw,y0,ph,len);
+ traca(ctx,serT,fT,'#c98330',x0,pw,y0,ph,len);
+
+ ctx.fillStyle='#5d564c';ctx.font='9px ui-monospace,Menlo,monospace';
+ ctx.textAlign='left';ctx.fillText('−60 s',x0,h-6);
+ ctx.textAlign='right';ctx.fillText('agora',x0+pw,h-6);
+}
+function amostra(t,p){
+ serT.push(t);serP.push(p);
+ if(serT.length>NPT){serT.shift();serP.shift();}
+ desenhaPlot();
+}
+
 /* -------------------------------------------------------------- assinatura
    Trem de pulsos do PSM. Não é enfeite nem dado inventado: é o acumulador de
    Bresenham da PSM.Library rodando aqui, mostrando como o mesmo duty do slider
@@ -224,7 +329,7 @@ function desenhaTrem(duty,range){
  conta.textContent=disp+' disparo'+(disp===1?'':'s');
  vDuty.innerHTML=Math.round(100*duty/range)+'<u>%</u>';
 }
-addEventListener('resize',function(){desenhaTrem(+sl.value,+sl.max);});
+addEventListener('resize',function(){desenhaTrem(+sl.value,+sl.max);desenhaPlot();});
 
 function pinta(d){
  led.classList.add('viva');txtEstado.textContent='ocioso';
@@ -236,6 +341,9 @@ function pinta(d){
   trilho.classList.toggle('ruim',d.dst!==0);
  }
  var t=performance.now();
+ // a série é do ar da bancada, não do boiler: só existirá temperatura de máquina
+ // quando o PT100 entrar. Pressão do grupo entra como null até o sensor chegar.
+ if(d.bme&&t-tAmostra>PASSO){tAmostra=t;amostra(d.t/100,null);}
  if(t-tNum>250){   // ritmo humano: dígito trocando 30x/s ninguém lê, só treme
   tNum=t;
   if(d.bme){
@@ -272,6 +380,6 @@ function liga(){
  ws.onclose=function(){led.classList.remove('viva');txtEstado.textContent='reconectando';
   setTimeout(liga,1000);};
 }
-mostraBrilho(80);liga();
+mostraBrilho(80);desenhaPlot();liga();
 </script>
 </body></html>
