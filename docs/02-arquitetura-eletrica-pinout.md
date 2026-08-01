@@ -106,7 +106,60 @@ ESP32-S3. Solução: módulo level shifter bidirecional (MOSFET) entre os dois l
 | **Z-C** (zero-cross) | **GPIO4** | in / interrupção | do dimmer. ISR em **IRAM** |
 | **Dim** (gate do TRIAC) | **GPIO5** | out | PSM: passa ou pula o semiciclo |
 | SSR (resistência) | **GPIO6** | out | PID de temperatura |
-| Livres | GPIO1, 2, 7, 15, 16, 17, 18, 21, 38–42, 47 | — | folga grande |
+| **TRIG** | **GPIO15** | out | HC-SR04, nível do reservatório |
+| **ECHO** | **GPIO16** | in | HC-SR04 — ⚠️ **saída de 5 V**, ver abaixo |
+| Célula de carga | **0 ou 2** | — | depende do amplificador, ver abaixo |
+| Livres | GPIO1, 2, 7, 17, 18, 21, 38–42, 47 | — | folga grande |
+
+**São 12 GPIOs** (14 se o amplificador da célula for HX711). O que segura a conta
+é o compartilhamento: **dois barramentos servem cinco periféricos**. O sensor de
+pressão não gasta pino porque entra pelo ADS1115 no I²C.
+
+> ⚠️ **O `ECHO` do HC-SR04 é 5 V** e mata o pino do ESP32 se for ligado direto.
+> Divisor resistivo ou o level shifter que já existe para o ADS1115. O `TRIG` pode
+> ir direto — 3,3 V passa como nível alto para ele.
+
+### ➡️ Decisão (01/08/2026): célula de carga sob a xícara, no lugar do ToF
+
+O VL53L1X sai do projeto. Ele tinha entrado como **presença de copo**, e a bancada
+mostrou por que é a peça errada para o lugar: é fotodetector de infravermelho, e a
+luz da sala entregava **848 kcps de ambiente contra 352 kcps de sinal** — mais IV
+do ambiente do que do próprio alvo ([bringup](../firmware/bringup/README.md)). Sob
+o chuveiro, com vapor e reflexo de inox, não melhora.
+
+A célula de carga resolve o mesmo problema por outro caminho e traz três coisas de
+brinde:
+
+| Ganho | Por quê |
+|---|---|
+| **Presença de copo** | vira consequência (massa acima de um limiar), não sensor |
+| **Vazão volta ao escopo** | massa derivada no tempo **é** vazão — ver [04](04-bom-lista-de-compras.md#-flow-meter-yf-s401--fora-do-projeto) |
+| **Parada por peso** | encerrar em 36 g em vez de em tempo, o maior salto de repetibilidade disponível |
+
+**Vazão medida na xícara é melhor que no circuito.** O flow meter mediria o que
+passa pela bomba; a balança mede o que **cai na xícara**. Retenção do puck,
+canalização e o que fica no grupo deixam de ser erro invisível.
+
+⏳ **Amplificador ainda não decidido:**
+
+| Peça | Interface | GPIOs | Observação |
+|---|---|---|---|
+| **NAU7802** | I²C | **0** | entra no barramento que já existe |
+| **HX711** | serial próprio, bit-bang | **2** (DT, SCK) | ver a armadilha abaixo |
+
+> ⚠️ **O HX711 entra em power-down se o clock ficar alto por mais de 60 µs.** Este
+> projeto tem uma ISR de zero-cross em IRAM a 120 Hz e a pilha Wi-Fi no mesmo chip
+> — as duas coisas que atrasam bit-bang. Dá para contornar (RMT, ou prender no core
+> 1, que é o de tempo-real), mas é briga que o NAU7802 não pede.
+
+**A bomba vibratória vai aparecer na balança.** Ela pulsa a 60 Hz e a estrutura
+transmite. A célula precisa de **desacoplamento mecânico** da bomba, e a taxa de
+amostragem tem que ser escolhida sabendo disso — é o mesmo acoplamento que a
+[07](07-seguranca-e-calibracao.md) já trata na pressão.
+
+**E ela vive na bandeja de escorrimento** — água, vapor e calor, que é o pior lugar
+da máquina para deriva térmica. Tara antes de cada shot mata o offset; a deriva
+durante o shot é o que sobra.
 
 > GPIO4/GPIO5 eram a UART do DimmerLink. Com a
 > [decisão de ir para PSM](#bypass-do-dimmerlink-para-psm-decidido) voltaram ao papel

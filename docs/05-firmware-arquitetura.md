@@ -77,7 +77,8 @@ diferença que **contradiz o que este documento dizia originalmente**:
 | `WiFiModule` | Conexão à rede local, mDNS, **NTP** (substitui o RTC) | 1 |
 | `WebServer` | UI web + API REST/WebSocket para gráficos em tempo real — **interface principal da fase 1** | 1 |
 | `Storage` | Configurações persistentes (NVS + microSD) | 1 |
-| `ShotModule` | Máquina de estados da extração: pré-infusão → ramp → hold → declínio; timer, integra fluxo (futuro) | 2 |
+| `ScaleModule` | Lê a célula de carga sob a xícara. Tara, calibração de dois pontos, **filtro dos 60 Hz da bomba** (a vibração acopla na estrutura), derivada da massa → **vazão** | 2 |
+| `ShotModule` | Máquina de estados da extração: pré-infusão → ramp → hold → declínio. **Parada por peso** quando há balança, por tempo quando não há | 2 |
 | `ProfileModule` | Perfis de pressão/temperatura, armazenados no microSD. Pré-infusão como **teto**, declínio como **decaimento observado** — ver abaixo | 2 |
 | `SteamModule` | Modo vapor (setpoint alto, teto pelo termostato de vapor em hardware) | 2 |
 | `OTA` | Atualização de firmware pela rede | 2 |
@@ -86,6 +87,14 @@ diferença que **contradiz o que este documento dizia originalmente**:
 > **`RTCModule` foi removido.** Sem o board Waveshare não há PCF85063; o timestamp
 > de shot vem de **NTP** via Wi-Fi. Só voltaria a fazer sentido se houvesse
 > requisito de log correto sem rede — não há.
+
+> **`ScaleModule` entrou em 01/08/2026** com a
+> [célula de carga](02-arquitetura-eletrica-pinout.md#️-decisão-01082026-célula-de-carga-sob-a-xícara-no-lugar-do-tof).
+> Ele muda o `ShotModule`: o critério de parada passa a ser **massa**, não tempo —
+> encerrar em 36 g em vez de em 28 s é o maior ganho de repetibilidade disponível
+> no projeto, porque tempo é consequência da moagem e massa é o objetivo.
+> A parada por tempo continua como fallback, para o caso de balança ausente ou em
+> falha: perder a balança não pode virar shot infinito.
 
 ## Loop de controle (essência)
 
@@ -123,7 +132,7 @@ Página única servida pelo ESP32, WebSocket para telemetria ao vivo:
    ┌────────────────────────────────────────┐
    │  gráfico ao vivo P / T                 │
    └────────────────────────────────────────┘
-   Shot 00:18                    histórico ▾
+   Shot 00:18   ·   28.4 g   ·   1.8 g/s      histórico ▾
 ```
 
 Controles: **Coffee · Steam · Flush · Settings** + edição de setpoint e perfil.
@@ -135,7 +144,7 @@ controle vive na camada de UI, em nenhuma das duas.
 
 ## Dados registrados por shot
 
-`tempo, T_boiler, T_bolo_estimada, pressão, potência_resistência, potência_bomba, fluxo(futuro)`
+`tempo, T_boiler, T_bolo_estimada, pressão, potência_resistência, potência_bomba, massa, vazão`
 → gravados no microSD, visualizáveis em gráfico no navegador.
 
 > Guardar sempre `T_boiler` **crua**, além da estimada. É o que permite refinar o

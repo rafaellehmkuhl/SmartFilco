@@ -69,7 +69,9 @@ pressão vier com defeito, são +2 semanas de espera.
 
 | Qtd | Item | Buscar por | Função |
 |---|---|---|---|
-| ~~1~~ | ~~Flow meter Hall (YF-S401)~~ | **REMOVIDO** | Ver abaixo — não mede espresso, e com PSM não é preciso |
+| ~~1~~ | ~~Flow meter Hall (YF-S401)~~ | **REMOVIDO** | Ver abaixo — não mede espresso. A vazão volta pela célula de carga |
+| 1 | **Célula de carga** (5 kg, barra) + **amplificador** | "load cell 5kg" + NAU7802 *ou* HX711 | balança sob a xícara: presença de copo, vazão e parada por peso. ⏳ amplificador a decidir, ver [02](02-arquitetura-eletrica-pinout.md#️-decisão-01082026-célula-de-carga-sob-a-xícara-no-lugar-do-tof) |
+| ~~1~~ | ~~VL53L1X (ToF)~~ | **REMOVIDO** | era presença de copo. Fotodetector IV: na bancada leu 848 kcps de luz ambiente contra 352 de sinal. Substituído pela célula de carga |
 | 2 | **ACS712** (20A) | "ACS712 20A module" | diagnóstico de corrente (resistência/bomba) |
 | 1 | Sensor de nível (boia magnética) | "magnetic float switch" | evitar bomba a seco |
 | 1 | **GUITION JC4880P443C** — ESP32-P4 + C6, 4,3" 480×800 MIPI-DSI | [item 1005009618259341](https://pt.aliexpress.com/item/1005009618259341.html) | **placa única**: controle + interface. Ver nota abaixo |
@@ -150,6 +152,17 @@ sensor feito sob medida. Turbina de irrigação não é a peça.
 > parecia". Aquele raciocínio valia **porque** o DimmerLink só faz ângulo de fase.
 > Com a [decisão de ir para PSM](02-arquitetura-eletrica-pinout.md#bypass-do-dimmerlink-para-psm-decidido)
 > o atalho de contagem de pulsos volta a existir, e o sensor perde a razão de ser.
+
+#### ✅ Mas a vazão voltou ao escopo (01/08/2026) — pela balança
+
+A [célula de carga sob a xícara](02-arquitetura-eletrica-pinout.md#️-decisão-01082026-célula-de-carga-sob-a-xícara-no-lugar-do-tof)
+mede vazão sem sensor de vazão: **massa derivada no tempo é vazão**. E mede num
+lugar melhor que o circuito — o flow meter contaria o que passa pela bomba, a
+balança pesa o que **cai na xícara**. Retenção do puck, canalização e o que fica
+no grupo saem de "erro invisível" para "não existe".
+
+Nada disso ressuscita o YF-S401: a faixa dele continua errada por uma ordem de
+grandeza. O que mudou é que a **medida** de vazão deixou de depender dele.
 >
 > Se algum dia houver medição de vazão de verdade, o critério é **faixa**: precisa
 > ler ~0,05–0,3 L/min, não 0,3–6.

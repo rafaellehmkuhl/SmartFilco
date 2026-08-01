@@ -311,6 +311,13 @@ não completa o curso. Extração a 9 bar deve ir bem em qualquer cenário.
       aparece com os dois juntos.
 - [ ] microSD monta e grava (SPI compartilhado com o MAX31865 → conferir que ambos
       leem alternadamente sem se corromper).
+- [ ] **Célula de carga:** tara com o prato vazio e calibração com **peso conhecido**
+      (dois pontos). Conferir linearidade num terceiro peso — célula barata satura
+      antes do nominal.
+- [ ] **Célula de carga com a bomba ligada:** medir quanto a vibração de 60 Hz
+      aparece na massa, com a balança montada como vai ficar. É o número que dita o
+      filtro e a taxa de amostragem — e se for grande demais, o conserto é
+      **mecânico** (desacoplar), não digital.
 - [ ] Testar SSR e dimmer com **carga de teste** (lâmpada) antes da resistência/bomba reais.
 - [ ] Validar proteções: simular sensor aberto (desconectar a sonda) → sistema deve cortar.
 
