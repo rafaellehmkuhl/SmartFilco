@@ -549,6 +549,29 @@ de pulsos, não do instante do disparo.
 travar em cache miss de flash. Sem isso, o handler pode atrasar milissegundos
 quando o cache estiver ocupado — e milissegundos, aí sim, custam semiciclo.
 
+## ⚠️ Toda a análise de display abaixo ficou obsoleta em 01/08/2026
+
+O que vem a seguir — a contagem de GPIOs da RGB, a comparação MIPI-DSI × SPI, a
+escolha da GUITION JC4880P443C — respondia a **uma** pergunta: *qual placa com
+display sobra pino suficiente para acumular o controle?*
+
+**Essa pergunta deixou de existir.** Com a
+[decisão de duas MCUs](05-firmware-arquitetura.md#️-decisão-01082026-duas-mcus-e-desta-vez-o-motivo-não-é-pinagem),
+o display fica **fora da máquina** e o controle fica no **ESP32-S3 que já está em
+mãos**. A placa de interface só desenha — não precisa de um GPIO livre sequer.
+
+Consequências:
+
+- **A GUITION deixa de ser obrigatória.** Continua sendo boa; só não é mais a única.
+- **Os displays SPI voltam para a mesa.** Foram descartados por custarem 5–7 GPIOs.
+  Esse custo agora é irrelevante.
+- **O critério de escolha mudou de "quantos pinos sobram" para "renderiza LVGL
+  bem"** — ou seja, RAM/PSRAM e interface do painel.
+
+O texto abaixo fica **como registro do raciocínio**, não como decisão vigente. Ele
+explica por que uma placa de display não servia de controlador, o que continua
+verdade e é justamente o motivo de haver duas MCUs.
+
 ## Por que a placa com display RGB não serve como controlador
 
 Placas tipo **Waveshare/SpotPear ESP32-S3-Touch-LCD-4.3** ou **GUITION JC8048W550**

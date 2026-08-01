@@ -18,51 +18,89 @@
 ## Divisão em duas "placas lógicas" — **num chip só**
 
 > 🔄 **Histórico das revisões.** Esta divisão nasceu lógica (um ESP32-S3). Em 29/07
-> virou **física** (duas placas), porque nenhuma placa com display tinha pino
-> sobrando. Em 30/07 **voltou a ser lógica**: a GUITION JC4880P443C (ESP32-P4, DSI)
-> deixa 12 GPIOs livres, então uma placa faz as duas coisas. Ver
-> [02](02-arquitetura-eletrica-pinout.md#-decisão-30072026-guition-jc4880p443c-placa-única).
+> virou **física**, porque nenhuma placa com display tinha pino sobrando. Em 30/07
+> **voltou a lógica**: a GUITION JC4880P443C (ESP32-P4, DSI) deixa 12 GPIOs livres,
+> então uma placa faria as duas coisas. Em **01/08 voltou a ser física** — e desta
+> vez por um motivo diferente, ver abaixo.
 
 - **Control Board (tempo-real):** sensores, PID de temperatura, PSM da bomba, SSR,
-  watchdog, limites de segurança.
-- **UI Board (interface):** Wi-Fi, web server, API, logging, e o LVGL.
+  watchdog, limites de segurança, Wi-Fi/API.
+- **UI Board (interface):** LVGL e o touch.
 
-Ambas vivem no **ESP32-P4**. O LVGL continua sendo **cliente da mesma API** que o
-navegador consome — a separação é de disciplina, e o `firmware/bringup` já implementa
-o lado servidor.
+### ➡️ Decisão (01/08/2026): duas MCUs, e desta vez o motivo não é pinagem
 
-### Uso dos núcleos
+**O display fica FORA da máquina**, em posição ergonômica. Com uma placa só, isso
+significa puxar o barramento inteiro do display num chicote até lá — muito fio, mal
+roteado, atrás de uma peça que fica à vista.
 
-O P4 tem dois núcleos HP a 360 MHz mais um LP a 40 MHz.
+Isto é diferente das duas revisões anteriores: elas oscilaram conforme **quantos
+GPIOs sobravam** na placa da vez, e por isso viravam toda vez que aparecia placa
+melhor. O motivo agora é **mecânico**, e mecânica não muda quando lança chip novo.
 
-- **HP core 1 → controle.** PID, máquina de estado do PSM, proteções, e a ISR de
-  `Z-C` fixada aqui.
-- **HP core 0 → interface.** LVGL, esp-hosted/SDIO, LWIP, servidor da API.
-- **LP core → livre.** Disponível, sem plano de uso.
+| Placa | Chip | Por quê |
+|---|---|---|
+| **Controle** | **ESP32-S3-WROOM-1 N16R8** — o que já está em mãos | 12 GPIOs bastam, já roda o `bringup`, e é dual-core: preserva a afinidade `CORE_RT 1` / `CORE_NET 0` que este documento assume |
+| **Interface** | a definir | só desenha; não precisa de GPIO livre |
 
-Isso importa mais aqui do que na arquitetura de duas placas, porque o **LVGL voltou
-para o mesmo chip do controle**. Renderizar 480×800 não é barato.
+> Cogitou-se um C3/C6 pequeno no controle, por preço. **C3 não fecha a conta**: um
+> Super Mini expõe ~13 pinos, dos quais três são strapping e dois a UART. E os dois
+> são **single-core** — em chip de um núcleo a afinidade acima deixa de existir e a
+> ISR de zero-cross passa a disputar com o rádio. É menos grave aqui do que seria
+> com ângulo de fase, porque o PSM dispara junto do cruzamento por zero e tem
+> orçamento de latência largo, mas é rede de segurança que se perde por ~R$ 30.
+> **ESP32-H2 está fora de qualquer forma: não tem Wi-Fi, logo não faz ESP-NOW.**
 
-> ⚠️ **Correção de um exagero anterior.** Foi dito que, com o Wi-Fi no ESP32-C6, "o
-> jitter contra a ISR deixa de existir por construção". É mais forte que a verdade.
-> No **esp-hosted**, o C6 roda o driver 802.11 e o rádio — a parte de **tempo real
-> duro** — mas a **pilha TCP-IP (LWIP) continua rodando no P4**, falando com o C6 por
-> SDIO.
->
-> O ganho é real e grande: o que sai do chip de controle é justamente a parte com
-> timing rígido (beacon, janelas de ACK). Mas não é "não existe mais" — é "a parte
-> perigosa saiu". LWIP é *soft*: um pacote atrasado 5 ms não quebra nada.
+**A separação lógica que este documento sempre pregou vira o protocolo.** O LVGL já
+era "mais um cliente da mesma API"; agora é cliente de verdade, por rede. O
+`firmware/bringup` já implementa o lado servidor — não há protocolo novo a inventar.
 
-### Se a P4 for descartada
+Três consequências:
 
-Com um ESP32-S3 (DevKitC-1 atual ou o Waveshare 3,5"), o mapa é o mesmo com uma
-diferença que **contradiz o que este documento dizia originalmente**:
+**A GUITION deixa de ser obrigatória.** Ela foi escolhida por sobrarem 12 GPIOs para
+acumular controle + interface. Sem o controle, esse critério não existe e a escolha
+de display reabre — inclusive para os SPI, descartados por custo de GPIO.
 
-> Este documento sugeria controle no core 0 e Wi-Fi no core 1. Está errado na
-> prática: o ESP-IDF fixa a task de Wi-Fi no **core 0** por padrão
+**O LVGL sai de cima do laço de controle.** A preocupação registrada logo abaixo —
+*renderizar 480×800 não é barato* — deixa de existir: quem renderiza não é quem
+dispara o TRIAC.
+
+**E o `SafetyModule` para de depender da interface.** Display travado, link caído ou
+bug na UI não alcançam mais a caldeira. Hoje alcançariam.
+
+⏳ **O link ainda não está decidido**, e depende de um fato físico: de onde vem a
+alimentação do display.
+
+| Se o display... | Link | Fios até ele |
+|---|---|---|
+| puxa 5 V de dentro da máquina | **UART** | 4 vias (5 V, GND, TX, RX) — rádio não paga a pena se o cabo já vai |
+| tem fonte própria | **ESP-NOW** | nenhum |
+
+> Wi-Fi via roteador foi descartado como link principal: reboot do roteador apagaria
+> o painel da máquina. ESP-NOW é ponto-a-ponto e não depende de infraestrutura.
+
+### Uso dos núcleos — na placa de controle (ESP32-S3)
+
+Dois núcleos a 240 MHz, e a divisão importa porque o Wi-Fi mora aqui junto do PID:
+
+- **Core 1 → controle.** PID, máquina de estado do PSM, proteções, e a ISR de `Z-C`
+  fixada aqui (em **IRAM**).
+- **Core 0 → rede.** Wi-Fi/ESP-NOW, LWIP, servidor da API.
+
+> Este documento sugeria o inverso — controle no core 0, Wi-Fi no core 1. **Está
+> errado na prática:** o ESP-IDF fixa a task de Wi-Fi no core 0 por padrão
 > (`CONFIG_ESP_WIFI_TASK_PINNED_TO_CORE_0`), então é o controle que deve sair de lá.
-> O `firmware/bringup` já implementa o arranjo correto — `CORE_RT 1` / `CORE_NET 0`,
-> com `LWIP_TCPIP_TASK_AFFINITY_CPU0` no `sdkconfig.defaults`.
+> O `firmware/bringup` já implementa o arranjo correto, com
+> `LWIP_TCPIP_TASK_AFFINITY_CPU0` no `sdkconfig.defaults`.
+
+**Com o LVGL na outra placa, esta divisão ficou folgada.** Antes ela dividia o mesmo
+chip entre renderizar 480×800 e disparar TRIAC; agora o core 0 só carrega rede.
+
+> ⚠️ **Correção de um exagero anterior, mantida por ser instrutiva.** Foi dito que,
+> com o Wi-Fi num ESP32-C6 via esp-hosted, "o jitter contra a ISR deixa de existir
+> por construção". É mais forte que a verdade: o C6 roda o driver 802.11 e o rádio —
+> a parte de tempo real duro — mas a **pilha TCP-IP continua no host**. O ganho é
+> real, só não é absoluto. Com duas MCUs a mesma lógica vale: o que saiu da placa de
+> controle foi o LVGL, não a rede.
 
 ## Módulos propostos
 

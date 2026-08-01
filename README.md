@@ -62,7 +62,7 @@ Justificativas completas em [docs/01](docs/01-projeto-visao-geral.md#decisões-d
 
 ## Resumo de 30 segundos
 
-- **MCU:** **ESP32-S3-WROOM-1 N16R8** (dual USB-C), headless na fase 1 — interface via **Wi-Fi/web**. Timestamp por **NTP**; logging em **módulo microSD SPI**. ⚠️ PSRAM octal: GPIO33–37 são armadilha (estão no header, não funcionam).
+- **MCU:** **duas placas**. Controle no **ESP32-S3-WROOM-1 N16R8** já em mãos (12 GPIOs bastam), interface numa placa separada com display — porque o display fica **fora da máquina**, e uma placa só significaria puxar o barramento inteiro dele num chicote até lá ([por quê](docs/05-firmware-arquitetura.md#️-decisão-01082026-duas-mcus-e-desta-vez-o-motivo-não-é-pinagem)). Headless na fase 1, interface via **Wi-Fi/web**. Timestamp por **NTP**; logging em **módulo microSD SPI**. ⚠️ PSRAM octal: GPIO33–37 são armadilha (estão no header, não funcionam).
 - **Temperatura:** 1× **PT100** classe A, **3 fios**, de superfície, na parede do boiler + 1× **MAX31865** (Rref **430 Ω**). Controle por **PID → SSR**. Temperatura no bolo é **modelada**, não medida ([por quê](docs/01-projeto-visao-geral.md#por-que-um-sensor-de-temperatura-e-não-dois)).
 - **Pressão:** 1× sensor **0–13,8 bar (200 PSI) / 0,5–4,5 V**, 1/8" NPT, lido por **ADS1115 em 5 V** (PGA ±6,144 V) através de **level shifter**. Controle em **malha fechada → dimmer** na bomba.
 - **Atuadores:** **SSR-40DA + dissipador** (resistência) e **dimmer RobotDyn 8A por PSM** (bomba vibratória) — `Z-C` e `Dim` direto no ESP32, com a ISR de zero-cross em **IRAM**. Ângulo de fase foi descartado: em potência baixa entrega curso incompleto e a bomba zumbe sem bombear. Ver [docs/02](docs/02-arquitetura-eletrica-pinout.md#bypass-do-dimmerlink-para-psm-decidido).

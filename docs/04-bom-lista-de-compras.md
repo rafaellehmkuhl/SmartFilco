@@ -74,10 +74,23 @@ pressão vier com defeito, são +2 semanas de espera.
 | ~~1~~ | ~~VL53L1X (ToF)~~ | **REMOVIDO** | era presença de copo. Fotodetector IV: na bancada leu 848 kcps de luz ambiente contra 352 de sinal. Substituído pela célula de carga |
 | 2 | **ACS712** (20A) | "ACS712 20A module" | diagnóstico de corrente (resistência/bomba) |
 | 1 | Sensor de nível (boia magnética) | "magnetic float switch" | evitar bomba a seco |
-| 1 | **GUITION JC4880P443C** — ESP32-P4 + C6, 4,3" 480×800 MIPI-DSI | [item 1005009618259341](https://pt.aliexpress.com/item/1005009618259341.html) | **placa única**: controle + interface. Ver nota abaixo |
+| 1 | Placa com display, **a reescolher** | — | ⚠️ **em aberto desde 01/08.** A GUITION abaixo era "placa única"; com [duas MCUs](05-firmware-arquitetura.md#️-decisão-01082026-duas-mcus-e-desta-vez-o-motivo-não-é-pinagem) o critério de GPIO livre morreu e os SPI voltaram para a mesa |
 | 1 | **Fonte AC→5V de 10 W** | "HLK-10M05" | substitui a de 5 W quando o display entrar |
 
-### 🖥️ Display: **GUITION JC4880P443C (ESP32-P4, 4,3")** — uma MCU só
+### 🖥️ Display
+
+> ⚠️ **O display virou EXTRA em 01/08/2026.** Com
+> [duas MCUs](05-firmware-arquitetura.md#️-decisão-01082026-duas-mcus-e-desta-vez-o-motivo-não-é-pinagem),
+> a máquina é completa sem ele: a página web **é** a interface, e o controle roda
+> numa placa que não sabe o que é LVGL. O display deixa de ser um componente do
+> projeto e passa a ser um **periférico**, que pode ser comprado depois, trocado,
+> ou falhar sem levar a cafeteira junto.
+>
+> Isso muda o que se compra. A comparação abaixo escolhia a placa por **quantos
+> GPIOs sobravam** para acumular o controle — critério que não existe mais. Fica
+> como registro; a escolha reabre com outro critério (renderizar LVGL bem).
+
+#### O raciocínio de 30/07, quando ainda seria uma MCU só
 
 > 🔄 **Revisto em 30/07/2026.** Em 29/07 a decisão era comprar uma placa RGB e usá-la
 > como **UI Board separada**, ao lado da DevKitC-1 — porque nenhuma placa integrada
