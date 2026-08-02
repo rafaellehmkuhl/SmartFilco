@@ -17,6 +17,8 @@
 #include "esp_wifi.h"
 #include "driver/i2c_master.h"
 #include "bme680.h"
+#include "esp_netif_sntp.h"
+#include "rtc.h"
 #include "tof.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
@@ -55,6 +57,10 @@ static const char *TAG = "bringup";
 #define SCAN_MS 2000
 #define SENSOR_MS 100    // leitura dos sensores = 10 Hz; a varredura sai a cada 20 destas
 #define ADDR_TOF 0x29
+#define ADDR_RTC 0x68
+// Brasil não tem mais horário de verão desde 2019, então offset fixo de -3 basta.
+// Um dia com regra de DST exigiria a base tzdata inteira no flash.
+#define TZ_BR "<-03>3"
 #define BME_MS 1000      // BME680 em modo forçado com aquecedor bloqueia ~400 ms:
                          // task própria, senão o tanque engasgaria junto
 
@@ -91,6 +97,14 @@ static volatile uint16_t s_dist_sigma, s_dist_sinal, s_dist_amb;
 static volatile int16_t s_offset_mm;   // calibração de offset, só em RAM
 static volatile uint16_t s_dist_n;     // nº da medida; a página usa p/ não contar repetida
 static volatile uint16_t s_dist_mm2;   // contraprova via GetDistance
+
+// Relógio. `s_rtc_fonte` é o que dá crédito à hora: sem ele o painel mostraria um
+// horário formatadinho vindo de um oscilador que parou em 2019.
+static volatile bool rtc_ok;
+static char s_hora[9] = "--:--:--";    // HH:MM:SS
+static char s_data[11] = "--/--/----";
+static volatile int16_t s_rtc_temp_c100;
+static const char *s_rtc_fonte = "sem rtc";   // ntp | rtc | INVÁLIDA | sem rtc
 
 static volatile int ws_falhas;         // sends recusados, acumulado
 static volatile uint32_t ws_enviados;  // frames entregues, acumulado
@@ -261,6 +275,77 @@ static void tarefa_bme(void *arg)
     }
 }
 
+// ------------------------------------------------------------------- relógio
+//
+// Os dois sentidos, e é isso que a bancada existe para provar:
+//
+//   NTP → RTC   quando há rede, o DS3231 recebe a hora certa e passa a guardá-la
+//   RTC → sistema   quando não há, o relógio do ESP32 nasce com a hora do DS3231
+//                   em vez de 1970
+//
+// A docs/05 removeu o `RTCModule` do projeto argumentando que não existe requisito
+// de log correto sem rede. O argumento continua valendo; o que muda é que agora dá
+// para revisitar com dado — este código mostra exatamente o que se ganha.
+static void hora_sincronizar(void)
+{
+    struct tm t = { 0 };
+
+    // 1) tenta a rede. 8 s: além disso o boot fica visivelmente travado, e a hora
+    //    não vale segurar a subida do servidor web.
+    esp_sntp_config_t cfg = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
+    esp_netif_sntp_init(&cfg);
+    bool via_ntp = esp_netif_sntp_sync_wait(pdMS_TO_TICKS(8000)) == ESP_OK;
+
+    if (via_ntp) {
+        s_rtc_fonte = "ntp";
+        if (rtc_ok) {
+            time_t agora = time(NULL);
+            localtime_r(&agora, &t);
+            if (rtc_gravar(&t) == ESP_OK)
+                ESP_LOGI(TAG, "ds3231 acertado pelo ntp");
+        }
+        return;
+    }
+
+    ESP_LOGW(TAG, "ntp não respondeu");
+    if (!rtc_ok) return;
+
+    // 2) sem rede: o RTC vira a fonte — mas só se ele mesmo disser que a hora vale.
+    //    OSF de pé significa que o oscilador parou; o chip devolve uma hora bem
+    //    formatada e sem nenhum vínculo com a realidade.
+    if (rtc_perdeu_hora()) {
+        s_rtc_fonte = "INVÁLIDA";
+        ESP_LOGE(TAG, "ds3231 com OSF de pé — hora descartada, não adianta ler");
+        return;
+    }
+    if (rtc_ler(&t) != ESP_OK) return;
+    struct timeval tv = { .tv_sec = mktime(&t), .tv_usec = 0 };
+    settimeofday(&tv, NULL);
+    s_rtc_fonte = "rtc";
+    ESP_LOGI(TAG, "hora veio do ds3231 (sem rede)");
+}
+
+static void tarefa_relogio(void *arg)
+{
+    // A sincronização mora AQUI, não no app_main, porque ela conversa com a rede e
+    // pode demorar. No app_main ela ficava na frente do http_iniciar() e um NTP
+    // lento atrasava o painel inteiro — hora é enfeite, painel é a interface.
+    hora_sincronizar();
+
+    while (1) {
+        if (rtc_ok) {
+            struct tm t;
+            if (rtc_ler(&t) == ESP_OK && t.tm_year > 100) {
+                strftime(s_hora, sizeof(s_hora), "%H:%M:%S", &t);
+                strftime(s_data, sizeof(s_data), "%d/%m/%Y", &t);
+            }
+            int16_t c = 0;
+            if (rtc_temp_c100(&c) == ESP_OK) s_rtc_temp_c100 = c;
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
 static void sensores_iniciar(void)
 {
     // Modo curto (~1,3 m): é o certo para reservatório (4-25 cm) e presença de
@@ -272,6 +357,9 @@ static void sensores_iniciar(void)
     // bloqueando a task para esperar. Com o sensor à frente, todo ciclo encontra
     // dado fresco e `tof_ler` volta na hora. O orçamento continua 50 ms porque foi
     // o que deu sigma baixo — encurtar isso é comprar ruído.
+    rtc_ok = rtc_iniciar(i2c_bus, ADDR_RTC) == ESP_OK;
+    ESP_LOGI(TAG, "ds3231: %s", rtc_ok ? "ok" : "AUSENTE");
+
     tof_ok = (tof_iniciar(i2c_bus, ADDR_TOF) == ESP_OK)
              && (tof_config_curta(50, 60) == ESP_OK)
              && (tof_start() == ESP_OK);
@@ -426,12 +514,14 @@ static int montar_json(char *buf, size_t tam)
     }
     p += snprintf(buf + p, tam - p,
                   "],\"bme\":%d,\"t\":%ld,\"pa\":%lu,\"rh\":%lu,\"gas\":%lu,"
-                  "\"tof\":%d,\"mm\":%u,\"dst\":%u,\"sg\":%u,\"sn\":%u,\"amb\":%u,\"tn\":%u}",
+                  "\"tof\":%d,\"mm\":%u,\"dst\":%u,\"sg\":%u,\"sn\":%u,\"amb\":%u,\"tn\":%u,"
+                  "\"rtc\":%d,\"hr\":\"%s\",\"dt\":\"%s\",\"rtemp\":%d,\"fonte\":\"%s\"}",
                   bme_ok ? 680 : 0,
                   (long)s_temp_c100, (unsigned long)s_press_pa, (unsigned long)s_umid_pct100,
                   (unsigned long)s_gas_ohm,
                   tof_ok ? 1 : 0, s_dist_mm, s_dist_status,
-                  s_dist_sigma, s_dist_sinal, s_dist_amb, s_dist_n);
+                  s_dist_sigma, s_dist_sinal, s_dist_amb, s_dist_n,
+                  rtc_ok ? 1 : 0, s_hora, s_data, s_rtc_temp_c100, s_rtc_fonte);
     return p;
 }
 
@@ -439,7 +529,7 @@ static int montar_json(char *buf, size_t tam)
 // WebSocket; este aqui é para checar a placa de um terminal sem cliente WS.
 static esp_err_t h_rgb(httpd_req_t *req)
 {
-    char buf[420];
+    char buf[512];   // folga: truncar aqui vira JSON inválido, e a página quebra calada
     int n = montar_json(buf, sizeof(buf));
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
@@ -540,7 +630,7 @@ static esp_err_t h_ws(httpd_req_t *req)
 // morto — e nunca fica dessincronizado.
 static void tarefa_ws(void *arg)
 {
-    char buf[420];
+    char buf[512];   // folga: truncar aqui vira JSON inválido, e a página quebra calada
     int fds[MAX_SOCKS];
 
     while (1) {
@@ -625,7 +715,14 @@ void app_main(void)
     // o LED sobe antes da rede: dá feedback visual mesmo se o Wi-Fi falhar
     xTaskCreatePinnedToCore(tarefa_led, "led", 3072, NULL, 5, NULL, CORE_RT);
 
+    setenv("TZ", TZ_BR, 1);
+    tzset();
+
     wifi_iniciar();
     xEventGroupWaitBits(eventos, BIT_CONECTADO, pdFALSE, pdTRUE, pdMS_TO_TICKS(30000));
+
+    // O servidor sobe PRIMEIRO. A task do relógio faz o NTP por conta dela — se a
+    // rede estiver ruim, o painel não pode ficar esperando um horário.
     http_iniciar();
+    xTaskCreatePinnedToCore(tarefa_relogio, "rtc", 4096, NULL, 2, NULL, CORE_NET);
 }

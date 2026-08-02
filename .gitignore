@@ -9,3 +9,6 @@
 # Build / firmware (futuro)
 build/
 .pio/
+
+# índice do clangd — gerado pelo editor
+.cache/

@@ -43,8 +43,14 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
 .led{width:.5rem;height:.5rem;border-radius:50%;background:var(--fosco);flex:none}
 .led.viva{background:var(--crema);box-shadow:0 0 0 3px rgba(201,160,106,.16)}
 
+/* Relógio: tabular-nums para os dígitos não dançarem a cada segundo. Fica em brasa
+   quando a hora não tem procedência — hora bonita e inventada é pior que "--:--". */
+.relogio{margin-left:auto;font-size:.82rem;font-variant-numeric:tabular-nums;
+  color:var(--cinza);letter-spacing:.02em}
+.relogio.suspeita{color:var(--brasa)}
+
 /* ---- bandeja de ambiente (canto superior direito) ---- */
-.tray{margin-left:auto;position:relative}
+.tray{position:relative}
 .tray>button{display:flex;align-items:center;gap:.45rem;background:var(--painel);
   color:var(--cinza);border:1px solid var(--linha);border-radius:.43rem;
   padding:.28rem .5rem;font:inherit;font-size:.72rem;cursor:pointer;
@@ -141,6 +147,7 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
 <div class="topo">
   <span class="marca">SmartFilco</span>
   <span class="estado"><i class="led" id="led"></i><span id="txtEstado">conectando</span></span>
+  <span class="relogio" id="relogio">&mdash;&mdash;:&mdash;&mdash;:&mdash;&mdash;</span>
 
   <div class="tray" id="tray">
     <button id="btAmb" aria-expanded="false" aria-controls="painelAmb">
@@ -163,6 +170,12 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
         <dt>sigma</dt><dd id="dS">&mdash;</dd>
         <dt>sinal</dt><dd id="dN">&mdash;</dd>
         <dt>luz ambiente</dt><dd id="dA">&mdash;</dd>
+      </dl>
+      <div class="rot" style="margin-top:.7rem">Relógio <s>DS3231</s></div>
+      <dl>
+        <dt>data</dt><dd id="rD">&mdash;</dd>
+        <dt>procedência</dt><dd id="rF">&mdash;</dd>
+        <dt>temp. do chip</dt><dd id="rT">&mdash;</dd>
       </dl>
       <div class="fonte" id="aFonte">&mdash;</div>
     </div>
@@ -415,6 +428,18 @@ function pinta(d){
  if(d.bme&&t-tAmostra>PASSO){tAmostra=t;amostra(d.t/100,null);}
  if(t-tNum>250){   // ritmo humano: dígito trocando 30x/s ninguém lê, só treme
   tNum=t;
+  relogio.textContent=d.hr;
+  // "INVÁLIDA" = o DS3231 avisou que o oscilador parou (OSF). A hora continua
+  // sendo mostrada de propósito: esconder viraria "o relógio sumiu", e o que se
+  // quer dizer é "este horário não vale". Cor faz isso sem gastar espaço.
+  relogio.classList.toggle('suspeita',d.fonte==='INVÁLIDA');
+  if(d.rtc){
+   rD.textContent=d.dt;
+   rF.textContent=d.fonte;
+   rT.textContent=(d.rtemp/100).toFixed(2)+' °C';
+  }else{
+   rF.textContent='ausente';
+  }
   if(d.bme){
    var tc=(d.t/100).toFixed(1), rh=(d.rh/100).toFixed(0);
    vTemp.innerHTML=tc+'<u>°C</u>';
