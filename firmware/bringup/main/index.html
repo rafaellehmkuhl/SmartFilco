@@ -158,7 +158,12 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
 /* identidade da série vem da marca colorida, não do número: valor é tinta de texto */
 .metr .rot{display:flex;align-items:center;gap:.42rem;white-space:nowrap}
 .pt{width:.65rem;height:.65rem;border-radius:.14rem;flex:none}
+/* Monoespaçada EXPLÍCITA e tabular-nums: número que muda 4x/s não pode mudar de
+   largura junto. O sinal ganha um espaço reservado no JS (ver `num()`) — sem
+   isso "0,0" virando "-0,0" empurra o valor inteiro um caractere para o lado, e
+   o que se vê é o número tremendo em vez de variando. */
 .big{font-size:3.6rem;line-height:1;letter-spacing:-.045em;margin-top:.1rem;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
   font-variant-numeric:tabular-nums}
 .big u{text-decoration:none;font-size:1rem;letter-spacing:0;color:var(--cinza);
   margin-left:.25rem}
@@ -373,6 +378,24 @@ var ws=null, tNum=0, i2cAnt='';
 var NOMES={0x48:'ADS1115',0x57:'EEPROM',0x68:'DS3231',
            0x76:'BME680',0x77:'BME680'};
 function hex(a){return '0x'+(a<16?'0':'')+a.toString(16);}
+
+/* Formata número de painel com LARGURA FIXA.
+   Dois problemas, um só remédio:
+
+   · **"-0,0".** Pressão em repouso oscila em torno de zero com o ruído do
+     sensor, e (-0,04).toFixed(1) dá "-0.0" — um sinal sem valor nenhum, que
+     mente sobre a medida ter direção.
+   · **O texto pulando de lugar.** Ganhar e perder o "-" muda a largura, e o
+     número inteiro anda um caractere a cada quadro. Em painel isso não se lê
+     como variação, se lê como defeito.
+
+   A vaga do sinal é sempre ocupada: menos, ou U+2007 (FIGURE SPACE), que tem
+   exatamente a largura de um dígito. */
+function num(v,casas){
+ var s=v.toFixed(casas);
+ if(parseFloat(s)===0)s=(0).toFixed(casas);   // mata o "-0,0"
+ return (s.charAt(0)==='-'?'':'\u2007')+s;
+}
 function env(s){ if(ws&&ws.readyState===1) ws.send(s); }
 
 // bandeja por clique, não por hover: numa tela sensível ao toque hover não existe
@@ -397,7 +420,7 @@ addEventListener('click',function(e){
    AUTO com vão mínimo — sem o vão, 0,3 °C de variação vira linha reta morta. */
 function REM(){return parseFloat(getComputedStyle(document.documentElement).fontSize)||14;}
 var PASSO=250, NPT=240;
-var serT=[], serP=[], tAmostra=0;
+var serT=[], serP=[], serTa=[], serPa=[], tAmostra=0;
 
 function faixa(s,vao){
  var lo=1/0,hi=-1/0,n=0;
@@ -407,12 +430,26 @@ function faixa(s,vao){
  var c=(lo+hi)/2, d=Math.max(hi-lo,vao)*1.2/2;
  return [c-d,c+d];
 }
-function traca(ctx,s,f,cor,x0,pw,y0,ph,len){
+// `alvo` desenha a referência: mesma cor, tracejada e esmaecida, sem ponto na
+// ponta. Mesma cor porque a referência pertence à série — cor nova exigiria
+// legenda e o painel não tem espaço nem paciência para isso. Tracejado e
+// esmaecido porque referência não é medida: se as duas tiverem o mesmo peso
+// visual, o olho para de saber qual é qual justamente quando elas se separam,
+// que é o único momento em que o gráfico importa.
+function traca(ctx,s,f,cor,x0,pw,y0,ph,len,alvo){
  if(!f)return;
  var px=function(i){return x0+pw*(i+NPT-len)/(NPT-1);};
  var py=function(v){return y0+ph-(v-f[0])/(f[1]-f[0])*ph;};
  var r=REM();
- ctx.strokeStyle=cor;ctx.lineWidth=Math.max(2,r/7);ctx.lineJoin='round';ctx.lineCap='round';
+ ctx.save();
+ ctx.strokeStyle=cor;ctx.lineJoin='round';ctx.lineCap='round';
+ if(alvo){
+  ctx.globalAlpha=.42;
+  ctx.lineWidth=Math.max(1.5,r/11);
+  ctx.setLineDash([Math.max(3,r*.28),Math.max(3,r*.28)]);
+ }else{
+  ctx.lineWidth=Math.max(2,r/7);
+ }
  ctx.beginPath();
  var atras=false,ux=0,uy=0;
  for(var i=0;i<len;i++){
@@ -423,9 +460,10 @@ function traca(ctx,s,f,cor,x0,pw,y0,ph,len){
   atras=true;
  }
  ctx.stroke();
- if(!atras)return;
+ if(!atras||alvo){ctx.restore();return;}
  ctx.fillStyle=cor;ctx.beginPath();ctx.arc(ux,uy,Math.max(4,r*.29),0,6.284);ctx.fill();
  ctx.strokeStyle='#1c1915';ctx.lineWidth=Math.max(2,r/7);ctx.stroke();
+ ctx.restore();
 }
 function desenhaPlot(){
  var cv=plot,ctx=cv.getContext('2d'),dpr=devicePixelRatio||1;
@@ -438,7 +476,10 @@ function desenhaPlot(){
  var r=REM(), EL=3*r, ER=2.4*r, ET=.65*r, EB=1.5*r;
  var x0=EL,y0=ET,pw=w-EL-ER,ph=h-ET-EB;
  if(pw<3*r||ph<2*r)return;
- var fT=faixa(serT,3), fP=[0,12], temP=serP.some(function(v){return v!=null;});
+ // a faixa olha medida E alvo juntos: senão a referência sai do plot justamente
+ // quando ela está longe da medida, que é quando ela mais importa
+ var fT=faixa(serT.concat(serTa),3), fP=[0,12];
+ var temP=serP.some(function(v){return v!=null;});
 
  ctx.font=(.72*r).toFixed(1)+'px ui-monospace,Menlo,monospace';ctx.textBaseline='middle';
  for(var k=0;k<=3;k++){
@@ -455,6 +496,10 @@ function desenhaPlot(){
   ctx.globalAlpha=1;
  }
  var len=serT.length;
+ // referências primeiro, para as medidas ficarem POR CIMA: quando as duas
+ // coincidem, quem tem que ganhar o pixel é o que aconteceu de verdade
+ traca(ctx,serPa,fP,'#3d86c8',x0,pw,y0,ph,len,true);
+ traca(ctx,serTa,fT,'#c98330',x0,pw,y0,ph,len,true);
  traca(ctx,serP,fP,'#3d86c8',x0,pw,y0,ph,len);
  traca(ctx,serT,fT,'#c98330',x0,pw,y0,ph,len);
 
@@ -462,9 +507,9 @@ function desenhaPlot(){
  ctx.textAlign='left';ctx.fillText('−60 s',x0,h-.45*r);
  ctx.textAlign='right';ctx.fillText('agora',x0+pw,h-.45*r);
 }
-function amostra(t,p){
- serT.push(t);serP.push(p);
- if(serT.length>NPT){serT.shift();serP.shift();}
+function amostra(t,p,ta,pa){
+ serT.push(t);serP.push(p);serTa.push(ta);serPa.push(pa);
+ if(serT.length>NPT){serT.shift();serP.shift();serTa.shift();serPa.shift();}
  desenhaPlot();
 }
 
@@ -570,12 +615,13 @@ function resumo(csv){
  var l=csv.trim().split('\n').filter(function(x){return x&&x[0]!=='#';});
  var col=l.shift().split(',');
  var it=col.indexOf('t_s'), ig=col.indexOf('massa_g'), ip=col.indexOf('pressao_bar');
+ var ia=col.indexOf('alvo_bar');
  var pts=[],tf=0,gf=0;
  l.forEach(function(x){
   var v=x.split(',');
-  var t=+v[it], g=+v[ig], p=+v[ip];
+  var t=+v[it], g=+v[ig], p=+v[ip], a=ia>=0?+v[ia]:NaN;
   if(isNaN(t))return;
-  pts.push([t,p,g]); tf=t; gf=g;
+  pts.push([t,p,g,a]); tf=t; gf=g;
  });
  return {pts:pts,t:tf,g:gf,q:tf>0?gf/tf:0};
 }
@@ -588,14 +634,25 @@ function desenhaHist(r){
  var tmax=r.t||1, gmax=Math.max(r.g,1);
  var eb=14;
  // Mesma convenção do painel ao vivo: pressão em azul com escala fixa 0-12,
- // massa em verde com escala própria. Quem já leu o painel lê isto sem legenda.
- [[1,12,'#3d86c8'],[2,gmax,'#7a9a5b']].forEach(function(s){
-  ctx.strokeStyle=s[2];ctx.lineWidth=2;ctx.beginPath();
-  r.pts.forEach(function(p,i){
-   var x=p[0]/tmax*(w-4)+2, y=h-eb-(p[s[0]]/s[1])*(h-eb-4);
-   i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+ // massa em verde com escala própria, e o ALVO de pressão tracejado atrás. É a
+ // coluna que o CSV grava justamente para o gráfico mostrar não só o que
+ // aconteceu, mas o que era para acontecer.
+ [[3,12,'#3d86c8',1],[1,12,'#3d86c8',0],[2,gmax,'#7a9a5b',0]].forEach(function(s){
+  ctx.save();
+  ctx.strokeStyle=s[2];
+  if(s[3]){ctx.globalAlpha=.42;ctx.lineWidth=1.5;ctx.setLineDash([4,4]);}
+  else{ctx.lineWidth=2;}
+  ctx.beginPath();
+  var primeiro=true;
+  r.pts.forEach(function(p){
+   var v=p[s[0]];
+   if(isNaN(v))return;
+   var x=p[0]/tmax*(w-4)+2, y=h-eb-(v/s[1])*(h-eb-4);
+   primeiro?ctx.moveTo(x,y):ctx.lineTo(x,y);
+   primeiro=false;
   });
   ctx.stroke();
+  ctx.restore();
  });
  ctx.fillStyle='#5d564c';ctx.font='9px ui-monospace,Menlo,monospace';
  ctx.textAlign='left';ctx.fillText('0 s',2,h-3);
@@ -711,13 +768,13 @@ function pinta(d){
  nDist.textContent=d.uok?(d.umm/10).toFixed(0)+' cm':'';
  trilho.classList.toggle('ruim',m.niv<=2);
 
- if(t-tAmostra>PASSO){tAmostra=t;amostra(m.tb,m.pr);}
+ if(t-tAmostra>PASSO){tAmostra=t;amostra(m.tb,m.pr,m.sp,m.ap);}
 
  if(t-tNum>250){   // ritmo humano: dígito trocando 30x/s ninguém lê, só treme
   tNum=t;
-  vTemp.innerHTML=m.tb.toFixed(1)+'<u>°C</u>';
-  vPress.innerHTML=m.pr.toFixed(1)+'<u>bar</u>';
-  vMassa.innerHTML=m.g.toFixed(1)+'<u>g</u>';
+  vTemp.innerHTML=num(m.tb,1)+'<u>°C</u>';
+  vPress.innerHTML=num(m.pr,1)+'<u>bar</u>';
+  vMassa.innerHTML=num(m.g,1)+'<u>g</u>';
   relogio.textContent=d.hr;
   // "INVÁLIDA" = o DS3231 avisou que o oscilador parou (OSF). A hora continua
   // à vista de propósito: esconder viraria "o relógio sumiu", e o que se quer

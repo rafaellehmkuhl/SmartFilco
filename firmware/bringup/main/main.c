@@ -585,12 +585,12 @@ static int montar_json(char *buf, size_t tam)
     p += snprintf(buf + p, tam - p,
                   ",\"m\":{\"est\":\"%s\",\"tb\":%.1f,\"pr\":%.2f,\"g\":%.1f,"
                   "\"q\":%.2f,\"niv\":%.0f,\"ap\":%.2f,\"ssr\":%.2f,\"bmb\":%.2f,"
-                  "\"t\":%.1f,\"falha\":\"%s\",\"sim\":%d,"
+                  "\"t\":%.1f,\"falha\":\"%s\",\"mot\":\"%s\",\"sim\":%d,"
                   "\"sp\":%.1f,\"alvo\":%.0f,\"tmax\":%.0f,"
                   "\"vaz\":%.2f,\"tagua\":%.1f,\"w\":%.0f}}",
                   NOMES[m.estado], m.t_boiler, m.pressao, m.massa, m.vazao,
                   m.nivel_pct, m.alvo_pressao, m.ssr, m.bomba, m.shot_s,
-                  m.falha ? m.falha : "",
+                  m.falha ? m.falha : "", m.motivo ? m.motivo : "",
                   hal_modo() == HAL_SIM ? 1 : 0,
                   pf.setpoint_c, pf.alvo_g, pf.tempo_max_s,
                   esp.vazao_g_s, esp.t_agua_grupo, esp.energia_w);

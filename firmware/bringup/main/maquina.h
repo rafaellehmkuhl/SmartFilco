@@ -45,6 +45,9 @@ typedef struct {
     const char *falha;     // NULL = sem falha
     bool  pronta;
     float ult_g, ult_t;    // resumo do último shot; 0 = nenhum desde o boot
+    // Por que o shot acabou. Painel de máquina que só diz "fim" obriga a
+    // adivinhar se bateu o alvo ou estourou o tempo — e são coisas opostas.
+    const char *motivo;
 } mq_estado_pub_t;
 
 void mq_iniciar(void);

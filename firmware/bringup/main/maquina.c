@@ -120,6 +120,7 @@ static const char *falha;
 static float shot_s;
 static float fim_s;          // quanto tempo o painel já mostrou o resultado
 static float ult_g, ult_t;   // resumo do último shot, sobrevive à volta ao repouso
+static const char *motivo = "";
 static float t_log;          // relógio do log; 20 Hz basta para reconstruir o shot
 static float massa_ini;      // tara no início do shot
 static float massa_ant, vazao_filt;
@@ -156,6 +157,7 @@ void mq_shot_iniciar(void)
     t_log = 0.0f;
     pid_zerar(&pid_press);
     estado = MQ_PRE_INFUSAO;
+    motivo = "";
     sd_shot_abrir();           // sem cartão simplesmente não grava; não impede o shot
     ESP_LOGI(TAG, "shot iniciado (alvo %.0f g)", perfil.alvo_g);
 }
@@ -163,6 +165,7 @@ void mq_shot_iniciar(void)
 void mq_shot_parar(void)
 {
     if (estado >= MQ_PRE_INFUSAO && estado <= MQ_DECLINIO) {
+        motivo = "parado à mão";
         ult_g = massa - massa_ini; ult_t = shot_s;
         fim_s = 0.0f; estado = MQ_FIM;
         ESP_LOGI(TAG, "shot parado em %.1f s / %.1f g", shot_s, massa - massa_ini);
@@ -304,10 +307,12 @@ void mq_passo(float dt_s)
     if (extraindo()) {
         if (massa - massa_ini >= perfil.alvo_g) {
             ESP_LOGI(TAG, "alvo de %.0f g atingido em %.1f s", perfil.alvo_g, shot_s);
+            motivo = "alvo de peso atingido";
             ult_g = massa - massa_ini; ult_t = shot_s;
             fim_s = 0.0f; estado = MQ_FIM;
         } else if (shot_s >= perfil.tempo_max_s) {
             ESP_LOGW(TAG, "parou por tempo (%.0f s) com %.1f g", shot_s, massa - massa_ini);
+            motivo = "tempo máximo";
             ult_g = massa - massa_ini; ult_t = shot_s;
             fim_s = 0.0f; estado = MQ_FIM;
         }
@@ -333,7 +338,7 @@ void mq_passo(float dt_s)
                           vazao_filt, saida.ssr, saida.bomba);
         }
     } else if (estado_ant != estado && (estado == MQ_FIM || estado == MQ_FALHA)) {
-        sd_shot_fechar(estado == MQ_FALHA ? falha : "alvo atingido");
+        sd_shot_fechar(estado == MQ_FALHA ? falha : motivo);
     }
     estado_ant = estado;
 
@@ -356,6 +361,7 @@ void mq_publicar(mq_estado_pub_t *o)
     o->shot_s = shot_s;
     o->falha = falha;
     o->pronta = (estado == MQ_PRONTA);
+    o->motivo = motivo;
     o->ult_g = ult_g;
     o->ult_t = ult_t;
 }
