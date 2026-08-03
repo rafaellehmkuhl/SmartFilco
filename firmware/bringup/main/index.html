@@ -540,7 +540,8 @@ en:{
  nota_real:'Hardware data.',
  psm_pe:'120 half-cycles · 1 s at 60 Hz',psm_sim:' · SIMULATED source',
  shots_u:'shots',shot_u:'shot',target_p:'target',
- samples:'samples',avg:'avg'
+ samples:'samples',avg:'avg',
+ noclock:'no clock',at:'at',uptime:'since boot'
 },
 pt:{
  idle:'ocioso',heat:'aquecendo',ready:'pronta',pre:'pré-infusão',ramp:'rampa',
@@ -576,7 +577,8 @@ pt:{
  nota_real:'Dados do hardware.',
  psm_pe:'120 semiciclos · 1 s a 60 Hz',psm_sim:' · fonte SIMULADA',
  shots_u:'disparos',shot_u:'disparo',target_p:'alvo',
- samples:'amostras',avg:'médio'
+ samples:'amostras',avg:'médio',
+ noclock:'sem relógio',at:'às',uptime:'desde o boot'
 }};
 var idi = (localStorage.getItem('lang')==='pt') ? 'pt' : 'en';
 function t(k){ return (L[idi][k]!==undefined) ? L[idi][k] : (L.en[k]!==undefined?L.en[k]:k); }
@@ -594,6 +596,9 @@ function traduzir(){
  document.querySelector('[data-k="declinio"]').parentNode
    .querySelector('.cl').textContent=t('decline_l');
  pePsm.textContent=t('psm_pe');
+ // a lista do histórico tem mês por extenso: sem redesenhar, ela ficaria no
+ // idioma anterior enquanto o resto da tela já trocou
+ if(histCache&&mhist.classList.contains('aberto'))carregaHist();
 }
 btLang.onclick=function(){
  idi = idi==='en' ? 'pt' : 'en';
@@ -853,17 +858,43 @@ function desenhaHist(r){
         ctx.fillText(ft[1].toFixed(1)+' °C',2,9);}
  ctx.fillStyle='#3d86c8';ctx.textAlign='right';ctx.fillText('12 bar',w-2,9);
 }
+/* O nome do arquivo É a data (o firmware o carimba pelo relógio), mas
+   "20260802-230732" não se lê — data e hora existem para ORDENAR e RECONHECER,
+   e nenhuma das duas coisas funciona nesse formato. Aqui ele vira texto legível
+   no idioma escolhido.
+
+   Arquivo `upNNNN` é o caso em que o RTC não tinha hora com procedência na hora
+   do shot: o firmware cai para uptime em vez de carimbar data inventada, e a
+   lista precisa dizer isso em vez de fingir um horário. */
+var MES={en:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+         pt:['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez']};
+function quando(nome){
+ var m=/^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/.exec(nome);
+ if(m){
+  var dia=+m[3], mes=+m[2]-1;
+  var d = idi==='pt' ? (dia+' '+MES.pt[mes]) : (MES.en[mes]+' '+dia);
+  return {d:d, h:m[4]+':'+m[5],
+          full:d+' '+m[1]+' '+t('at')+' '+m[4]+':'+m[5]+':'+m[6]};
+ }
+ var u=/^up(\d+)/.exec(nome);
+ return {d:t('noclock'), h:u?(+u[1])+' s':'—',
+         full:t('noclock')+' · '+(u?(+u[1])+' s '+t('uptime'):nome)};
+}
+
+var histCache=null;
 function carregaHist(){
  fetch('/sd').then(function(r){return r.json();}).then(function(j){
   hSub.textContent=j.montado?(t('card')+' · '+(j.livre_kb/1024).toFixed(0)+' '+t('free'))
                             :t('nocard');
   var fs=(j.shots||[]).sort(function(a,b){return a.n<b.n?1:-1;});
+  histCache=j;
   hVazio.hidden=fs.length>0;
   hLista.innerHTML='';
   fs.forEach(function(f){
+   var q=quando(f.n);
    var tr=document.createElement('tr');
-   tr.innerHTML='<td>'+f.n.replace('.csv','')+'</td><td class="q">'+
-                (f.b/1024).toFixed(1)+' kB</td><td class="g">→</td>';
+   tr.innerHTML='<td>'+q.d+'</td><td class="q">'+q.h+
+                '</td><td class="g">→</td>';
    tr.onclick=function(){
     [].forEach.call(hLista.children,function(x){x.classList.remove('sel');});
     tr.classList.add('sel');
@@ -871,7 +902,7 @@ function carregaHist(){
      .then(function(csv){
       var r=resumo(csv);
       hDet.hidden=false;
-      hDetNome.textContent=f.n.replace('.csv','');
+      hDetNome.textContent=q.full;
       hDetInfo.textContent=r.g.toFixed(1)+' g · '+r.t.toFixed(1)+' s · '+
         r.q.toFixed(2)+' g/s '+t('avg')+' · '+r.pts.length+' '+t('samples');
       desenhaHist(r);
