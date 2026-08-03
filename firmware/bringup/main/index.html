@@ -830,58 +830,71 @@ function desenhaHist(r){
  if(!w||!h||!r.pts.length)return;
  if(cv.width!==Math.round(w*dpr)){cv.width=w*dpr;cv.height=h*dpr;}
  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
- var tmax=r.t||1, gmax=Math.max(r.g,1), eb=14, ft=r.tf;
- // mesma convenção do painel ao vivo, e pela mesma razão: quem já leu o painel
- // lê isto sem legenda. `null` na faixa = não desenhe (arquivo antigo sem a
- // coluna some da lista em vez de virar linha em zero).
- [[3,[0,12],'#3d86c8',1],[4,ft,'#c98330',0],
-  [1,[0,12],'#3d86c8',0],[2,[0,gmax],'#7a9a5b',0]].forEach(function(s){
+
+ // Mesma anatomia do gráfico ao vivo — margens para os rótulos caberem FORA da
+ // área de dados. Antes o plot ia de borda a borda e os únicos números eram os
+ // extremos, o que não é escala: é legenda. Sem grade e sem valores
+ // intermediários não dá para ler quanto vale um ponto no meio da curva.
+ var r0=REM(), EL=2.9*r0, ER=2.6*r0, ET=.9*r0, EB=1.4*r0;
+ var x0=EL,y0=ET,pw=w-EL-ER,ph=h-ET-EB;
+ if(pw<40||ph<30)return;
+ var tmax=r.t||1, gmax=Math.max(r.g,1), ft=r.tf, fp=[0,12];
+ var px=function(s){return x0+s/tmax*pw;};
+
+ ctx.font=(.68*r0).toFixed(1)+'px ui-monospace,Menlo,monospace';
+ ctx.textBaseline='middle';
+ for(var k=0;k<=3;k++){
+  var y=Math.round(y0+ph*k/3)+.5;
+  ctx.strokeStyle='#2b2620';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x0+pw,y);ctx.stroke();
+  // rótulo de cada eixo NA COR da sua série: é o que resolve "qual escala é de
+  // quem" sem gastar espaço com legenda
+  if(ft){
+   ctx.textAlign='right';ctx.fillStyle='#c98330';
+   ctx.fillText((ft[1]-(ft[1]-ft[0])*k/3).toFixed(1),x0-.4*r0,y);
+  }
+  ctx.textAlign='left';ctx.fillStyle='#3d86c8';
+  ctx.fillText((fp[1]-(fp[1]-fp[0])*k/3).toFixed(0),x0+pw+.4*r0,y);
+ }
+
+ // séries: [índice, faixa, cor, tracejado]. `null` na faixa = não desenhe —
+ // arquivo antigo sem a coluna some da lista em vez de virar linha em zero.
+ [[3,fp,'#3d86c8',1],[4,ft,'#c98330',0],
+  [1,fp,'#3d86c8',0],[2,[0,gmax],'#7a9a5b',0]].forEach(function(s){
   var f=s[1]; if(!f)return;
   ctx.save();ctx.strokeStyle=s[2];
   if(s[3]){ctx.globalAlpha=.42;ctx.lineWidth=1.5;ctx.setLineDash([4,4]);}
   else{ctx.lineWidth=2;}
   ctx.beginPath();
-  var primeiro=true;
+  var primeiro=true,ux=0,uy=0;
   r.pts.forEach(function(p){
    var v=p[s[0]]; if(isNaN(v))return;
-   var x=p[0]/tmax*(w-4)+2, y=h-eb-((v-f[0])/(f[1]-f[0]))*(h-eb-4);
-   primeiro?ctx.moveTo(x,y):ctx.lineTo(x,y);
+   ux=px(p[0]); uy=y0+ph-((v-f[0])/(f[1]-f[0]))*ph;
+   primeiro?ctx.moveTo(ux,uy):ctx.lineTo(ux,uy);
    primeiro=false;
   });
   ctx.stroke();ctx.restore();
+  // A massa é a TERCEIRA escala e não cabe mais um eixo. Rótulo direto na ponta
+  // resolve identidade e valor de uma vez — é o que a cartilha de dataviz
+  // recomenda quando eixo sairia caro.
+  if(s[0]===2&&!primeiro){
+   ctx.fillStyle=s[2];ctx.textAlign='right';ctx.textBaseline='bottom';
+   ctx.fillText(r.g.toFixed(1)+' g',Math.min(ux,x0+pw),uy-.25*r0);
+   ctx.textBaseline='middle';
+  }
  });
- ctx.font='9px ui-monospace,Menlo,monospace';
- ctx.fillStyle='#5d564c';
- ctx.textAlign='left';ctx.fillText('0 s',2,h-3);
- ctx.textAlign='right';ctx.fillText(tmax.toFixed(0)+' s',w-2,h-3);
- if(ft){ctx.fillStyle='#c98330';ctx.textAlign='left';
-        ctx.fillText(ft[1].toFixed(1)+' °C',2,9);}
- ctx.fillStyle='#3d86c8';ctx.textAlign='right';ctx.fillText('12 bar',w-2,9);
-}
-/* O nome do arquivo É a data (o firmware o carimba pelo relógio), mas
-   "20260802-230732" não se lê — data e hora existem para ORDENAR e RECONHECER,
-   e nenhuma das duas coisas funciona nesse formato. Aqui ele vira texto legível
-   no idioma escolhido.
 
-   Arquivo `upNNNN` é o caso em que o RTC não tinha hora com procedência na hora
-   do shot: o firmware cai para uptime em vez de carimbar data inventada, e a
-   lista precisa dizer isso em vez de fingir um horário. */
-var MES={en:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
-         pt:['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez']};
-function quando(nome){
- var m=/^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/.exec(nome);
- if(m){
-  var dia=+m[3], mes=+m[2]-1;
-  var d = idi==='pt' ? (dia+' '+MES.pt[mes]) : (MES.en[mes]+' '+dia);
-  return {d:d, h:m[4]+':'+m[5],
-          full:d+' '+m[1]+' '+t('at')+' '+m[4]+':'+m[5]+':'+m[6]};
- }
- var u=/^up(\d+)/.exec(nome);
- return {d:t('noclock'), h:u?(+u[1])+' s':'—',
-         full:t('noclock')+' · '+(u?(+u[1])+' s '+t('uptime'):nome)};
+ // eixo do tempo com valor no meio, não só nos extremos
+ ctx.fillStyle='#5d564c';ctx.textBaseline='top';
+ [[0,'left'],[tmax/2,'center'],[tmax,'right']].forEach(function(e){
+  ctx.textAlign=e[1];
+  ctx.fillText(e[0].toFixed(e[0]<10?1:0)+' s',px(e[0]),y0+ph+.25*r0);
+ });
+ // unidade de cada eixo, uma vez, no topo
+ ctx.textBaseline='alphabetic';
+ if(ft){ctx.textAlign='right';ctx.fillStyle='#c98330';ctx.fillText('°C',x0-.4*r0,y0-.15*r0);}
+ ctx.textAlign='left';ctx.fillStyle='#3d86c8';ctx.fillText('bar',x0+pw+.4*r0,y0-.15*r0);
 }
-
-var histCache=null;
 function carregaHist(){
  fetch('/sd').then(function(r){return r.json();}).then(function(j){
   hSub.textContent=j.montado?(t('card')+' · '+(j.livre_kb/1024).toFixed(0)+' '+t('free'))
