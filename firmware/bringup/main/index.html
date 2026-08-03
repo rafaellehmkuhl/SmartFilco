@@ -895,6 +895,30 @@ function desenhaHist(r){
  if(ft){ctx.textAlign='right';ctx.fillStyle='#c98330';ctx.fillText('°C',x0-.4*r0,y0-.15*r0);}
  ctx.textAlign='left';ctx.fillStyle='#3d86c8';ctx.fillText('bar',x0+pw+.4*r0,y0-.15*r0);
 }
+/* O nome do arquivo É a data (o firmware o carimba pelo relógio), mas
+   "20260802-230732" não se lê — data e hora existem para ORDENAR e RECONHECER, e
+   nenhuma das duas funciona nesse formato. Aqui vira texto legível no idioma
+   escolhido.
+
+   Arquivo `upNNNN` é o caso em que o RTC não tinha hora com procedência: o
+   firmware cai para uptime em vez de carimbar data inventada, e a lista precisa
+   dizer isso em vez de fingir um horário. */
+var MES={en:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+         pt:['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez']};
+function quando(nome){
+ var m=/^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/.exec(nome);
+ if(m){
+  var dia=+m[3], mes=+m[2]-1;
+  var d = idi==='pt' ? (dia+' '+MES.pt[mes]) : (MES.en[mes]+' '+dia);
+  return {d:d, h:m[4]+':'+m[5],
+          full:d+' '+m[1]+' '+t('at')+' '+m[4]+':'+m[5]+':'+m[6]};
+ }
+ var u=/^up(\d+)/.exec(nome);
+ return {d:t('noclock'), h:u?(+u[1])+' s':'—',
+         full:t('noclock')+' · '+(u?(+u[1])+' s '+t('uptime'):nome)};
+}
+
+var histCache=null;
 function carregaHist(){
  fetch('/sd').then(function(r){return r.json();}).then(function(j){
   hSub.textContent=j.montado?(t('card')+' · '+(j.livre_kb/1024).toFixed(0)+' '+t('free'))
@@ -1051,8 +1075,20 @@ function liga_ws(){
  ws.onclose=function(){led.classList.remove('viva');
   txtEstado.textContent=t('reconnecting');setTimeout(liga_ws,1000);};
 }
-traduzir();
-txtEstado.textContent=t('connecting');
-mediSinal();desenhaPlot();desenhaTrem(0);liga_ws();
+/* ⚠️ O WebSocket sobe SEMPRE, mesmo se a apresentação quebrar.
+   Isto não é paranoia: um `histCache` que ficou sem declaração fez `traduzir()`
+   lançar ReferenceError na inicialização, e como tudo estava na mesma sequência,
+   o `liga_ws()` nunca rodava — a página abria bonita e completamente sem dados.
+   Um bug de rótulo derrubou o caminho de dados inteiro.
+   Painel de máquina tem que continuar mostrando número mesmo com a decoração
+   quebrada: dado ausente parece máquina morta, e é o pior jeito de falhar. */
+try{
+ traduzir();
+ txtEstado.textContent=t('connecting');
+ mediSinal();desenhaPlot();desenhaTrem(0);
+}catch(e){
+ console.error('inicialização da apresentação falhou:',e);
+}
+liga_ws();
 </script>
 </body></html>
