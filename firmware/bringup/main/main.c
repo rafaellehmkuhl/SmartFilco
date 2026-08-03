@@ -573,8 +573,9 @@ static int montar_json(char *buf, size_t tam)
 
     // --- máquina. Floats saem com casa decimal já formatada: a página não deve
     //     ter que saber a escala de cada grandeza.
-    static const char *NOMES[] = { "ocioso", "aquecendo", "pronta", "pré-infusão",
-                                   "rampa", "platô", "declínio", "fim", "FALHA" };
+    // Códigos, não rótulos. Ver o comentário em maquina.c: a palavra é da UI.
+    static const char *NOMES[] = { "idle", "heat", "ready", "pre",
+                                   "ramp", "plateau", "decline", "done", "fault" };
     mq_estado_pub_t m;
     mq_publicar(&m);
     sim_espia_t esp;

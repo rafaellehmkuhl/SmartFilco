@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SmartFilco</title>
 <style>
@@ -30,7 +30,7 @@
 .acao:hover{filter:brightness(1.08)}
 .acao.parar{background:var(--brasa);color:#fff}
 .acao[disabled]{background:var(--linha);color:var(--fosco);cursor:not-allowed}
-.cfg{margin-left:auto;background:none;border:1px solid var(--linha);color:var(--cinza);
+.cfg{background:none;border:1px solid var(--linha);color:var(--cinza);
   border-radius:.4rem;width:2rem;height:1.8rem;font-size:.9rem;cursor:pointer;line-height:1}
 .cfg:hover{border-color:var(--fosco);color:var(--osso)}
 .vaz{font-size:.75rem;color:var(--cinza);font-variant-numeric:tabular-nums;min-width:5.5em}
@@ -123,6 +123,9 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
   border-radius:.43rem;width:1.9rem;height:1.55rem;cursor:pointer;padding:0;
   display:flex;align-items:center;justify-content:center}
 .ico:hover{border-color:var(--fosco)}
+.ico b{font-family:ui-sans-serif,system-ui,sans-serif;font-size:.6rem;font-weight:700;
+  letter-spacing:.06em;color:var(--cinza)}
+.ico:hover b{color:var(--osso)}
 .ico svg{width:.95rem;height:.95rem;stroke:var(--cinza);fill:none;stroke-width:1.8;
   stroke-linecap:round;stroke-linejoin:round}
 .ico:hover svg{stroke:var(--osso)}
@@ -207,12 +210,14 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
    pequena — slider de 8 rem numa tela de 4,3" não dá para acertar 0,5 bar com o
    dedo, e o valor exato importa mais que a velocidade do ajuste. */
 .perfil{display:flex;flex-direction:column;gap:.35rem;min-height:0;overflow:auto}
+.perfil .acao{margin-top:auto;width:100%;padding:.55rem .3rem;font-size:.7rem}
 .ctr{background:var(--painel);border:1px solid var(--linha);border-radius:.5rem;
   padding:.3rem .35rem .35rem}
 .ctr .cl{display:block;font-family:ui-sans-serif,system-ui,sans-serif;
   font-size:.55rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
   color:var(--cinza);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cv{display:flex;align-items:center;gap:.15rem;margin-top:.1rem}
+.ctr.dupla .cv+.cv{margin-top:.2rem}
 .cv b{flex:1;text-align:center;font-size:.9rem;font-weight:500;
   font-variant-numeric:tabular-nums}
 .cv button{width:1.5rem;height:1.5rem;flex:none;background:var(--graf);
@@ -258,14 +263,22 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
 
 <div class="topo" id="topo">
   <span class="marca">SmartFilco</span>
-  <span class="estado" id="estado"><i class="led" id="led"></i><span id="txtEstado">conectando</span></span>
+  <span class="estado" id="estado"><i class="led" id="led"></i><span id="txtEstado">—</span></span>
   <span class="relogio" id="relogio">&mdash;&mdash;:&mdash;&mdash;:&mdash;&mdash;</span>
 
-  <button class="ico" id="btHist" aria-haspopup="dialog" title="Shots gravados">
-    <!-- relógio com seta anti-horária: o ícone convencional de histórico. "☰" era
-         menu, que é outra coisa. -->
+  <button class="ico" id="btLang" title="Language / Idioma"><b id="lang">EN</b></button>
+
+  <button class="ico" id="btHist" aria-haspopup="dialog" data-i18n-t="tt_hist">
+    <!-- relógio com seta anti-horária: o ícone convencional de histórico -->
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4"/><path d="M12 7v5l3.5 2"/>
+    </svg>
+  </button>
+
+  <button class="ico" id="btCfg" aria-haspopup="dialog" data-i18n-t="tt_cfg">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 7 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H1a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 2.6 7a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H7a1.7 1.7 0 0 0 1-1.5V1a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V7a1.7 1.7 0 0 0 1.5 1H23a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
     </svg>
   </button>
 
@@ -274,27 +287,27 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v10.6a3.4 3.4 0 1 1-2 0V3a1 1 0 0 1 2 0z"/></svg>
       <span id="trayResumo">&mdash;</span>
     </button>
-    <div class="painelAmb" id="painelAmb" role="region" aria-label="ambiente">
-      <div class="rot">Ambiente</div>
+    <div class="painelAmb" id="painelAmb" role="region">
+      <div class="rot" data-i18n="ambient">Ambient</div>
       <dl>
-        <dt>temperatura</dt><dd id="aT">&mdash;</dd>
-        <dt>umidade</dt><dd id="aU">&mdash;</dd>
-        <dt>pressão do ar</dt><dd id="aP">&mdash;</dd>
-        <dt>gás (VOC)</dt><dd id="aG">&mdash;</dd>
+        <dt data-i18n="temperature">temperature</dt><dd id="aT">&mdash;</dd>
+        <dt data-i18n="humidity">humidity</dt><dd id="aU">&mdash;</dd>
+        <dt data-i18n="airpress">air pressure</dt><dd id="aP">&mdash;</dd>
+        <dt data-i18n="gas">gas (VOC)</dt><dd id="aG">&mdash;</dd>
       </dl>
-      <div class="rot" style="margin-top:.7rem">Reservatório <s>HC-SR04</s></div>
+      <div class="rot" style="margin-top:.7rem" data-i18n="reservoir">Reservoir</div>
       <dl>
-        <dt>distância <s>mediana</s></dt><dd id="uD">&mdash;</dd>
-        <dt>faixa da janela</dt><dd id="uR">&mdash;</dd>
-        <dt>amostras válidas</dt><dd id="uV">&mdash;</dd>
-        <dt>taxa</dt><dd id="uE">&mdash;</dd>
-        <dt>nível equivalente</dt><dd id="uL">&mdash;</dd>
+        <dt data-i18n="distance">distance</dt><dd id="uD">&mdash;</dd>
+        <dt data-i18n="wrange">window range</dt><dd id="uR">&mdash;</dd>
+        <dt data-i18n="valid">valid samples</dt><dd id="uV">&mdash;</dd>
+        <dt data-i18n="rate">rate</dt><dd id="uE">&mdash;</dd>
+        <dt data-i18n="eqlevel">equivalent level</dt><dd id="uL">&mdash;</dd>
       </dl>
-      <div class="rot" style="margin-top:.7rem">Relógio <s>DS3231</s></div>
+      <div class="rot" style="margin-top:.7rem" data-i18n="clock">Clock</div>
       <dl>
-        <dt>data</dt><dd id="rD">&mdash;</dd>
-        <dt>procedência</dt><dd id="rF">&mdash;</dd>
-        <dt>temp. do chip</dt><dd id="rT">&mdash;</dd>
+        <dt data-i18n="date">date</dt><dd id="rD">&mdash;</dd>
+        <dt data-i18n="provenance">provenance</dt><dd id="rF">&mdash;</dd>
+        <dt data-i18n="chiptemp">chip temp.</dt><dd id="rT">&mdash;</dd>
       </dl>
       <div class="fonte" id="aFonte">&mdash;</div>
     </div>
@@ -304,7 +317,7 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
 <div class="nivel">
   <div class="trilho" id="trilho">
     <div class="agua" id="agua"></div>
-    <span class="eixo">Reservatório</span>
+    <span class="eixo" data-i18n="reservoir">Reservoir</span>
     <b id="nivel">&mdash;</b>
     <span class="cm" id="nDist">&mdash;</span>
   </div>
@@ -314,91 +327,104 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
   <div class="graf">
     <div class="pilha">
       <div class="metr">
-        <div class="rot"><i class="pt" style="background:var(--serT)"></i>Boiler</div>
+        <div class="rot"><i class="pt" style="background:var(--serT)"></i><span data-i18n="boiler">Boiler</span></div>
         <div class="big" id="vTemp">&mdash;<u>°C</u></div>
       </div>
       <div class="metr">
-        <div class="rot"><i class="pt" style="background:var(--serP)"></i>Pressão
-          <s>grupo</s></div>
+        <div class="rot"><i class="pt" style="background:var(--serP)"></i><span data-i18n="pump">Pump</span></div>
         <div class="big" id="vPress">&mdash;<u>bar</u></div>
       </div>
       <div class="metr">
-        <div class="rot"><i class="pt" style="background:var(--massa)"></i>Na xícara</div>
+        <div class="rot"><i class="pt" style="background:var(--massa)"></i><span data-i18n="incup">In cup</span></div>
         <div class="big" id="vMassa">&mdash;<u>g</u></div>
       </div>
       <div class="metr">
-        <div class="rot"><i class="pt" style="background:var(--fosco)"></i>Tempo</div>
+        <div class="rot"><i class="pt" style="background:var(--fosco)"></i><span data-i18n="time">Time</span></div>
         <div class="big" id="vTempo">&mdash;<u>s</u></div>
       </div>
     </div>
     <div class="tela"><canvas id="plot"></canvas></div>
     <div class="rodape">
       <span id="rodapeNota">&mdash;</span>
-      <span>janela 60 s</span>
+      <span data-i18n="window60">60 s window</span>
     </div>
   </div>
 
   <div class="psm">
     <div class="cab">
-      <span class="rot">Bomba <s id="rotBomba">PSM</s></span>
+      <span class="rot">PSM <s id="rotBomba"></s></span>
       <span class="duty" id="vDuty">0<u>%</u></span>
     </div>
     <canvas id="trem"></canvas>
     <div class="pe">
-      <span id="pePsm">120 semiciclos &middot; 1 s a 60 Hz</span>
+      <span id="pePsm">&mdash;</span>
       <span id="conta">&mdash;</span>
     </div>
     <div class="ctrl">
-      <button class="acao" id="btShot">Puxar shot</button>
       <span class="vaz" id="vVazao">&mdash;</span>
       <span class="vaz" id="vMotivo"></span>
-      <button class="cfg" id="btCfg" aria-haspopup="dialog"
-              title="Configurações e simulação">⚙</button>
     </div>
   </div>
 </div>
 
 <div class="perfil">
-  <div class="tit">Perfil</div>
-  <div class="ctr" data-k="sp" data-p="0.5" data-c="1" data-u=" °C">
-    <span class="cl">Boiler</span>
-    <div class="cv"><button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button></div>
+  <div class="tit" data-i18n="profile">Profile</div>
+
+  <div class="ctr">
+    <span class="cl" data-i18n="boiler">Boiler</span>
+    <div class="cv" data-k="sp" data-p="0.1" data-c="1" data-u=" °C">
+      <button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button>
+    </div>
   </div>
-  <div class="ctr" data-k="alvo" data-p="1" data-c="0" data-u=" g">
-    <span class="cl">Alvo</span>
-    <div class="cv"><button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button></div>
+
+  <div class="ctr">
+    <span class="cl" data-i18n="target">Target</span>
+    <div class="cv" data-k="alvo" data-p="1" data-c="0" data-u=" g">
+      <button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button>
+    </div>
   </div>
-  <div class="ctr" data-k="prebar" data-p="0.5" data-c="1" data-u=" bar">
-    <span class="cl">Pré-infusão</span>
-    <div class="cv"><button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button></div>
+
+  <!-- Pressão e tempo da pré-infusão no MESMO card: são um parâmetro só em duas
+       dimensões, e separá-los fazia parecer que dá para ajustar um sem o outro. -->
+  <div class="ctr dupla">
+    <span class="cl" data-i18n="preinf">Pre-infusion</span>
+    <div class="cv" data-k="prebar" data-p="0.1" data-c="1" data-u=" bar">
+      <button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button>
+    </div>
+    <div class="cv" data-k="pres" data-p="1" data-c="0" data-u=" s">
+      <button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button>
+    </div>
   </div>
-  <div class="ctr" data-k="pres" data-p="1" data-c="0" data-u=" s">
-    <span class="cl">Pré · tempo</span>
-    <div class="cv"><button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button></div>
+
+  <div class="ctr">
+    <span class="cl" data-i18n="plateau">Plateau</span>
+    <div class="cv" data-k="plato" data-p="0.1" data-c="1" data-u=" bar">
+      <button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button>
+    </div>
   </div>
-  <div class="ctr" data-k="plato" data-p="0.5" data-c="1" data-u=" bar">
-    <span class="cl">Platô</span>
-    <div class="cv"><button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button></div>
+
+  <div class="ctr">
+    <span class="cl" data-i18n="decline">Decline</span>
+    <div class="cv" data-k="declinio" data-p="0.1" data-c="1" data-u=" bar">
+      <button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button>
+    </div>
   </div>
-  <div class="ctr" data-k="declinio" data-p="0.5" data-c="1" data-u=" bar">
-    <span class="cl">Declínio</span>
-    <div class="cv"><button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button></div>
-  </div>
+
+  <button class="acao" id="btShot" data-i18n="pull">Pull shot</button>
 </div>
 </div>
 
-<!-- Histórico. Lê os CSV gravados no cartão: cada linha é um shot fechado, com o
-     resultado que importa julgar depois — quanto saiu, em quanto tempo, e a que
-     vazão média. Clicar abre a curva de pressão daquele shot. -->
-<div class="modal" id="mhist" role="dialog" aria-label="shots gravados">
+<!-- Histórico: lista e curva lado a lado, porque comparar shots é o motivo de ele
+     existir e rolagem entre uma coisa e outra quebra a comparação. -->
+<div class="modal" id="mhist" role="dialog">
   <div class="mcab" id="mhcab">
-    <span class="rot">Shots gravados <s id="hSub">cartão</s></span>
-    <button class="fechar" id="btHFechar" aria-label="fechar">&times;</button>
+    <span class="rot"><span data-i18n="recorded">Recorded shots</span> <s id="hSub"></s></span>
+    <button class="fechar" id="btHFechar" aria-label="close">&times;</button>
   </div>
   <div class="mcorpo">
     <div class="hlado">
       <table class="hist"><tbody id="hLista"></tbody></table>
-      <p class="dica" id="hVazio">Nenhum shot no cartão ainda.</p>
+      <p class="dica" id="hVazio" data-i18n="noshots">No shots on the card yet.</p>
     </div>
     <div class="hdet" id="hDet" hidden>
       <div class="rot" id="hDetNome">&mdash;</div>
@@ -408,100 +434,153 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
   </div>
 </div>
 
-<!-- Modal de simulação. Arrastável porque ele se sobrepõe justamente ao painel que
-     se quer avaliar: se ficar fixo, tapa o que você está tentando olhar. -->
-<div class="modal" id="modal" role="dialog" aria-label="simulação" aria-modal="false">
+<div class="modal" id="modal" role="dialog">
   <div class="mcab" id="mcab">
-    <span class="rot">Simulação <s>bancada</s></span>
-    <button class="fechar" id="btFechar" aria-label="fechar">&times;</button>
+    <span class="rot"><span data-i18n="simulation">Simulation</span> <s data-i18n="bench">bench</s></span>
+    <button class="fechar" id="btFechar" aria-label="close">&times;</button>
   </div>
   <div class="mcorpo">
     <div class="linha">
-      <label for="swSim">Fonte dos dados</label>
+      <label for="swSim" data-i18n="datasource">Data source</label>
       <select id="swSim">
-        <option value="1">simulada</option>
-        <option value="0">hardware real</option>
+        <option value="1" data-i18n="simulated">simulated</option>
+        <option value="0" data-i18n="realhw">real hardware</option>
       </select>
     </div>
     <p class="dica" id="dicaModo"></p>
 
-    <div class="rot sec">Perfil</div>
-    <div class="sl"><label>Setpoint<b id="lSp">93 °C</b></label>
-      <input type="range" id="sSp" min="80" max="105" step="0.5" value="93"></div>
-    <div class="sl"><label>Alvo na xícara<b id="lAlvo">36 g</b></label>
-      <input type="range" id="sAlvo" min="10" max="60" step="1" value="36"></div>
-    <div class="sl"><label>Pré-infusão<b id="lPre">3,0 bar · 8 s</b></label>
-      <input type="range" id="sPreBar" min="0" max="9" step="0.5" value="3">
-      <input type="range" id="sPreS" min="0" max="20" step="1" value="8"></div>
-    <div class="sl"><label>Platô<b id="lPlato">9,0 bar</b></label>
-      <input type="range" id="sPlato" min="4" max="12" step="0.5" value="9"></div>
-
-    <div class="rot sec">Mundo</div>
-    <div class="sl"><label>Moagem<b id="lMoagem">1,00</b></label>
+    <div class="rot sec" data-i18n="world">World</div>
+    <div class="sl"><label><span data-i18n="grind">Grind</span><b id="lMoagem">1,00</b></label>
       <input type="range" id="sMoagem" min="0.4" max="3" step="0.05" value="1"></div>
-    <div class="sl"><label>Ambiente<b id="lTamb">25 °C</b></label>
+    <div class="sl"><label><span data-i18n="ambient">Ambient</span><b id="lTamb">25 °C</b></label>
       <input type="range" id="sTamb" min="5" max="40" step="1" value="25"></div>
-    <div class="sl"><label>Resistência<b id="lPot">1000 W</b></label>
+    <div class="sl"><label><span data-i18n="element">Element</span><b id="lPot">1000 W</b></label>
       <input type="range" id="sPot" min="300" max="1800" step="50" value="1000"></div>
-    <div class="sl"><label>Velocidade do tempo<b id="lVel">1,0×</b></label>
+    <div class="sl"><label><span data-i18n="timespeed">Time speed</span><b id="lVel">1,0×</b></label>
       <input type="range" id="sVel" min="0.5" max="10" step="0.5" value="1"></div>
 
-    <div class="rot sec">Injetar falha</div>
+    <div class="rot sec" data-i18n="injectfault">Inject fault</div>
     <div class="chips">
-      <button data-f="ftemp">sonda aberta</button>
-      <button data-f="fpress">pressão fora de faixa</button>
-      <button data-f="semagua">reservatório vazio</button>
-      <button data-f="sempuck">sem porta-filtro</button>
+      <button data-f="ftemp" data-i18n="f_probe">probe open</button>
+      <button data-f="fpress" data-i18n="f_press">pressure out of range</button>
+      <button data-f="semagua" data-i18n="f_water">empty reservoir</button>
+      <button data-f="sempuck" data-i18n="f_puck">no portafilter</button>
     </div>
     <div class="chips">
-      <button id="btReset" class="neutro">reiniciar modelo</button>
-      <button id="btLimpar" class="neutro">limpar falha</button>
+      <button id="btReset" class="neutro" data-i18n="resetmodel">reset model</button>
+      <button id="btLimpar" class="neutro" data-i18n="clearfault">clear fault</button>
     </div>
-    <p class="dica">Velocidade do tempo acelera só o modelo físico — o PID continua
-      rodando no dt real, senão o teste vira ficção.</p>
+    <p class="dica" data-i18n="tip_speed"></p>
   </div>
 </div>
 
 <script>
 var N=120;
 var ws=null, tNum=0, i2cAnt='';
-var NOMES={0x48:'ADS1115',0x57:'EEPROM',0x68:'DS3231',
-           0x76:'BME680',0x77:'BME680'};
+var NOMES={0x48:'ADS1115',0x57:'EEPROM',0x68:'DS3231',0x76:'BME680',0x77:'BME680'};
 function hex(a){return '0x'+(a<16?'0':'')+a.toString(16);}
-
-/* Formata número de painel com LARGURA FIXA.
-   Dois problemas, um só remédio:
-
-   · **"-0,0".** Pressão em repouso oscila em torno de zero com o ruído do
-     sensor, e (-0,04).toFixed(1) dá "-0.0" — um sinal sem valor nenhum, que
-     mente sobre a medida ter direção.
-   · **O texto pulando de lugar.** Ganhar e perder o "-" muda a largura, e o
-     número inteiro anda um caractere a cada quadro. Em painel isso não se lê
-     como variação, se lê como defeito.
-
-   A vaga do sinal é sempre ocupada: menos, ou U+2007 (FIGURE SPACE), que tem
-   exatamente a largura de um dígito. */
-function num(v,casas){
- var s=v.toFixed(casas);
- if(parseFloat(s)===0)s=(0).toFixed(casas);   // mata o "-0,0"
- return (s.charAt(0)==='-'?'':'\u2007')+s;
-}
 function env(s){ if(ws&&ws.readyState===1) ws.send(s); }
 
-/* Mede a largura da vaga do sinal NA FONTE REAL do número e publica como
-   variável CSS, para o rótulo alinhar com os dígitos em vez de com o menos.
-   Medir em vez de calcular porque o avanço da monoespaçada depende da fonte que
-   o sistema escolheu — supor 0,6em erraria em metade das máquinas. Refaz no
-   resize porque a raiz é fluida. */
-function mediSinal(){
- var p=document.createElement('span');
- p.textContent='\u2007';
- p.style.cssText='position:absolute;visibility:hidden;white-space:pre';
- vTemp.appendChild(p);
- var w=p.getBoundingClientRect().width;
- p.remove();
- document.documentElement.style.setProperty('--sinal',w.toFixed(2)+'px');
+/* ---------------------------------------------------------------- idioma
+   Inglês é o padrão; português é opção. O firmware manda CÓDIGO ("ready",
+   "temp_alta", "peso") e a palavra é escolhida aqui — mesmo princípio que já
+   valia para as unidades: a placa manda número, a página decide como mostrar.
+   Sem isso, trocar de idioma exigiria regravar firmware. */
+var L={
+en:{
+ idle:'idle',heat:'heating',ready:'ready',pre:'pre-infusion',ramp:'ramp',
+ plateau:'plateau',decline:'decline',done:'done',fault:'FAULT',
+ connecting:'connecting',reconnecting:'reconnecting',
+ temp_aberta:'temperature probe open or shorted',temp_alta:'temperature over limit',
+ press_faixa:'pressure sensor out of range',press_alta:'pressure over limit',
+ bomba_timeout:'pump running too long',sem_agua:'reservoir empty',
+ peso:'weight target reached',tempo:'max time',manual:'stopped by hand',
+ boiler:'Boiler',pump:'Pump',incup:'In cup',time:'Time',
+ profile:'Profile',target:'Target',preinf:'Pre-infusion',plateau_l:'Plateau',
+ decline_l:'Decline',pull:'Pull shot',stop:'Stop',
+ reservoir:'Reservoir',ambient:'Ambient',temperature:'temperature',
+ humidity:'humidity',airpress:'air pressure',gas:'gas (VOC)',
+ distance:'distance (median)',wrange:'window range',valid:'valid samples',
+ rate:'rate',eqlevel:'equivalent level',clock:'Clock',date:'date',
+ provenance:'provenance',chiptemp:'chip temp.',absent:'absent',invalid:'INVALID',
+ nowindow:'no window',window60:'60 s window',
+ recorded:'Recorded shots',noshots:'No shots on the card yet.',
+ card:'card',free:'MB free',nocard:'no card',noresp:'card did not respond',
+ simulation:'Simulation',bench:'bench',datasource:'Data source',
+ simulated:'simulated',realhw:'real hardware',world:'World',grind:'Grind',
+ element:'Element',timespeed:'Time speed',injectfault:'Inject fault',
+ f_probe:'probe open',f_press:'pressure out of range',f_water:'empty reservoir',
+ f_puck:'no portafilter',resetmodel:'reset model',clearfault:'clear fault',
+ tt_hist:'Shots recorded on the card',tt_cfg:'Settings and simulation',
+ tip_speed:'Time speed accelerates only the physical model — the PID keeps '+
+           'running on real dt, otherwise the test becomes fiction.',
+ tip_sim:'Physical model running on the board. Switching to real hardware will '+
+         'show a fault on everything not wired yet — on purpose.',
+ tip_real:'Reading hardware. A missing sensor shows up as a fault, not as zero.',
+ nota_sim:'Simulated data — no machine sensor connected. Physical model, not a recording.',
+ nota_real:'Hardware data.',
+ psm_pe:'120 half-cycles · 1 s at 60 Hz',psm_sim:' · SIMULATED source',
+ shots_u:'shots',shot_u:'shot',target_p:'target',
+ samples:'samples',avg:'avg'
+},
+pt:{
+ idle:'ocioso',heat:'aquecendo',ready:'pronta',pre:'pré-infusão',ramp:'rampa',
+ plateau:'platô',decline:'declínio',done:'fim',fault:'FALHA',
+ connecting:'conectando',reconnecting:'reconectando',
+ temp_aberta:'sonda de temperatura aberta ou em curto',temp_alta:'temperatura acima do limite',
+ press_faixa:'sensor de pressão fora de faixa',press_alta:'pressão acima do limite',
+ bomba_timeout:'bomba ligada tempo demais',sem_agua:'reservatório vazio',
+ peso:'alvo de peso atingido',tempo:'tempo máximo',manual:'parado à mão',
+ boiler:'Boiler',pump:'Bomba',incup:'Na xícara',time:'Tempo',
+ profile:'Perfil',target:'Alvo',preinf:'Pré-infusão',plateau_l:'Platô',
+ decline_l:'Declínio',pull:'Puxar shot',stop:'Parar',
+ reservoir:'Reservatório',ambient:'Ambiente',temperature:'temperatura',
+ humidity:'umidade',airpress:'pressão do ar',gas:'gás (VOC)',
+ distance:'distância (mediana)',wrange:'faixa da janela',valid:'amostras válidas',
+ rate:'taxa',eqlevel:'nível equivalente',clock:'Relógio',date:'data',
+ provenance:'procedência',chiptemp:'temp. do chip',absent:'ausente',invalid:'INVÁLIDA',
+ nowindow:'sem janela',window60:'janela 60 s',
+ recorded:'Shots gravados',noshots:'Nenhum shot no cartão ainda.',
+ card:'cartão',free:'MB livres',nocard:'sem cartão',noresp:'cartão não respondeu',
+ simulation:'Simulação',bench:'bancada',datasource:'Fonte dos dados',
+ simulated:'simulada',realhw:'hardware real',world:'Mundo',grind:'Moagem',
+ element:'Resistência',timespeed:'Velocidade do tempo',injectfault:'Injetar falha',
+ f_probe:'sonda aberta',f_press:'pressão fora de faixa',f_water:'reservatório vazio',
+ f_puck:'sem porta-filtro',resetmodel:'reiniciar modelo',clearfault:'limpar falha',
+ tt_hist:'Shots gravados no cartão',tt_cfg:'Configurações e simulação',
+ tip_speed:'Velocidade do tempo acelera só o modelo físico — o PID continua '+
+           'rodando no dt real, senão o teste vira ficção.',
+ tip_sim:'Modelo físico rodando na placa. Trocar para hardware real vai mostrar '+
+         'falha em tudo que ainda não foi ligado — de propósito.',
+ tip_real:'Lendo hardware. Sensor ausente aparece como falha, não como zero.',
+ nota_sim:'Dados simulados — nenhum sensor de máquina ligado. Modelo físico, não gravação.',
+ nota_real:'Dados do hardware.',
+ psm_pe:'120 semiciclos · 1 s a 60 Hz',psm_sim:' · fonte SIMULADA',
+ shots_u:'disparos',shot_u:'disparo',target_p:'alvo',
+ samples:'amostras',avg:'médio'
+}};
+var idi = (localStorage.getItem('lang')==='pt') ? 'pt' : 'en';
+function t(k){ return (L[idi][k]!==undefined) ? L[idi][k] : (L.en[k]!==undefined?L.en[k]:k); }
+function traduzir(){
+ lang.textContent = idi==='en' ? 'EN' : 'PT';
+ [].forEach.call(document.querySelectorAll('[data-i18n]'),function(e){
+  e.textContent=t(e.dataset.i18n);
+ });
+ [].forEach.call(document.querySelectorAll('[data-i18n-t]'),function(e){
+  e.title=t(e.dataset.i18nT);
+ });
+ // rótulos do perfil usam sufixo _l onde a chave já existe como métrica
+ document.querySelector('[data-k="plato"]').parentNode
+   .querySelector('.cl').textContent=t('plateau_l');
+ document.querySelector('[data-k="declinio"]').parentNode
+   .querySelector('.cl').textContent=t('decline_l');
+ pePsm.textContent=t('psm_pe');
 }
+btLang.onclick=function(){
+ idi = idi==='en' ? 'pt' : 'en';
+ localStorage.setItem('lang',idi);
+ traduzir();
+};
 
 // bandeja por clique, não por hover: numa tela sensível ao toque hover não existe
 btAmb.onclick=function(){
@@ -513,16 +592,40 @@ addEventListener('click',function(e){
   btAmb.setAttribute('aria-expanded','false');}
 },true);
 
-/* ------------------------------------------------------ gráfico sobreposto
-   Temperatura e pressão no MESMO plot, duas escalas. Dois eixos é o que a
-   cartilha de dataviz proíbe — e é exatamente a convenção do gráfico de
-   extração, porque quem puxa um shot lê as duas curvas uma contra a outra no
-   tempo. A ambiguidade se paga com os rótulos de cada eixo NA COR da série, o
-   ponto vivo na ponta e o quadradinho ao lado de cada número.
+/* Formata número de painel com LARGURA FIXA. Dois problemas, um remédio:
+   "-0,0" (sinal sem valor, mentindo que a medida tem direção) e o texto pulando
+   de lugar ao ganhar/perder o sinal — que em painel não se lê como variação, se
+   lê como defeito. A vaga do sinal é sempre ocupada: menos, ou U+2007, que tem
+   exatamente a largura de um dígito. */
+function num(v,casas){
+ var s=v.toFixed(casas);
+ if(parseFloat(s)===0)s=(0).toFixed(casas);
+ return (s.charAt(0)==='-'?'':' ')+s;
+}
 
-   Escalas assimétricas de propósito: pressão FIXA em 0–12 bar (eixo que se
-   ajusta sozinho mente sobre o quão longe você está dos 9 bar), temperatura
-   AUTO com vão mínimo — sem o vão, 0,3 °C de variação vira linha reta morta. */
+/* Mede a vaga do sinal NA FONTE REAL do número e publica como variável CSS, para
+   o rótulo alinhar com os dígitos em vez de com o menos. Medir em vez de
+   calcular porque o avanço da monoespaçada depende da fonte que o sistema
+   escolheu. Refaz no resize porque a raiz é fluida. */
+function mediSinal(){
+ var p=document.createElement('span');
+ p.textContent=' ';
+ p.style.cssText='position:absolute;visibility:hidden;white-space:pre';
+ vTemp.appendChild(p);
+ var w=p.getBoundingClientRect().width;
+ p.remove();
+ document.documentElement.style.setProperty('--sinal',w.toFixed(2)+'px');
+}
+
+/* ------------------------------------------------------ gráfico sobreposto
+   Duas escalas num plot só. É o que a cartilha de dataviz proíbe e é a convenção
+   do gráfico de extração, porque as curvas só valem lidas uma contra a outra no
+   tempo. A ambiguidade se paga com rótulo de eixo NA COR da série, ponto vivo na
+   ponta e quadradinho ao lado de cada número.
+
+   Pressão FIXA em 0–12 (eixo que se ajusta sozinho mente sobre a distância dos
+   9 bar); temperatura AUTO com vão mínimo, senão 0,3 °C vira linha reta morta.
+   As REFERÊNCIAS (setpoint) vão tracejadas, esmaecidas e por baixo. */
 function REM(){return parseFloat(getComputedStyle(document.documentElement).fontSize)||14;}
 var PASSO=250, NPT=240;
 var serT=[], serP=[], serTa=[], serPa=[], tAmostra=0;
@@ -535,12 +638,6 @@ function faixa(s,vao){
  var c=(lo+hi)/2, d=Math.max(hi-lo,vao)*1.2/2;
  return [c-d,c+d];
 }
-// `alvo` desenha a referência: mesma cor, tracejada e esmaecida, sem ponto na
-// ponta. Mesma cor porque a referência pertence à série — cor nova exigiria
-// legenda e o painel não tem espaço nem paciência para isso. Tracejado e
-// esmaecido porque referência não é medida: se as duas tiverem o mesmo peso
-// visual, o olho para de saber qual é qual justamente quando elas se separam,
-// que é o único momento em que o gráfico importa.
 function traca(ctx,s,f,cor,x0,pw,y0,ph,len,alvo){
  if(!f)return;
  var px=function(i){return x0+pw*(i+NPT-len)/(NPT-1);};
@@ -549,12 +646,9 @@ function traca(ctx,s,f,cor,x0,pw,y0,ph,len,alvo){
  ctx.save();
  ctx.strokeStyle=cor;ctx.lineJoin='round';ctx.lineCap='round';
  if(alvo){
-  ctx.globalAlpha=.42;
-  ctx.lineWidth=Math.max(1.5,r/11);
+  ctx.globalAlpha=.42;ctx.lineWidth=Math.max(1.5,r/11);
   ctx.setLineDash([Math.max(3,r*.28),Math.max(3,r*.28)]);
- }else{
-  ctx.lineWidth=Math.max(2,r/7);
- }
+ }else{ ctx.lineWidth=Math.max(2,r/7); }
  ctx.beginPath();
  var atras=false,ux=0,uy=0;
  for(var i=0;i<len;i++){
@@ -577,12 +671,11 @@ function desenhaPlot(){
  if(cv.width!==Math.round(w*dpr)){cv.width=w*dpr;cv.height=h*dpr;}
  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
 
- // EB folgado: o "−60 s" não pode encostar no rótulo do eixo de temperatura
  var r=REM(), EL=3*r, ER=2.4*r, ET=.65*r, EB=1.5*r;
  var x0=EL,y0=ET,pw=w-EL-ER,ph=h-ET-EB;
  if(pw<3*r||ph<2*r)return;
- // a faixa olha medida E alvo juntos: senão a referência sai do plot justamente
- // quando ela está longe da medida, que é quando ela mais importa
+ // a faixa olha medida E alvo: senão a referência sai do plot justamente quando
+ // está longe da medida, que é quando ela mais importa
  var fT=faixa(serT.concat(serTa),3), fP=[0,12];
  var temP=serP.some(function(v){return v!=null;});
 
@@ -591,18 +684,13 @@ function desenhaPlot(){
   var y=Math.round(y0+ph*k/3)+.5;
   ctx.strokeStyle='#2b2620';ctx.lineWidth=1;
   ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x0+pw,y);ctx.stroke();
-  ctx.textAlign='right';
-  ctx.fillStyle=fT?'#c98330':'#5d564c';
+  ctx.textAlign='right';ctx.fillStyle=fT?'#c98330':'#5d564c';
   ctx.fillText(fT?(fT[1]-(fT[1]-fT[0])*k/3).toFixed(1):'--',x0-.5*r,y);
-  ctx.textAlign='left';
-  ctx.globalAlpha=temP?1:.4;
-  ctx.fillStyle='#3d86c8';
+  ctx.textAlign='left';ctx.globalAlpha=temP?1:.4;ctx.fillStyle='#3d86c8';
   ctx.fillText((fP[1]-(fP[1]-fP[0])*k/3).toFixed(0),x0+pw+.5*r,y);
   ctx.globalAlpha=1;
  }
  var len=serT.length;
- // referências primeiro, para as medidas ficarem POR CIMA: quando as duas
- // coincidem, quem tem que ganhar o pixel é o que aconteceu de verdade
  traca(ctx,serPa,fP,'#3d86c8',x0,pw,y0,ph,len,true);
  traca(ctx,serTa,fT,'#c98330',x0,pw,y0,ph,len,true);
  traca(ctx,serP,fP,'#3d86c8',x0,pw,y0,ph,len);
@@ -610,22 +698,18 @@ function desenhaPlot(){
 
  ctx.fillStyle='#5d564c';ctx.font=(.64*r).toFixed(1)+'px ui-monospace,Menlo,monospace';
  ctx.textAlign='left';ctx.fillText('−60 s',x0,h-.45*r);
- ctx.textAlign='right';ctx.fillText('agora',x0+pw,h-.45*r);
+ ctx.textAlign='right';ctx.fillText('now',x0+pw,h-.45*r);
 }
-function amostra(t,p,ta,pa){
- serT.push(t);serP.push(p);serTa.push(ta);serPa.push(pa);
+function amostra(a,b,c,d){
+ serT.push(a);serP.push(b);serTa.push(c);serPa.push(d);
  if(serT.length>NPT){serT.shift();serP.shift();serTa.shift();serPa.shift();}
  desenhaPlot();
 }
 
-/* -------------------------------------------------------------- assinatura
-   Trem de pulsos do PSM. Deixou de ser previsão: agora desenha o duty que a
-   MÁQUINA está mandando para a bomba, semiciclo a semiciclo, com o mesmo
-   acumulador de Bresenham que o firmware roda no modelo.
-
-   Torna visível o que a docs/07 aponta como único contra real do PSM — ripple
-   em duty baixo. O acumulador DISTRIBUI os disparos em vez de agrupá-los, e
-   isso se enxerga durante a pré-infusão. */
+/* Trem de pulsos do PSM: desenha o duty que a máquina manda para a bomba,
+   semiciclo a semiciclo, com o mesmo acumulador de Bresenham do firmware. Torna
+   visível o ripple em duty baixo, que a docs/07 aponta como o único contra real
+   do PSM — o acumulador DISTRIBUI os disparos em vez de agrupá-los. */
 function psmPadrao(duty,range,n){
  var a=0,out=[];
  for(var i=0;i<n;i++){a+=duty;if(a>=range){a-=range;out.push(1);}else out.push(0);}
@@ -644,41 +728,30 @@ function desenhaTrem(frac){
   if(v){disp++;ctx.fillStyle='#c9a06a';ctx.fillRect(i*passo,h*.09,lg,h*.82);}
   else{ctx.fillStyle='#2b2620';ctx.fillRect(i*passo,h*.82,lg,Math.max(2,h*.07));}
  });
- conta.textContent=disp+' disparo'+(disp===1?'':'s');
+ conta.textContent=disp+' '+(disp===1?t('shot_u'):t('shots_u'));
  vDuty.innerHTML=Math.round(frac*100)+'<u>%</u>';
 }
 addEventListener('resize',function(){mediSinal();desenhaTrem(dutyAtual);desenhaPlot();});
 
-/* ---------------------------------------------------------- ultrassônico
-   Substituiu o VL53L1X. O ToF saiu por dois motivos independentes: era
-   fotodetector de infravermelho (a luz da sala entregava mais IV que o alvo) e
-   sua zona útil colidia com o piso de ~4 cm da peça, que é justo onde fica o
-   "cheio" deste tanque. O AJ-SR04T, à prova d'água, é pior ainda: 25 cm de zona
-   cega contra um tanque de 4 a 25 cm.
-
-   Aqui a saúde do sensor não é sinal nem sigma — é a TAXA DE ECOS. Eco parado
-   com distância congelada é sensor mudo, e sem esta contagem isso pareceria uma
-   leitura estabilíssima. Foi exatamente o modo de falha que enganou a gente
-   quando a calibração do ToF deixou o ranging parado. */
+/* Ultrassônico: a saúde do sensor não é sinal nem sigma, é a TAXA DE ECOS. Eco
+   parado com distância congelada é sensor mudo, e sem a contagem isso pareceria
+   leitura estabilíssima — foi o que enganou a gente quando a calibração do ToF
+   deixou o ranging parado. */
 function mostraUltra(d){
- uD.textContent=d.uok?(d.umm/10).toFixed(1)+' cm':'sem janela';
- // Faixa e contagem de válidas ficam ao lado da mediana porque mediana sozinha
- // esconde justamente o que se quer investigar: 73,1 cm com aparência de firmeza
- // e 0/30 válidas foi como o ToF enganou a gente.
+ uD.textContent=d.uok?(d.umm/10).toFixed(1)+' cm':t('nowindow');
  uR.textContent=d.uok?(d.ulo/10).toFixed(1)+'–'+(d.uhi/10).toFixed(1)+' cm':'—';
  uV.textContent=d.uv+'/'+d.ut;
  uE.textContent=d.uhz.toFixed(1)+' Hz';
  var pc=Math.max(0,Math.min(100,100*(250-d.umm)/(250-40)));
  uL.textContent=d.uok?pc.toFixed(0)+' %':'—';
- var ruim=!d.uok||d.uhz<5;
- uD.style.color=ruim?'var(--brasa)':'';
+ uD.style.color=(!d.uok||d.uhz<5)?'var(--brasa)':'';
  uE.style.color=d.uhz<5?'var(--brasa)':'';
 }
 
-/* ------------------------------------------------------------ modal arrastável
-   Ele tapa justamente o painel que se quer avaliar; fixo seria inútil. Ponteiro
-   unificado (mouse e toque pelo mesmo evento) e limitado à viewport, senão dá
-   para arrastar a barra de título para fora e perder o modal. */
+/* Modais arrastáveis: eles tapam justamente o painel que se quer avaliar, então
+   fixos seriam inúteis. Ponteiro unificado (mouse e toque no mesmo evento) e
+   limitados à viewport — sem isso dá para arrastar a barra de título para fora
+   da tela e perder o modal sem jeito de trazer de volta. */
 function arrastavel(cx,cab,fechar){
  var mx=0,my=0,on=false;
  cab.addEventListener('pointerdown',function(e){
@@ -691,8 +764,6 @@ function arrastavel(cx,cab,fechar){
  cab.addEventListener('pointermove',function(e){
   if(!on)return;
   var r=cx.getBoundingClientRect();
-  // limitado à viewport: sem isto dá para arrastar a barra de título para fora
-  // da tela e perder o modal sem jeito de trazer de volta
   var x=Math.max(4,Math.min(innerWidth-r.width-4,e.clientX-mx));
   var y=Math.max(4,Math.min(innerHeight-36,e.clientY-my));
   cx.style.left=x+'px';cx.style.top=y+'px';cx.style.transform='none';
@@ -709,33 +780,25 @@ arrastavel(modal,mcab,btFechar);
 arrastavel(mhist,mhcab,btHFechar);
 btCfg.onclick=function(){abrir(modal);};
 
-/* ------------------------------------------------------------ histórico
-   Os CSV do cartão. A tabela mostra o RESULTADO de cada shot — massa, tempo e
-   vazão média — porque é isso que se compara entre um shot e outro; a curva
-   inteira só aparece quando você escolhe um.
-
-   Ler o arquivo é caro (vem do SD por HTTP, sem cache), então só acontece no
-   clique. A lista sozinha vem do endpoint de listagem, que é barato. */
+/* ------------------------------------------------------------ histórico */
 function resumo(csv){
  var l=csv.trim().split('\n').filter(function(x){return x&&x[0]!=='#';});
  var col=l.shift().split(',');
- var it=col.indexOf('t_s'), ig=col.indexOf('massa_g'), ip=col.indexOf('pressao_bar');
- var ia=col.indexOf('alvo_bar'), ib=col.indexOf('t_boiler_c');
+ var it=col.indexOf('t_s'),ig=col.indexOf('massa_g'),ip=col.indexOf('pressao_bar');
+ var ia=col.indexOf('alvo_bar'),ib=col.indexOf('t_boiler_c');
  var pts=[],tf=0,gf=0,tlo=1/0,thi=-1/0;
  l.forEach(function(x){
   var v=x.split(',');
-  var t=+v[it], g=+v[ig], p=+v[ip];
+  var s=+v[it],g=+v[ig],p=+v[ip];
   var a=ia>=0?+v[ia]:NaN, b=ib>=0?+v[ib]:NaN;
-  if(isNaN(t))return;
+  if(isNaN(s))return;
   if(!isNaN(b)){ if(b<tlo)tlo=b; if(b>thi)thi=b; }
-  pts.push([t,p,g,a,b]); tf=t; gf=g;
+  pts.push([s,p,g,a,b]); tf=s; gf=g;
  });
- // Faixa da temperatura com vão mínimo de 3 °C: num shot bem controlado ela
- // varia menos de 1 °C, e escala automática crua transformaria ruído em
- // montanha. Mesma regra do gráfico ao vivo.
+ // vão mínimo de 3 °C, mesma regra do painel: num shot bem controlado ela varia
+ // menos de 1 °C, e escala automática crua transforma ruído em montanha
  var c=(tlo+thi)/2, d=Math.max(thi-tlo,3)*1.2/2;
- return {pts:pts,t:tf,g:gf,q:tf>0?gf/tf:0,
-         tf:isFinite(tlo)?[c-d,c+d]:null};
+ return {pts:pts,t:tf,g:gf,q:tf>0?gf/tf:0,tf:isFinite(tlo)?[c-d,c+d]:null};
 }
 function desenhaHist(r){
  var cv=hPlot,ctx=cv.getContext('2d'),dpr=devicePixelRatio||1;
@@ -743,65 +806,45 @@ function desenhaHist(r){
  if(!w||!h||!r.pts.length)return;
  if(cv.width!==Math.round(w*dpr)){cv.width=w*dpr;cv.height=h*dpr;}
  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
- var tmax=r.t||1, gmax=Math.max(r.g,1);
- var eb=14;
- // Mesma convenção do painel ao vivo, e pela mesma razão: quem já leu o painel
- // lê isto sem legenda. Pressão azul em escala fixa 0-12, massa verde em escala
- // própria, TEMPERATURA em âmbar com faixa automática, e o alvo de pressão
- // tracejado atrás — a coluna que o CSV grava para o gráfico mostrar não só o
- // que aconteceu, mas o que era para acontecer.
- //
- // Cada série tem [índice, faixa, cor, tracejado]. `null` na faixa significa
- // "não desenhe": arquivo antigo sem a coluna some da lista em vez de virar
- // linha em zero.
- var ft=r.tf;
- [[3,[0,12],'#3d86c8',1],
-  [4,ft,'#c98330',0],
-  [1,[0,12],'#3d86c8',0],
-  [2,[0,gmax],'#7a9a5b',0]].forEach(function(s){
-  var f=s[1];
-  if(!f)return;
-  ctx.save();
-  ctx.strokeStyle=s[2];
+ var tmax=r.t||1, gmax=Math.max(r.g,1), eb=14, ft=r.tf;
+ // mesma convenção do painel ao vivo, e pela mesma razão: quem já leu o painel
+ // lê isto sem legenda. `null` na faixa = não desenhe (arquivo antigo sem a
+ // coluna some da lista em vez de virar linha em zero).
+ [[3,[0,12],'#3d86c8',1],[4,ft,'#c98330',0],
+  [1,[0,12],'#3d86c8',0],[2,[0,gmax],'#7a9a5b',0]].forEach(function(s){
+  var f=s[1]; if(!f)return;
+  ctx.save();ctx.strokeStyle=s[2];
   if(s[3]){ctx.globalAlpha=.42;ctx.lineWidth=1.5;ctx.setLineDash([4,4]);}
   else{ctx.lineWidth=2;}
   ctx.beginPath();
   var primeiro=true;
   r.pts.forEach(function(p){
-   var v=p[s[0]];
-   if(isNaN(v))return;
-   var x=p[0]/tmax*(w-4)+2;
-   var y=h-eb-((v-f[0])/(f[1]-f[0]))*(h-eb-4);
+   var v=p[s[0]]; if(isNaN(v))return;
+   var x=p[0]/tmax*(w-4)+2, y=h-eb-((v-f[0])/(f[1]-f[0]))*(h-eb-4);
    primeiro?ctx.moveTo(x,y):ctx.lineTo(x,y);
    primeiro=false;
   });
-  ctx.stroke();
-  ctx.restore();
+  ctx.stroke();ctx.restore();
  });
  ctx.font='9px ui-monospace,Menlo,monospace';
  ctx.fillStyle='#5d564c';
  ctx.textAlign='left';ctx.fillText('0 s',2,h-3);
  ctx.textAlign='right';ctx.fillText(tmax.toFixed(0)+' s',w-2,h-3);
- // rótulo de eixo na cor da série, como no painel: é o que resolve "qual escala
- // é de quem" sem gastar espaço com legenda
- if(ft){
-  ctx.fillStyle='#c98330';ctx.textAlign='left';
-  ctx.fillText(ft[1].toFixed(1)+' °C',2,9);
- }
+ if(ft){ctx.fillStyle='#c98330';ctx.textAlign='left';
+        ctx.fillText(ft[1].toFixed(1)+' °C',2,9);}
  ctx.fillStyle='#3d86c8';ctx.textAlign='right';ctx.fillText('12 bar',w-2,9);
 }
-var histCarregado=0;
 function carregaHist(){
  fetch('/sd').then(function(r){return r.json();}).then(function(j){
-  hSub.textContent=j.montado?('cartão · '+(j.livre_kb/1024).toFixed(0)+' MB livres')
-                            :'sem cartão';
+  hSub.textContent=j.montado?(t('card')+' · '+(j.livre_kb/1024).toFixed(0)+' '+t('free'))
+                            :t('nocard');
   var fs=(j.shots||[]).sort(function(a,b){return a.n<b.n?1:-1;});
   hVazio.hidden=fs.length>0;
   hLista.innerHTML='';
   fs.forEach(function(f){
    var tr=document.createElement('tr');
    tr.innerHTML='<td>'+f.n.replace('.csv','')+'</td><td class="q">'+
-                (f.b/1024).toFixed(1)+' kB</td><td class="g">ver</td>';
+                (f.b/1024).toFixed(1)+' kB</td><td class="g">→</td>';
    tr.onclick=function(){
     [].forEach.call(hLista.children,function(x){x.classList.remove('sel');});
     tr.classList.add('sel');
@@ -810,64 +853,43 @@ function carregaHist(){
       var r=resumo(csv);
       hDet.hidden=false;
       hDetNome.textContent=f.n.replace('.csv','');
-      hDetInfo.textContent=r.g.toFixed(1)+' g em '+r.t.toFixed(1)+' s · '+
-                           r.q.toFixed(2)+' g/s médio · '+r.pts.length+' amostras';
+      hDetInfo.textContent=r.g.toFixed(1)+' g · '+r.t.toFixed(1)+' s · '+
+        r.q.toFixed(2)+' g/s '+t('avg')+' · '+r.pts.length+' '+t('samples');
       desenhaHist(r);
       tr.children[2].textContent=r.g.toFixed(1)+' g';
      });
    };
    hLista.appendChild(tr);
   });
- }).catch(function(){hSub.textContent='cartão não respondeu';});
+ }).catch(function(){hSub.textContent=t('noresp');});
 }
 btHist.onclick=function(){ if(abrir(mhist)) carregaHist(); };
 
-/* --------------------------------------------------------- controles do modal */
+/* -------------------------------------------------- controles do simulador */
 function liga(el,cmd,fmt,alvo){
- el.oninput=function(){
-  env('set '+cmd+' '+el.value);
-  if(alvo)alvo.textContent=fmt(el.value);
- };
+ el.oninput=function(){ env('set '+cmd+' '+el.value); if(alvo)alvo.textContent=fmt(el.value); };
 }
-liga(sSp,'sp',function(v){return (+v).toFixed(1).replace('.',',')+' °C';},lSp);
-liga(sAlvo,'alvo',function(v){return v+' g';},lAlvo);
-liga(sPlato,'plato',function(v){return (+v).toFixed(1).replace('.',',')+' bar';},lPlato);
 liga(sMoagem,'moagem',function(v){return (+v).toFixed(2).replace('.',',');},lMoagem);
 liga(sTamb,'tamb',function(v){return v+' °C';},lTamb);
 liga(sPot,'pot',function(v){return v+' W';},lPot);
 liga(sVel,'vel',function(v){return (+v).toFixed(1).replace('.',',')+'×';},lVel);
-function pre(){
- lPre.textContent=(+sPreBar.value).toFixed(1).replace('.',',')+' bar · '+sPreS.value+' s';
-}
-sPreBar.oninput=function(){env('set prebar '+sPreBar.value);pre();};
-sPreS.oninput=function(){env('set pres '+sPreS.value);pre();};
-
-swSim.onchange=function(){
- env(swSim.value==='1'?'sim on':'sim off');
-};
+swSim.onchange=function(){ env(swSim.value==='1'?'sim on':'sim off'); };
 btReset.onclick=function(){env('reset');};
 btLimpar.onclick=function(){env('falha limpar');};
-
-// Falhas são alternáveis: injetar é metade do teste, tirar e ver a máquina se
-// recuperar é a outra metade.
+// Falhas alternam: injetar é metade do teste, tirar e ver a máquina se recuperar
+// é a outra metade.
 [].forEach.call(document.querySelectorAll('.chips button[data-f]'),function(b){
- b.onclick=function(){
-  var on=b.classList.toggle('on');
-  env('set '+b.dataset.f+' '+(on?1:0));
- };
+ b.onclick=function(){ env('set '+b.dataset.f+' '+(b.classList.toggle('on')?1:0)); };
 });
-
-btShot.onclick=function(){
- env(btShot.dataset.on==='1'?'shot stop':'shot start');
-};
+btShot.onclick=function(){ env(btShot.dataset.on==='1'?'shot stop':'shot start'); };
 
 /* ---------------------------------------------------------- perfil (+/-)
    O valor mostrado vem SEMPRE do firmware, nunca de um contador local: o
-   servidor é quem limita a faixa, e um espelho local acabaria mostrando 13 bar
+   servidor é quem limita a faixa, e espelho local acabaria mostrando 13 bar
    enquanto a máquina guardou 12. O botão só pede; quem confirma é o próximo
    quadro do WebSocket. */
-var ctrs=[].slice.call(document.querySelectorAll('.ctr'));
-ctrs.forEach(function(c){
+var cvs=[].slice.call(document.querySelectorAll('.cv[data-k]'));
+cvs.forEach(function(c){
  var b=c.querySelector('b');
  [].forEach.call(c.querySelectorAll('button'),function(bt){
   bt.onclick=function(){
@@ -877,7 +899,7 @@ ctrs.forEach(function(c){
  });
 });
 function pintaPerfil(m){
- ctrs.forEach(function(c){
+ cvs.forEach(function(c){
   var v=m[c.dataset.k];
   if(v===undefined)return;
   var b=c.querySelector('b');
@@ -887,64 +909,59 @@ function pintaPerfil(m){
 }
 
 /* ---------------------------------------------------------------- render */
-var EXTRAINDO={'pré-infusão':1,'rampa':1,'platô':1,'declínio':1};
+var EXTRAINDO={pre:1,ramp:1,plateau:1,decline:1};
 
 function pinta(d){
- var t=performance.now();
+ var tm=performance.now();
  led.classList.add('viva');
  var m=d.m;
 
- // --- máquina
- var falhou=m.est==='FALHA';
+ var falhou=m.est==='fault';
  topo.classList.toggle('falha',falhou);
  estado.classList.toggle('falha',falhou);
- txtEstado.textContent=falhou?(m.falha||'falha'):m.est;
+ txtEstado.textContent=falhou?t(m.falha||'fault'):t(m.est);
 
  var ext=!!EXTRAINDO[m.est];
- btShot.textContent=ext?'Parar':'Puxar shot';
+ btShot.textContent=ext?t('stop'):t('pull');
  btShot.classList.toggle('parar',ext);
  btShot.dataset.on=ext?'1':'0';
- // Puxar shot com a máquina fria dá café ruim de forma silenciosa. O botão
- // desabilitado diz isso antes, em vez de deixar descobrir na xícara.
- btShot.disabled=falhou||(!ext&&m.est!=='pronta');
+ // Puxar shot com a máquina fria dá café ruim de forma silenciosa; o botão diz
+ // isso antes, em vez de deixar descobrir na xícara.
+ btShot.disabled=falhou||(!ext&&m.est!=='ready');
 
  vVazao.textContent=ext?m.q.toFixed(1)+' g/s':'';
- // o motivo do fim fica à vista enquanto o painel mostra o resultado: "fim"
- // sozinho obriga a adivinhar entre bater o alvo e estourar o tempo
- vMotivo.textContent=(m.est==='fim'&&m.mot)?('· '+m.mot):'';
+ vMotivo.textContent=(m.est==='done'&&m.mot)?('· '+t(m.mot)):'';
  desenhaTrem(m.bmb);
- rotBomba.textContent=ext?('alvo '+m.ap.toFixed(1)+' bar'):'PSM';
- pePsm.textContent=d.m.sim
-   ? '120 semiciclos · 1 s a 60 Hz · fonte SIMULADA'
-   : '120 semiciclos · 1 s a 60 Hz';
- rodapeNota.textContent=d.m.sim
-   ? 'Dados simulados — nenhum sensor de máquina ligado. Modelo físico, não gravação.'
-   : 'Dados do hardware.';
+ rotBomba.textContent=ext?(t('target_p')+' '+m.ap.toFixed(1)+' bar'):'';
+ pePsm.textContent=t('psm_pe')+(m.sim?t('psm_sim'):'');
+ rodapeNota.textContent=m.sim?t('nota_sim'):t('nota_real');
 
- // nível vem da máquina, não mais do ToF
  agua.style.height=m.niv.toFixed(0)+'%';
  nivel.textContent=Math.round(m.niv)+'%';
  nDist.textContent=d.uok?(d.umm/10).toFixed(0)+' cm':'';
  trilho.classList.toggle('ruim',m.niv<=2);
 
- if(t-tAmostra>PASSO){tAmostra=t;amostra(m.tb,m.pr,m.sp,m.ap);}
+ if(tm-tAmostra>PASSO){tAmostra=tm;amostra(m.tb,m.pr,m.sp,m.ap);}
 
- if(t-tNum>250){   // ritmo humano: dígito trocando 30x/s ninguém lê, só treme
-  tNum=t;
+ if(tm-tNum>250){   // ritmo humano: dígito trocando 30x/s ninguém lê, só treme
+  tNum=tm;
   vTemp.innerHTML=num(m.tb,1)+'<u>°C</u>';
   vPress.innerHTML=num(m.pr,1)+'<u>bar</u>';
   vMassa.innerHTML=num(m.g,1)+'<u>g</u>';
   vTempo.innerHTML=num(m.t,1)+'<u>s</u>';
   pintaPerfil(m);
+  mostraUltra(d);
+
   relogio.textContent=d.hr;
-  // "INVÁLIDA" = o DS3231 avisou que o oscilador parou (OSF). A hora continua
-  // à vista de propósito: esconder viraria "o relógio sumiu", e o que se quer
+  // "INVÁLIDA" = o DS3231 avisou que o oscilador parou (OSF). A hora continua à
+  // vista de propósito: esconder viraria "o relógio sumiu", e o que se quer
   // dizer é "este horário não vale".
   relogio.classList.toggle('suspeita',d.fonte==='INVÁLIDA');
   if(d.rtc){
-   rD.textContent=d.dt;rF.textContent=d.fonte;
+   rD.textContent=d.dt;
+   rF.textContent=d.fonte==='INVÁLIDA'?t('invalid'):d.fonte;
    rT.textContent=(d.rtemp/100).toFixed(2)+' °C';
-  }else{ rF.textContent='ausente'; }
+  }else{ rF.textContent=t('absent'); }
 
   if(d.bme){
    var tc=(d.t/100).toFixed(1), rh=(d.rh/100).toFixed(0);
@@ -954,18 +971,13 @@ function pinta(d){
    aP.textContent=(d.pa/100).toFixed(1)+' hPa';
    aG.textContent=(d.gas/1000).toFixed(1)+' kΩ';
   }
-  mostraUltra(d);
   if(i2cAnt!==d.i2c.join(',')){
    i2cAnt=d.i2c.join(',');
    aFonte.textContent=d.i2c.map(function(a){return (NOMES[a]||'?')+' '+hex(a);})
     .join(' · ')+' · '+d.ip;
   }
-  // o servidor manda 30x/s e sobrescreveria o controle debaixo do dedo; só
-  // sincroniza o que o usuário não está segurando
   if(document.activeElement!==swSim) swSim.value=m.sim?'1':'0';
-  dicaModo.textContent=m.sim
-    ? 'Modelo físico rodando na placa. Trocar para hardware real vai mostrar falha em tudo que ainda não foi ligado — de propósito.'
-    : 'Lendo hardware. Sensor ausente aparece como falha, não como zero.';
+  dicaModo.textContent=m.sim?t('tip_sim'):t('tip_real');
  }
 }
 
@@ -973,9 +985,11 @@ function liga_ws(){
  ws=new WebSocket('ws://'+location.host+'/ws');
  ws.onmessage=function(e){pinta(JSON.parse(e.data));};
  ws.onerror=function(){ws.close();};
- ws.onclose=function(){led.classList.remove('viva');txtEstado.textContent='reconectando';
-  setTimeout(liga_ws,1000);};
+ ws.onclose=function(){led.classList.remove('viva');
+  txtEstado.textContent=t('reconnecting');setTimeout(liga_ws,1000);};
 }
+traduzir();
+txtEstado.textContent=t('connecting');
 mediSinal();desenhaPlot();desenhaTrem(0);liga_ws();
 </script>
 </body></html>

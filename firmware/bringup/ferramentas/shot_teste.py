@@ -53,11 +53,14 @@ ws = WS(HOST)
 print("== preparando")
 ws.envia("sim on")
 
+# ⚠️ O firmware manda CÓDIGO de estado (ready/heat/done/fault), não rótulo — a
+# palavra é escolha da interface. Este teste fala em código.
+#
 # Falha é LATCHED de propósito. Mas limpar com a CAUSA ainda presente só a
 # re-arma no ciclo seguinte — o que é o comportamento correto e foi o que
 # confundiu este teste: ele limpava com o boiler a 158 °C e desistia achando que
 # a máquina estava travada. Esperar esfriar primeiro.
-if estado()["m"]["est"] == "FALHA":
+if estado()["m"]["est"] == "fault":
     print("== máquina em falha; esperando esfriar antes de limpar")
     ws.envia("set vel 10")
     while estado()["m"]["tb"] > 60:
@@ -75,7 +78,7 @@ t0 = time.time()
 while time.time() - t0 < 90:
     m = estado()["m"]
     print("   %-9s %.1f °C" % (m["est"], m["tb"]))
-    if m["est"] == "pronta":
+    if m["est"] == "ready":
         break
     time.sleep(2)
 else:
@@ -93,7 +96,7 @@ while time.time() - t0 < 60:
         visto.append(m["est"])
     print("   %-11s t=%5.1fs  p=%4.1f/%4.1f bar  %5.1f g  %4.2f g/s  bomba %3.0f%%"
           % (m["est"], m["t"], m["pr"], m["ap"], m["g"], m["q"], m["bmb"] * 100))
-    if m["est"] in ("fim", "FALHA"):
+    if m["est"] in ("done", "fault"):
         break
     time.sleep(1)
 
