@@ -18,6 +18,8 @@
 #include "driver/i2c_master.h"
 #include "bme680.h"
 #include "esp_netif_sntp.h"
+#include "hal.h"
+#include "maquina.h"
 #include "rtc.h"
 #include "tof.h"
 #include "freertos/FreeRTOS.h"
@@ -325,6 +327,31 @@ static void hora_sincronizar(void)
     ESP_LOGI(TAG, "hora veio do ds3231 (sem rede)");
 }
 
+// -------------------------------------------------------------- controle
+//
+// 100 Hz no core de tempo-real. A docs/05 pede 50–100 ms para o laço; 10 ms dá
+// folga e é o que a integração da simulação precisa para não acumular erro.
+//
+// `dt` vem do relógio real, não da constante do delay: se a task atrasar, o PID
+// e o modelo têm que saber. dt fixo com task atrasada é como o painel mostrar
+// valor antigo achando que é novo.
+#define CTRL_MS 10
+
+static void tarefa_controle(void *arg)
+{
+    mq_iniciar();
+    TickType_t ult = xTaskGetTickCount();
+    int64_t t_ant = esp_timer_get_time();
+    while (1) {
+        int64_t agora = esp_timer_get_time();
+        float dt = (float)(agora - t_ant) / 1000000.0f;
+        t_ant = agora;
+        if (dt > 0.2f) dt = 0.2f;      // pós-boot ou atraso grande: não integrar lixo
+        mq_passo(dt);
+        vTaskDelayUntil(&ult, pdMS_TO_TICKS(CTRL_MS));
+    }
+}
+
 static void tarefa_relogio(void *arg)
 {
     // A sincronização mora AQUI, não no app_main, porque ela conversa com a rede e
@@ -522,6 +549,30 @@ static int montar_json(char *buf, size_t tam)
                   tof_ok ? 1 : 0, s_dist_mm, s_dist_status,
                   s_dist_sigma, s_dist_sinal, s_dist_amb, s_dist_n,
                   rtc_ok ? 1 : 0, s_hora, s_data, s_rtc_temp_c100, s_rtc_fonte);
+
+    // --- máquina. Floats saem com casa decimal já formatada: a página não deve
+    //     ter que saber a escala de cada grandeza.
+    static const char *NOMES[] = { "ocioso", "aquecendo", "pronta", "pré-infusão",
+                                   "rampa", "platô", "declínio", "fim", "FALHA" };
+    mq_estado_pub_t m;
+    mq_publicar(&m);
+    sim_espia_t esp;
+    sim_espiar(&esp);
+    mq_perfil_t pf;
+    mq_perfil_get(&pf);
+
+    p += snprintf(buf + p, tam - p,
+                  ",\"m\":{\"est\":\"%s\",\"tb\":%.1f,\"pr\":%.2f,\"g\":%.1f,"
+                  "\"q\":%.2f,\"niv\":%.0f,\"ap\":%.2f,\"ssr\":%.2f,\"bmb\":%.2f,"
+                  "\"t\":%.1f,\"falha\":\"%s\",\"sim\":%d,"
+                  "\"sp\":%.1f,\"alvo\":%.0f,\"tmax\":%.0f,"
+                  "\"vaz\":%.2f,\"tagua\":%.1f,\"w\":%.0f}",
+                  NOMES[m.estado], m.t_boiler, m.pressao, m.massa, m.vazao,
+                  m.nivel_pct, m.alvo_pressao, m.ssr, m.bomba, m.shot_s,
+                  m.falha ? m.falha : "",
+                  hal_modo() == HAL_SIM ? 1 : 0,
+                  pf.setpoint_c, pf.alvo_g, pf.tempo_max_s,
+                  esp.vazao_g_s, esp.t_agua_grupo, esp.energia_w);
     return p;
 }
 
@@ -604,14 +655,80 @@ static esp_err_t h_tof(httpd_req_t *req)
 // websocket handshake, then do not call the uri->handler". O padrão antigo de
 // registrar o fd num `if (req->method == HTTP_GET)` não dispara mais.
 //
-// Esta função vê os frames de dados do cliente. Hoje só existe um comando: o
-// brilho, como número decimal em texto ("0" a "80"). Formato mínimo de propósito —
-// não vale JSON para um inteiro.
+// Esta função vê os frames de dados do cliente.
+//
+// **Protocolo: `<comando> [valor]` em texto puro.** Continua sem JSON — analisar
+// JSON no firmware para mandar um float seria trocar 3 linhas de sscanf por uma
+// dependência e um buffer a mais. Um inteiro sozinho ainda vale como brilho, para
+// não quebrar quem já falava com a placa.
+//
+//   brilho 80         shot start | shot stop      falha limpar
+//   sim on | off      set <chave> <valor>         reset
+//
+// ⚠️ Todo valor é limitado NO SERVIDOR. O cliente não define teto — vale para o
+// brilho desde o começo e agora vale para setpoint, alvo de peso e pressão, que
+// são grandezas com consequência física.
 //
 // Drenar o frame é obrigatório mesmo que não se use: frame não lido trava o socket.
+static float lim(float v, float lo, float hi)
+{
+    return v < lo ? lo : (v > hi ? hi : v);
+}
+
+static void ws_comando(char *s)
+{
+    char chave[20] = { 0 };
+    float val = 0.0f;
+
+    if (sscanf(s, "brilho %f", &val) == 1) {
+        brilho = (uint8_t)lim(val, 0, MAXV);
+        return;
+    }
+    if (strncmp(s, "shot start", 10) == 0) { mq_shot_iniciar(); return; }
+    if (strncmp(s, "shot stop", 9) == 0) { mq_shot_parar(); return; }
+    if (strncmp(s, "falha limpar", 12) == 0) { mq_limpar_falha(); return; }
+    if (strncmp(s, "sim on", 6) == 0) { hal_set_modo(HAL_SIM); return; }
+    if (strncmp(s, "sim off", 7) == 0) { hal_set_modo(HAL_REAL); return; }
+    if (strncmp(s, "reset", 5) == 0) { sim_reset(); return; }
+
+    if (sscanf(s, "set %19s %f", chave, &val) == 2) {
+        mq_perfil_t p;
+        mq_perfil_get(&p);
+        sim_cfg_t c;
+        sim_cfg_get(&c);
+
+        if (!strcmp(chave, "sp")) p.setpoint_c = lim(val, 20, 130);
+        else if (!strcmp(chave, "alvo")) p.alvo_g = lim(val, 5, 200);
+        else if (!strcmp(chave, "tmax")) p.tempo_max_s = lim(val, 5, 60);
+        else if (!strcmp(chave, "prebar")) p.pre_bar = lim(val, 0, 9);
+        else if (!strcmp(chave, "pres")) p.pre_s = lim(val, 0, 30);
+        else if (!strcmp(chave, "plato")) p.plato_bar = lim(val, 1, 12);
+        else if (!strcmp(chave, "rampa")) p.rampa_s = lim(val, 0.1f, 20);
+        else if (!strcmp(chave, "declinio")) p.declinio_bar = lim(val, 0, 12);
+        // daqui para baixo é só simulação
+        else if (!strcmp(chave, "tamb")) c.t_ambiente = lim(val, -5, 45);
+        else if (!strcmp(chave, "pot")) c.pot_resistencia = lim(val, 100, 2000);
+        else if (!strcmp(chave, "moagem")) c.moagem = lim(val, 0.3f, 4);
+        else if (!strcmp(chave, "vel")) c.vel = lim(val, 0.1f, 20);
+        else if (!strcmp(chave, "nivel")) c.nivel_inicial = lim(val, 40, 250);
+        else if (!strcmp(chave, "semagua")) c.sem_agua = val > 0.5f;
+        else if (!strcmp(chave, "ftemp")) c.falha_temp = val > 0.5f;
+        else if (!strcmp(chave, "fpress")) c.falha_press = val > 0.5f;
+        else if (!strcmp(chave, "sempuck")) c.puck_ausente = val > 0.5f;
+        else return;
+
+        mq_perfil_set(&p);
+        sim_cfg_set(&c);
+        return;
+    }
+
+    // compatibilidade: inteiro solto continua sendo brilho
+    if (s[0] >= '0' && s[0] <= '9') brilho = (uint8_t)lim((float)atoi(s), 0, MAXV);
+}
+
 static esp_err_t h_ws(httpd_req_t *req)
 {
-    uint8_t buf[16] = { 0 };
+    uint8_t buf[64] = { 0 };
     httpd_ws_frame_t f = { .type = HTTPD_WS_TYPE_TEXT, .payload = buf };
 
     esp_err_t e = httpd_ws_recv_frame(req, &f, sizeof(buf) - 1);
@@ -619,9 +736,7 @@ static esp_err_t h_ws(httpd_req_t *req)
         return e;
     }
     buf[f.len] = '\0';
-
-    int v = atoi((char *)buf);
-    brilho = v < 0 ? 0 : (v > MAXV ? MAXV : v);   // clamp: cliente não define o teto
+    ws_comando((char *)buf);
     return ESP_OK;
 }
 
@@ -714,6 +829,10 @@ void app_main(void)
 
     // o LED sobe antes da rede: dá feedback visual mesmo se o Wi-Fi falhar
     xTaskCreatePinnedToCore(tarefa_led, "led", 3072, NULL, 5, NULL, CORE_RT);
+
+    // Controle no core de tempo-real e com prioridade acima do LED: se algum dia
+    // faltar CPU, o que pode piscar feio é a animação, não o PID da caldeira.
+    xTaskCreatePinnedToCore(tarefa_controle, "ctrl", 4096, NULL, 6, NULL, CORE_RT);
 
     setenv("TZ", TZ_BR, 1);
     tzset();
