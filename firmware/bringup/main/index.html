@@ -85,9 +85,13 @@ table.hist td.q{text-align:right;color:var(--cinza)}
 table.hist td.g{text-align:right;color:var(--osso);font-weight:600}
 .hdet{margin-top:.7rem;padding-top:.5rem;border-top:1px solid var(--linha)}
 
-/* faixa de falha: ocupa a barra de estado inteira, não é um ícone discreto */
-.topo.falha{background:rgba(212,85,63,.12)}
-.estado.falha{color:var(--brasa)}
+/* Falha vira CARD, com a mesma linguagem dos outros: fundo próprio, borda de
+   1px e cantos arredondados. Antes ela pintava a barra inteira de vermelho, o
+   que destoava de tudo e ainda empurrava o alinhamento. Card destaca sem virar
+   um elemento de outro projeto. */
+.estado.falha{color:var(--brasa);background:rgba(212,85,63,.14);
+  border:1px solid rgba(212,85,63,.45);border-radius:.45rem;
+  padding:.2rem .55rem;justify-content:center}
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
@@ -100,8 +104,15 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 
 /* ---- barra de estado ---- */
-.topo{grid-column:1/-1;display:flex;align-items:center;gap:.8rem;
+/* Grade de 3 colunas em vez de flex: `1fr auto 1fr` centraliza o relógio no meio
+   EXATO da barra, independente de quanto texto a esquerda ou a direita tenham.
+   Com flex e margin-left:auto o relógio ficava no meio do espaço que sobrava,
+   que não é o meio da barra. */
+.topo{grid-column:1/-1;display:grid;grid-template-columns:1fr auto 1fr;
+  align-items:center;gap:.8rem;
   padding-bottom:.5rem;border-bottom:1px solid var(--linha)}
+.tesq{display:flex;align-items:center;gap:.8rem;min-width:0}
+.tdir{display:flex;align-items:center;gap:.35rem;justify-self:end}
 .marca{font-family:ui-sans-serif,system-ui,sans-serif;font-weight:700;font-size:.78rem;
   letter-spacing:.22em;text-transform:uppercase}
 .estado{display:flex;align-items:center;gap:.4rem;
@@ -111,7 +122,7 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
 
 /* Relógio: tabular-nums para os dígitos não dançarem a cada segundo. Fica em brasa
    quando a hora não tem procedência — hora bonita e inventada é pior que "--:--". */
-.relogio{margin-left:auto;margin-right:.2rem;font-size:.82rem;font-variant-numeric:tabular-nums;
+.relogio{font-size:.82rem;font-variant-numeric:tabular-nums;
   color:var(--cinza);letter-spacing:.02em}
 .relogio.suspeita{color:var(--brasa)}
 
@@ -119,7 +130,7 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
 /* Ícone da barra: mesma caixa do botão da bandeja, para os dois lerem como o
    mesmo tipo de controle. `margin-left:auto` sai do .tray e vem para cá, que
    agora é o primeiro item do bloco da direita. */
-.ico{margin-left:auto;background:var(--painel);border:1px solid var(--linha);
+.ico{background:var(--painel);border:1px solid var(--linha);
   border-radius:.43rem;width:1.9rem;height:1.55rem;cursor:pointer;padding:0;
   display:flex;align-items:center;justify-content:center}
 .ico:hover{border-color:var(--fosco)}
@@ -210,7 +221,8 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
    pequena — slider de 8 rem numa tela de 4,3" não dá para acertar 0,5 bar com o
    dedo, e o valor exato importa mais que a velocidade do ajuste. */
 .perfil{display:flex;flex-direction:column;gap:.35rem;min-height:0;overflow:auto}
-.perfil .acao{margin-top:auto;width:100%;padding:.55rem .3rem;font-size:.7rem}
+.perfil .acao{margin-top:auto;width:100%;min-height:3.4rem;padding:.5rem .3rem;
+  font-size:.78rem}
 .ctr{background:var(--painel);border:1px solid var(--linha);border-radius:.5rem;
   padding:.3rem .35rem .35rem}
 .ctr .cl{display:block;font-family:ui-sans-serif,system-ui,sans-serif;
@@ -262,10 +274,14 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
 <div class="app">
 
 <div class="topo" id="topo">
-  <span class="marca">SmartFilco</span>
-  <span class="estado" id="estado"><i class="led" id="led"></i><span id="txtEstado">—</span></span>
+  <div class="tesq">
+    <span class="marca">SmartFilco</span>
+    <span class="estado" id="estado"><i class="led" id="led"></i><span id="txtEstado">—</span></span>
+  </div>
+
   <span class="relogio" id="relogio">&mdash;&mdash;:&mdash;&mdash;:&mdash;&mdash;</span>
 
+  <div class="tdir">
   <button class="ico" id="btLang" title="Language / Idioma"><b id="lang">EN</b></button>
 
   <button class="ico" id="btHist" aria-haspopup="dialog" data-i18n-t="tt_hist">
@@ -276,9 +292,11 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
   </button>
 
   <button class="ico" id="btCfg" aria-haspopup="dialog" data-i18n-t="tt_cfg">
+    <!-- engrenagem do conjunto Feather. O path anterior era invenção minha e
+         renderizava um borrão — desenhar SVG de cabeça não funciona. -->
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <circle cx="12" cy="12" r="3"/>
-      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 7 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H1a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 2.6 7a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H7a1.7 1.7 0 0 0 1-1.5V1a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V7a1.7 1.7 0 0 0 1.5 1H23a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
     </svg>
   </button>
 
@@ -311,6 +329,7 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
       </dl>
       <div class="fonte" id="aFonte">&mdash;</div>
     </div>
+  </div>
   </div>
 </div>
 
