@@ -66,6 +66,15 @@
 .chips button.on{background:var(--brasa);border-color:var(--brasa);color:#fff}
 .chips button.neutro:hover{border-color:var(--fosco);color:var(--osso)}
 .dica{margin:.4rem 0 0;color:var(--fosco);font-size:.66rem;line-height:1.4}
+table.hist{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+table.hist td{padding:.3rem .2rem;border-bottom:1px solid var(--linha);font-size:.7rem}
+table.hist tr{cursor:pointer}
+table.hist tr:hover td{background:rgba(201,160,106,.07)}
+table.hist tr.sel td{color:var(--crema)}
+table.hist td.q{text-align:right;color:var(--cinza)}
+table.hist td.g{text-align:right;color:var(--osso);font-weight:600}
+.hdet{margin-top:.7rem;padding-top:.5rem;border-top:1px solid var(--linha)}
+#hPlot{display:block;width:100%;height:7rem}
 
 /* faixa de falha: ocupa a barra de estado inteira, não é um ícone discreto */
 .topo.falha{background:rgba(212,85,63,.12)}
@@ -210,14 +219,13 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
         <dt>pressão do ar</dt><dd id="aP">&mdash;</dd>
         <dt>gás (VOC)</dt><dd id="aG">&mdash;</dd>
       </dl>
-      <div class="rot" style="margin-top:.7rem">Reservatório <s>VL53L1X</s></div>
+      <div class="rot" style="margin-top:.7rem">Reservatório <s>HC-SR04</s></div>
       <dl>
-        <dt>distância</dt><dd id="dD">&mdash;</dd>
-        <dt>faixa</dt><dd id="dF">&mdash;</dd>
-        <dt>qualidade</dt><dd id="dQ">&mdash;</dd>
-        <dt>sigma</dt><dd id="dS">&mdash;</dd>
-        <dt>sinal</dt><dd id="dN">&mdash;</dd>
-        <dt>luz ambiente</dt><dd id="dA">&mdash;</dd>
+        <dt>distância <s>mediana</s></dt><dd id="uD">&mdash;</dd>
+        <dt>faixa da janela</dt><dd id="uR">&mdash;</dd>
+        <dt>amostras válidas</dt><dd id="uV">&mdash;</dd>
+        <dt>taxa</dt><dd id="uE">&mdash;</dd>
+        <dt>nível equivalente</dt><dd id="uL">&mdash;</dd>
       </dl>
       <div class="rot" style="margin-top:.7rem">Relógio <s>DS3231</s></div>
       <dl>
@@ -277,11 +285,32 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
       <button class="acao" id="btShot">Puxar shot</button>
       <span class="vaz" id="vVazao">&mdash;</span>
       <span class="crono" id="vCrono">0.0<u>s</u></span>
+      <button class="cfg" id="btHist" aria-haspopup="dialog"
+              title="Shots gravados no cartão">☰</button>
       <button class="cfg" id="btCfg" aria-haspopup="dialog"
               title="Configurações e simulação">⚙</button>
     </div>
   </div>
 </div>
+</div>
+
+<!-- Histórico. Lê os CSV gravados no cartão: cada linha é um shot fechado, com o
+     resultado que importa julgar depois — quanto saiu, em quanto tempo, e a que
+     vazão média. Clicar abre a curva de pressão daquele shot. -->
+<div class="modal" id="mhist" role="dialog" aria-label="shots gravados">
+  <div class="mcab" id="mhcab">
+    <span class="rot">Shots gravados <s id="hSub">cartão</s></span>
+    <button class="fechar" id="btHFechar" aria-label="fechar">&times;</button>
+  </div>
+  <div class="mcorpo">
+    <table class="hist"><tbody id="hLista"></tbody></table>
+    <p class="dica" id="hVazio">Nenhum shot no cartão ainda.</p>
+    <div class="hdet" id="hDet" hidden>
+      <div class="rot sec" id="hDetNome">&mdash;</div>
+      <canvas id="hPlot"></canvas>
+      <p class="dica" id="hDetInfo">&mdash;</p>
+    </div>
+  </div>
 </div>
 
 <!-- Modal de simulação. Arrastável porque ele se sobrepõe justamente ao painel que
@@ -341,12 +370,8 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
 <script>
 var N=120;
 var ws=null, tNum=0, i2cAnt='';
-var NOMES={0x29:'VL53L1X',0x48:'ADS1115',0x57:'EEPROM',0x68:'DS3231',
+var NOMES={0x48:'ADS1115',0x57:'EEPROM',0x68:'DS3231',
            0x76:'BME680',0x77:'BME680'};
-// range status da ST. Só o 0 é medida boa; o resto explica POR QUE não é, o que
-// é a diferença entre "o sensor mente" e "o sensor avisou e ninguém leu".
-var QUAL={0:'válida',1:'sigma alto',2:'sinal fraco',4:'fora de alcance',
-          5:'falha de hardware',7:'wraparound'};
 function hex(a){return '0x'+(a<16?'0':'')+a.toString(16);}
 function env(s){ if(ws&&ws.readyState===1) ws.send(s); }
 
@@ -474,63 +499,139 @@ function desenhaTrem(frac){
 }
 addEventListener('resize',function(){desenhaTrem(dutyAtual);desenhaPlot();});
 
-/* ------------------------------------------------------------------ ToF
-   O sensor mede a 10 Hz e o WebSocket empurra a 30: sem o contador `tn` a
-   página contaria a mesma leitura três vezes. Faixa, válidas, sigma e sinal
-   olham 1 s inteiro porque respondem "dá para confiar?" — janela curta mente. */
-var tofBuf=[], tofN=-1;
-function mediana(v){var c=v.slice().sort(function(a,b){return a-b;});return c[c.length>>1];}
-function mostraTof(){
- var n=tofBuf.length; if(!n)return;
- var sg=0,sn=0,am=0,ok=0,lo=1/0,hi=-1/0,ruim=0;
- for(var i=0;i<n;i++){
-  var b=tofBuf[i];
-  sg+=b[2];sn+=b[3];am+=b[4];
-  if(b[0]<lo)lo=b[0];
-  if(b[0]>hi)hi=b[0];
-  if(b[1]===0)ok++; else ruim=b[1];
- }
- var med=mediana(tofBuf.slice(-3).map(function(b){return b[0];}));
- dD.textContent=(med/10).toFixed(1)+' cm';
- dF.textContent=(lo/10).toFixed(1)+'–'+(hi/10).toFixed(1)+' cm';
- dQ.textContent=ok+'/'+n+(ok===n?' válidas':' · '+(QUAL[ruim]||('cód '+ruim)));
- dS.textContent=Math.round(sg/n)+' mm';
- dN.textContent=Math.round(sn/n)+' kcps';
- // Luz ambiente é IV que entra sem ter saído do sensor. Ela ENVIESA a distância,
- // e como o sinal do alvo cai com o quadrado enquanto o ambiente é constante, o
- // viés cresce com a distância — parece erro de escala. O que importa é a RAZÃO.
- var amb=Math.round(am/n);
- dA.textContent=amb+' kcps';
- dA.style.color=amb>sn/n?'var(--brasa)':'';
+/* ---------------------------------------------------------- ultrassônico
+   Substituiu o VL53L1X. O ToF saiu por dois motivos independentes: era
+   fotodetector de infravermelho (a luz da sala entregava mais IV que o alvo) e
+   sua zona útil colidia com o piso de ~4 cm da peça, que é justo onde fica o
+   "cheio" deste tanque. O AJ-SR04T, à prova d'água, é pior ainda: 25 cm de zona
+   cega contra um tanque de 4 a 25 cm.
+
+   Aqui a saúde do sensor não é sinal nem sigma — é a TAXA DE ECOS. Eco parado
+   com distância congelada é sensor mudo, e sem esta contagem isso pareceria uma
+   leitura estabilíssima. Foi exatamente o modo de falha que enganou a gente
+   quando a calibração do ToF deixou o ranging parado. */
+function mostraUltra(d){
+ uD.textContent=d.uok?(d.umm/10).toFixed(1)+' cm':'sem janela';
+ // Faixa e contagem de válidas ficam ao lado da mediana porque mediana sozinha
+ // esconde justamente o que se quer investigar: 73,1 cm com aparência de firmeza
+ // e 0/30 válidas foi como o ToF enganou a gente.
+ uR.textContent=d.uok?(d.ulo/10).toFixed(1)+'–'+(d.uhi/10).toFixed(1)+' cm':'—';
+ uV.textContent=d.uv+'/'+d.ut;
+ uE.textContent=d.uhz.toFixed(1)+' Hz';
+ var pc=Math.max(0,Math.min(100,100*(250-d.umm)/(250-40)));
+ uL.textContent=d.uok?pc.toFixed(0)+' %':'—';
+ var ruim=!d.uok||d.uhz<5;
+ uD.style.color=ruim?'var(--brasa)':'';
+ uE.style.color=d.uhz<5?'var(--brasa)':'';
 }
 
 /* ------------------------------------------------------------ modal arrastável
    Ele tapa justamente o painel que se quer avaliar; fixo seria inútil. Ponteiro
    unificado (mouse e toque pelo mesmo evento) e limitado à viewport, senão dá
    para arrastar a barra de título para fora e perder o modal. */
-var mx=0,my=0,arrastando=false;
-function posMod(x,y){
- var r=modal.getBoundingClientRect();
- x=Math.max(4,Math.min(innerWidth-r.width-4,x));
- y=Math.max(4,Math.min(innerHeight-36,y));
- modal.style.left=x+'px';modal.style.top=y+'px';modal.style.transform='none';
+function arrastavel(cx,cab,fechar){
+ var mx=0,my=0,on=false;
+ cab.addEventListener('pointerdown',function(e){
+  if(e.target===fechar)return;
+  on=true;cab.classList.add('arrastando');
+  var r=cx.getBoundingClientRect();
+  mx=e.clientX-r.left;my=e.clientY-r.top;
+  cab.setPointerCapture(e.pointerId);
+ });
+ cab.addEventListener('pointermove',function(e){
+  if(!on)return;
+  var r=cx.getBoundingClientRect();
+  // limitado à viewport: sem isto dá para arrastar a barra de título para fora
+  // da tela e perder o modal sem jeito de trazer de volta
+  var x=Math.max(4,Math.min(innerWidth-r.width-4,e.clientX-mx));
+  var y=Math.max(4,Math.min(innerHeight-36,e.clientY-my));
+  cx.style.left=x+'px';cx.style.top=y+'px';cx.style.transform='none';
+ });
+ cab.addEventListener('pointerup',function(){on=false;cab.classList.remove('arrastando');});
+ fechar.onclick=function(){cx.classList.remove('aberto');};
 }
-mcab.addEventListener('pointerdown',function(e){
- if(e.target===btFechar)return;
- arrastando=true;mcab.classList.add('arrastando');
- var r=modal.getBoundingClientRect();
- mx=e.clientX-r.left;my=e.clientY-r.top;
- mcab.setPointerCapture(e.pointerId);
-});
-mcab.addEventListener('pointermove',function(e){
- if(arrastando)posMod(e.clientX-mx,e.clientY-my);
-});
-mcab.addEventListener('pointerup',function(){arrastando=false;mcab.classList.remove('arrastando');});
-btCfg.onclick=function(){
- var ab=modal.classList.toggle('aberto');
- if(ab&&modal.style.left==='')modal.style.transform='translateX(-50%)';
-};
-btFechar.onclick=function(){modal.classList.remove('aberto');};
+function abrir(cx){
+ var ab=cx.classList.toggle('aberto');
+ if(ab&&cx.style.left==='')cx.style.transform='translateX(-50%)';
+ return ab;
+}
+arrastavel(modal,mcab,btFechar);
+arrastavel(mhist,mhcab,btHFechar);
+btCfg.onclick=function(){abrir(modal);};
+
+/* ------------------------------------------------------------ histórico
+   Os CSV do cartão. A tabela mostra o RESULTADO de cada shot — massa, tempo e
+   vazão média — porque é isso que se compara entre um shot e outro; a curva
+   inteira só aparece quando você escolhe um.
+
+   Ler o arquivo é caro (vem do SD por HTTP, sem cache), então só acontece no
+   clique. A lista sozinha vem do endpoint de listagem, que é barato. */
+function resumo(csv){
+ var l=csv.trim().split('\n').filter(function(x){return x&&x[0]!=='#';});
+ var col=l.shift().split(',');
+ var it=col.indexOf('t_s'), ig=col.indexOf('massa_g'), ip=col.indexOf('pressao_bar');
+ var pts=[],tf=0,gf=0;
+ l.forEach(function(x){
+  var v=x.split(',');
+  var t=+v[it], g=+v[ig], p=+v[ip];
+  if(isNaN(t))return;
+  pts.push([t,p,g]); tf=t; gf=g;
+ });
+ return {pts:pts,t:tf,g:gf,q:tf>0?gf/tf:0};
+}
+function desenhaHist(r){
+ var cv=hPlot,ctx=cv.getContext('2d'),dpr=devicePixelRatio||1;
+ var w=cv.clientWidth,h=cv.clientHeight;
+ if(!w||!h||!r.pts.length)return;
+ if(cv.width!==Math.round(w*dpr)){cv.width=w*dpr;cv.height=h*dpr;}
+ ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+ var tmax=r.t||1, gmax=Math.max(r.g,1);
+ var eb=14;
+ // Mesma convenção do painel ao vivo: pressão em azul com escala fixa 0-12,
+ // massa em verde com escala própria. Quem já leu o painel lê isto sem legenda.
+ [[1,12,'#3d86c8'],[2,gmax,'#7a9a5b']].forEach(function(s){
+  ctx.strokeStyle=s[2];ctx.lineWidth=2;ctx.beginPath();
+  r.pts.forEach(function(p,i){
+   var x=p[0]/tmax*(w-4)+2, y=h-eb-(p[s[0]]/s[1])*(h-eb-4);
+   i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+  });
+  ctx.stroke();
+ });
+ ctx.fillStyle='#5d564c';ctx.font='9px ui-monospace,Menlo,monospace';
+ ctx.textAlign='left';ctx.fillText('0 s',2,h-3);
+ ctx.textAlign='right';ctx.fillText(tmax.toFixed(0)+' s',w-2,h-3);
+}
+var histCarregado=0;
+function carregaHist(){
+ fetch('/sd').then(function(r){return r.json();}).then(function(j){
+  hSub.textContent=j.montado?('cartão · '+(j.livre_kb/1024).toFixed(0)+' MB livres')
+                            :'sem cartão';
+  var fs=(j.shots||[]).sort(function(a,b){return a.n<b.n?1:-1;});
+  hVazio.hidden=fs.length>0;
+  hLista.innerHTML='';
+  fs.forEach(function(f){
+   var tr=document.createElement('tr');
+   tr.innerHTML='<td>'+f.n.replace('.csv','')+'</td><td class="q">'+
+                (f.b/1024).toFixed(1)+' kB</td><td class="g">ver</td>';
+   tr.onclick=function(){
+    [].forEach.call(hLista.children,function(x){x.classList.remove('sel');});
+    tr.classList.add('sel');
+    fetch('/sd?f='+encodeURIComponent(f.n)).then(function(r){return r.text();})
+     .then(function(csv){
+      var r=resumo(csv);
+      hDet.hidden=false;
+      hDetNome.textContent=f.n.replace('.csv','');
+      hDetInfo.textContent=r.g.toFixed(1)+' g em '+r.t.toFixed(1)+' s · '+
+                           r.q.toFixed(2)+' g/s médio · '+r.pts.length+' amostras';
+      desenhaHist(r);
+      tr.children[2].textContent=r.g.toFixed(1)+' g';
+     });
+   };
+   hLista.appendChild(tr);
+  });
+ }).catch(function(){hSub.textContent='cartão não respondeu';});
+}
+btHist.onclick=function(){ if(abrir(mhist)) carregaHist(); };
 
 /* --------------------------------------------------------- controles do modal */
 function liga(el,cmd,fmt,alvo){
@@ -607,7 +708,7 @@ function pinta(d){
  // nível vem da máquina, não mais do ToF
  agua.style.height=m.niv.toFixed(0)+'%';
  nivel.textContent=Math.round(m.niv)+'%';
- nDist.textContent='';
+ nDist.textContent=d.uok?(d.umm/10).toFixed(0)+' cm':'';
  trilho.classList.toggle('ruim',m.niv<=2);
 
  if(t-tAmostra>PASSO){tAmostra=t;amostra(m.tb,m.pr);}
@@ -635,12 +736,7 @@ function pinta(d){
    aP.textContent=(d.pa/100).toFixed(1)+' hPa';
    aG.textContent=(d.gas/1000).toFixed(1)+' kΩ';
   }
-  if(d.tof&&d.tn!==tofN){
-   tofN=d.tn;
-   tofBuf.push([d.mm,d.dst,d.sg,d.sn,d.amb]);
-   if(tofBuf.length>10)tofBuf.shift();
-   mostraTof();
-  }
+  mostraUltra(d);
   if(i2cAnt!==d.i2c.join(',')){
    i2cAnt=d.i2c.join(',');
    aFonte.textContent=d.i2c.map(function(a){return (NOMES[a]||'?')+' '+hex(a);})

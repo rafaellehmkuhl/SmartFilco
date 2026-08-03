@@ -1,0 +1,15 @@
+# Tabela de partições — o padrão do IDF dá 1 MB ao app, e o binário passou disso
+# quando o FATFS entrou (microSD). A placa é N16R8: 16 MB de flash, então apertar
+# aqui não economiza nada de real.
+#
+# 4 MB no app deixa folga para o que ainda vem: LVGL não entra (vai para a outra
+# MCU), mas entram os drivers de MAX31865, ADS1115 e célula de carga, mais o
+# ProfileModule e o histórico.
+#
+# ⚠️ Mudar esta tabela depois invalida a NVS — as credenciais de Wi-Fi e as
+# configurações persistidas somem. Por isso o tamanho já nasce folgado.
+
+# Nome,     Tipo, SubTipo,  Offset,   Tamanho
+nvs,        data, nvs,      0x9000,   0x6000
+phy_init,   data, phy,      0xf000,   0x1000
+factory,    app,  factory,  0x10000,  4M

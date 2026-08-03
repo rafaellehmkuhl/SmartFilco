@@ -44,7 +44,12 @@
 #define C_HIDRAULICA 0.35f  // complacência: quanto a pressão demora a formar
 
 #define DOSE_G 18.0f
-#define ABSORCAO 2.0f       // g de água retidos por g de café, antes de pingar
+// ⚠️ Isto é o quanto o puck precisa absorver ANTES de deixar passar a primeira
+// gota — não a retenção total. Estavam trocados: com 2,0 g/g o modelo segurava
+// 36 g de água antes de pingar, e a xícara só começava a encher aos 24 s. Um
+// puck real deixa passar a partir de ~6 s. A retenção total continua sendo ~2
+// g/g, mas ela acontece ao longo do shot, não como portão na entrada.
+#define ABSORCAO 0.6f
 
 #define TANQUE_CM2 100.0f   // área do reservatório: 1 g tira 0,1 mm de coluna
 #define NIVEL_CHEIO 40.0f

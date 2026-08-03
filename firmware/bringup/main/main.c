@@ -21,6 +21,8 @@
 #include "hal.h"
 #include "maquina.h"
 #include "rtc.h"
+#include "sd.h"
+#include "ultra.h"
 #include "tof.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
@@ -99,6 +101,13 @@ static volatile uint16_t s_dist_sigma, s_dist_sinal, s_dist_amb;
 static volatile int16_t s_offset_mm;   // calibração de offset, só em RAM
 static volatile uint16_t s_dist_n;     // nº da medida; a página usa p/ não contar repetida
 static volatile uint16_t s_dist_mm2;   // contraprova via GetDistance
+
+// Ultrassônico publicado CRU, independente do modo do HAL. Em simulação o
+// `real_ler()` não roda, e sem isto o sensor ficaria mudo justamente quando se
+// quer comparar a leitura de verdade com a do modelo.
+static volatile float s_u_mm, s_u_lo, s_u_hi, s_u_hz;
+static volatile bool s_u_ok;
+static volatile uint8_t s_u_val, s_u_tot;
 
 // Relógio. `s_rtc_fonte` é o que dá crédito à hora: sem ele o painel mostraria um
 // horário formatadinho vindo de um oscilador que parou em 2019.
@@ -421,6 +430,15 @@ static void tarefa_i2c(void *arg)
             }
         }
 
+        // HC-SR04: lê o eco do disparo anterior e dispara de novo. Separados
+        // porque o eco leva até 25 ms e esta task roda a cada 100 ms.
+        ultra_med_t um;
+        ultra_ler(&um);
+        s_u_mm = um.mm; s_u_lo = um.min_mm; s_u_hi = um.max_mm;
+        s_u_ok = um.valida; s_u_val = um.validas; s_u_tot = um.total;
+        s_u_hz = um.hz;
+        ultra_set_temp((float)s_temp_c100 / 100.0f);   // corrige a velocidade do som
+
         if (ciclo++ % (SCAN_MS / SENSOR_MS) != 0) {
             vTaskDelay(pdMS_TO_TICKS(SENSOR_MS));
             continue;
@@ -542,13 +560,16 @@ static int montar_json(char *buf, size_t tam)
     p += snprintf(buf + p, tam - p,
                   "],\"bme\":%d,\"t\":%ld,\"pa\":%lu,\"rh\":%lu,\"gas\":%lu,"
                   "\"tof\":%d,\"mm\":%u,\"dst\":%u,\"sg\":%u,\"sn\":%u,\"amb\":%u,\"tn\":%u,"
-                  "\"rtc\":%d,\"hr\":\"%s\",\"dt\":\"%s\",\"rtemp\":%d,\"fonte\":\"%s\"}",
+                  "\"rtc\":%d,\"hr\":\"%s\",\"dt\":\"%s\",\"rtemp\":%d,\"fonte\":\"%s\","
+                  "\"sd\":%d,\"sdkb\":%llu,\"umm\":%.0f,\"uok\":%d,\"ulo\":%.0f,\"uhi\":%.0f,\"uv\":%u,\"ut\":%u,\"uhz\":%.1f",
                   bme_ok ? 680 : 0,
                   (long)s_temp_c100, (unsigned long)s_press_pa, (unsigned long)s_umid_pct100,
                   (unsigned long)s_gas_ohm,
                   tof_ok ? 1 : 0, s_dist_mm, s_dist_status,
                   s_dist_sigma, s_dist_sinal, s_dist_amb, s_dist_n,
-                  rtc_ok ? 1 : 0, s_hora, s_data, s_rtc_temp_c100, s_rtc_fonte);
+                  rtc_ok ? 1 : 0, s_hora, s_data, s_rtc_temp_c100, s_rtc_fonte,
+                  sd_montado() ? 1 : 0, (unsigned long long)sd_livre_kb(),
+                  s_u_mm, s_u_ok ? 1 : 0, s_u_lo, s_u_hi, s_u_val, s_u_tot, s_u_hz);
 
     // --- máquina. Floats saem com casa decimal já formatada: a página não deve
     //     ter que saber a escala de cada grandeza.
@@ -566,7 +587,7 @@ static int montar_json(char *buf, size_t tam)
                   "\"q\":%.2f,\"niv\":%.0f,\"ap\":%.2f,\"ssr\":%.2f,\"bmb\":%.2f,"
                   "\"t\":%.1f,\"falha\":\"%s\",\"sim\":%d,"
                   "\"sp\":%.1f,\"alvo\":%.0f,\"tmax\":%.0f,"
-                  "\"vaz\":%.2f,\"tagua\":%.1f,\"w\":%.0f}",
+                  "\"vaz\":%.2f,\"tagua\":%.1f,\"w\":%.0f}}",
                   NOMES[m.estado], m.t_boiler, m.pressao, m.massa, m.vazao,
                   m.nivel_pct, m.alvo_pressao, m.ssr, m.bomba, m.shot_s,
                   m.falha ? m.falha : "",
@@ -580,7 +601,7 @@ static int montar_json(char *buf, size_t tam)
 // WebSocket; este aqui é para checar a placa de um terminal sem cliente WS.
 static esp_err_t h_rgb(httpd_req_t *req)
 {
-    char buf[512];   // folga: truncar aqui vira JSON inválido, e a página quebra calada
+    char buf[800];   // folga: truncar aqui vira JSON inválido, e a página quebra calada
     int n = montar_json(buf, sizeof(buf));
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
@@ -645,6 +666,35 @@ static esp_err_t h_tof(httpd_req_t *req)
                      osc, modo, orc, per);
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    return httpd_resp_send(req, buf, n);
+}
+
+// ------------------------------------------------- bancada: cartão e shots
+//
+// `GET /sd`            lista os shots gravados
+// `GET /sd?f=<nome>`   devolve o CSV cru, para conferir de um terminal
+static esp_err_t h_sd(httpd_req_t *req)
+{
+    char q[96], nome[48];
+    if (httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK
+        && httpd_query_key_value(q, "f", nome, sizeof(nome)) == ESP_OK) {
+        // Só o diretório de shots, e sem "..": endpoint de bancada não precisa
+        // virar leitor de sistema de arquivos inteiro.
+        if (strstr(nome, "..")) return httpd_resp_send_404(req);
+        char cam[80];
+        snprintf(cam, sizeof(cam), "/sd/shots/%s", nome);
+        FILE *f = fopen(cam, "r");
+        if (!f) return httpd_resp_send_404(req);
+        httpd_resp_set_type(req, "text/csv");
+        char linha[128];
+        while (fgets(linha, sizeof(linha), f))
+            httpd_resp_send_chunk(req, linha, HTTPD_RESP_USE_STRLEN);
+        fclose(f);
+        return httpd_resp_send_chunk(req, NULL, 0);
+    }
+    char buf[1024];
+    int n = sd_listar(buf, sizeof(buf));
+    httpd_resp_set_type(req, "application/json");
     return httpd_resp_send(req, buf, n);
 }
 
@@ -745,7 +795,7 @@ static esp_err_t h_ws(httpd_req_t *req)
 // morto — e nunca fica dessincronizado.
 static void tarefa_ws(void *arg)
 {
-    char buf[512];   // folga: truncar aqui vira JSON inválido, e a página quebra calada
+    char buf[800];   // folga: truncar aqui vira JSON inválido, e a página quebra calada
     int fds[MAX_SOCKS];
 
     while (1) {
@@ -791,12 +841,14 @@ static void http_iniciar(void)
 
     httpd_uri_t u_pag = { .uri = "/", .method = HTTP_GET, .handler = h_pagina };
     httpd_uri_t u_rgb = { .uri = "/rgb", .method = HTTP_GET, .handler = h_rgb };
+    httpd_uri_t u_sd = { .uri = "/sd", .method = HTTP_GET, .handler = h_sd };
     httpd_uri_t u_tof = { .uri = "/tof", .method = HTTP_GET, .handler = h_tof };
     httpd_uri_t u_ws = {
         .uri = "/ws", .method = HTTP_GET, .handler = h_ws, .is_websocket = true
     };
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_pag));
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_rgb));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_sd));
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_tof));
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_ws));
 
@@ -822,6 +874,7 @@ void app_main(void)
     tiras[0] = criar_tira(PIN_A);
     tiras[1] = criar_tira(PIN_B);
 
+    if (sd_iniciar() != ESP_OK) ESP_LOGW(TAG, "seguindo sem cartão");
     i2c_iniciar();
     // varredura fora do core de tempo-real: probe bloqueia por até 20 ms/endereço
     xTaskCreatePinnedToCore(tarefa_i2c, "i2c", 4096, NULL, 3, NULL, CORE_NET);

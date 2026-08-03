@@ -10,7 +10,9 @@
 // máquina não muda uma linha.
 
 #include "hal.h"
+
 #include "esp_log.h"
+#include "ultra.h"
 
 static const char *TAG = "hal";
 
@@ -41,9 +43,19 @@ static void real_ler(hal_ent_t *e)
     e->massa = 0.0f;
     e->falha_massa = true;
 
-    // PENDENTE — HC-SR04, TRIG no 15 e ECHO no 16 (⚠️ ECHO é 5 V, precisa de
-    // divisor ou do level shifter).
-    e->nivel_mm = 0.0f;
+    // ✅ HC-SR04 ligado. Dispara agora e lê o eco do disparo ANTERIOR — o eco
+    // leva até 25 ms para voltar e este laço roda a 100 Hz, então esperar aqui
+    // seria bloquear o controle por 2,5 ciclos.
+    // A task do ultrassônico amostra a 20 Hz e entrega a MEDIANA de 1,6 s — ler
+    // aqui é só pegar o resultado, sem bloquear o laço de controle.
+    ultra_med_t u;
+    ultra_ler(&u);
+    // Sem janela válida, congela o último bom em vez de zerar. Zero = "tanque
+    // cheio", e mandar a máquina achar que tem água por causa de uma janela
+    // perdida é exatamente o contrário da proteção de bomba a seco.
+    static float ult_bom = 250.0f;
+    if (u.valida) ult_bom = u.mm;
+    e->nivel_mm = ult_bom;
 }
 
 static void real_escrever(const hal_sai_t *s)
@@ -62,6 +74,10 @@ static void real_escrever(const hal_sai_t *s)
 void hal_iniciar(void)
 {
     sim_iniciar();
+    // O ultrassônico sobe mesmo em modo simulado: assim dá para comparar a
+    // leitura real com a do modelo lado a lado, que é como se descobre que o
+    // modelo está mentindo antes de confiar nele.
+    if (ultra_iniciar() != ESP_OK) ESP_LOGW(TAG, "hc-sr04 não iniciou");
     ESP_LOGI(TAG, "modo=%s", s_modo == HAL_SIM ? "SIMULADO" : "real");
 }
 
