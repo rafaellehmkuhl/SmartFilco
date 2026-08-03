@@ -41,6 +41,16 @@
   background:var(--painel);border:1px solid var(--linha);border-radius:.6rem;
   box-shadow:0 18px 50px rgba(0,0,0,.6);display:none;
   max-height:82vh;overflow:auto}
+/* O histórico é para COMPARAR shots: lista e curva têm que caber juntas na tela,
+   senão vira rolagem entre uma e outra e a comparação se perde. */
+#mhist{width:70vw;height:70vh;max-height:70vh;top:15vh;display:none;
+  flex-direction:column}
+#mhist.aberto{display:flex}
+#mhist .mcorpo{flex:1;min-height:0;display:grid;
+  grid-template-columns:minmax(11rem,26%) 1fr;gap:.8rem;overflow:hidden}
+#mhist .hlado{overflow:auto;min-height:0}
+#mhist .hdet{margin:0;padding:0;border:0;display:flex;flex-direction:column;min-height:0}
+#hPlot{display:block;width:100%;flex:1;min-height:0;height:auto}
 .modal.aberto{display:block}
 .mcab{display:flex;align-items:center;gap:.6rem;padding:.5rem .7rem;
   border-bottom:1px solid var(--linha);cursor:grab;user-select:none;
@@ -74,7 +84,6 @@ table.hist tr.sel td{color:var(--crema)}
 table.hist td.q{text-align:right;color:var(--cinza)}
 table.hist td.g{text-align:right;color:var(--osso);font-weight:600}
 .hdet{margin-top:.7rem;padding-top:.5rem;border-top:1px solid var(--linha)}
-#hPlot{display:block;width:100%;height:7rem}
 
 /* faixa de falha: ocupa a barra de estado inteira, não é um ícone discreto */
 .topo.falha{background:rgba(212,85,63,.12)}
@@ -83,7 +92,7 @@ table.hist td.g{text-align:right;color:var(--osso);font-weight:600}
 html,body{height:100%}
 body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
   font:400 1rem/1.45 ui-monospace,SFMono-Regular,Menlo,monospace}
-.app{height:100%;display:grid;grid-template-columns:4.6rem 1fr;grid-template-rows:auto 1fr;
+.app{height:100%;display:grid;grid-template-columns:4.6rem 1fr 8.2rem;grid-template-rows:auto 1fr;
   gap:.7rem;padding:.55rem .7rem .7rem;
   /* trava a proporção: sem isso um monitor ultrawide estica o painel numa tira */
   max-width:calc(100vh * 1.9);margin-inline:auto;width:100%}
@@ -102,11 +111,21 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
 
 /* Relógio: tabular-nums para os dígitos não dançarem a cada segundo. Fica em brasa
    quando a hora não tem procedência — hora bonita e inventada é pior que "--:--". */
-.relogio{margin-left:auto;font-size:.82rem;font-variant-numeric:tabular-nums;
+.relogio{margin-left:auto;margin-right:.2rem;font-size:.82rem;font-variant-numeric:tabular-nums;
   color:var(--cinza);letter-spacing:.02em}
 .relogio.suspeita{color:var(--brasa)}
 
 /* ---- bandeja de ambiente (canto superior direito) ---- */
+/* Ícone da barra: mesma caixa do botão da bandeja, para os dois lerem como o
+   mesmo tipo de controle. `margin-left:auto` sai do .tray e vem para cá, que
+   agora é o primeiro item do bloco da direita. */
+.ico{margin-left:auto;background:var(--painel);border:1px solid var(--linha);
+  border-radius:.43rem;width:1.9rem;height:1.55rem;cursor:pointer;padding:0;
+  display:flex;align-items:center;justify-content:center}
+.ico:hover{border-color:var(--fosco)}
+.ico svg{width:.95rem;height:.95rem;stroke:var(--cinza);fill:none;stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round}
+.ico:hover svg{stroke:var(--osso)}
 .tray{position:relative}
 .tray>button{display:flex;align-items:center;gap:.45rem;background:var(--painel);
   color:var(--cinza);border:1px solid var(--linha);border-radius:.43rem;
@@ -149,26 +168,31 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
 /* Números grandes à esquerda, gráfico à direita: a coluna dos valores não rouba
    altura do plot, e cada valor fica colado na linha que ele representa.          */
 .graf{background:var(--painel);border:1px solid var(--linha);border-radius:.72rem;
-  padding:.8rem .9rem .6rem;display:grid;grid-template-columns:13.6rem 1fr;
+  padding:.8rem .9rem .6rem;display:grid;grid-template-columns:10.4rem 1fr;
   grid-template-rows:1fr auto;column-gap:1.15rem;min-height:0;min-width:0}
 .pilha{display:flex;flex-direction:column;justify-content:space-evenly;min-height:0}
 .rot{font-family:ui-sans-serif,system-ui,sans-serif;font-size:.62rem;font-weight:600;
   letter-spacing:.17em;text-transform:uppercase;color:var(--cinza)}
 .rot s{text-decoration:none;color:var(--fosco);font-weight:400;letter-spacing:.07em}
 /* identidade da série vem da marca colorida, não do número: valor é tinta de texto */
-.metr .rot{display:flex;align-items:center;gap:.42rem;white-space:nowrap}
+/* O número reserva uma vaga de sinal (ver `num()` no script). Sem compensar
+   aqui, o rótulo fica alinhado com o MENOS e o número parece deslocado à
+   direita. A largura vem medida em JS na fonte real do número — calcular no CSS
+   dependeria de supor o avanço da monoespaçada. */
+.metr .rot{display:flex;align-items:center;gap:.42rem;white-space:nowrap;
+  padding-left:var(--sinal,0px)}
 .pt{width:.65rem;height:.65rem;border-radius:.14rem;flex:none}
 /* Monoespaçada EXPLÍCITA e tabular-nums: número que muda 4x/s não pode mudar de
    largura junto. O sinal ganha um espaço reservado no JS (ver `num()`) — sem
    isso "0,0" virando "-0,0" empurra o valor inteiro um caractere para o lado, e
    o que se vê é o número tremendo em vez de variando. */
-.big{font-size:3.6rem;line-height:1;letter-spacing:-.045em;margin-top:.1rem;
+.big{font-size:2.5rem;line-height:1;letter-spacing:-.045em;margin-top:.1rem;
   font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
   font-variant-numeric:tabular-nums}
 .big u{text-decoration:none;font-size:1rem;letter-spacing:0;color:var(--cinza);
   margin-left:.25rem}
 /* slot ainda sem sensor: guarda o lugar sem fingir um número */
-.metr.frio .big{color:var(--fosco);font-size:2.2rem}
+.metr.frio .big{color:var(--fosco);font-size:1.7rem}
 .metr.frio .big u{vertical-align:.42em;margin-left:.18rem}
 .tela{position:relative;min-width:0;min-height:0}
 #plot{position:absolute;inset:0;width:100%;height:100%}
@@ -176,6 +200,28 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
   margin-top:.5rem;padding-top:.45rem;border-top:1px solid var(--linha);
   font-family:ui-sans-serif,system-ui,sans-serif;font-size:.63rem;color:var(--fosco)}
 .rodape span+span{white-space:nowrap}
+
+/* ---- perfil, coluna da direita ----
+   Espelha o trilho do reservatório à esquerda: o painel fica com sensor de um
+   lado e ajuste do outro. Botões +/- em vez de slider porque a tela é de toque e
+   pequena — slider de 8 rem numa tela de 4,3" não dá para acertar 0,5 bar com o
+   dedo, e o valor exato importa mais que a velocidade do ajuste. */
+.perfil{display:flex;flex-direction:column;gap:.35rem;min-height:0;overflow:auto}
+.ctr{background:var(--painel);border:1px solid var(--linha);border-radius:.5rem;
+  padding:.3rem .35rem .35rem}
+.ctr .cl{display:block;font-family:ui-sans-serif,system-ui,sans-serif;
+  font-size:.55rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--cinza);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cv{display:flex;align-items:center;gap:.15rem;margin-top:.1rem}
+.cv b{flex:1;text-align:center;font-size:.9rem;font-weight:500;
+  font-variant-numeric:tabular-nums}
+.cv button{width:1.5rem;height:1.5rem;flex:none;background:var(--graf);
+  border:1px solid var(--linha);border-radius:.3rem;color:var(--osso);
+  font:inherit;font-size:.9rem;line-height:1;cursor:pointer;padding:0}
+.cv button:active{background:var(--crema);color:#1a1510}
+.perfil .tit{font-family:ui-sans-serif,system-ui,sans-serif;font-size:.55rem;
+  font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--fosco);
+  margin:.15rem 0 0}
 
 /* ---- assinatura: trem de pulsos ---- */
 .psm{border:1px solid var(--linha);border-radius:.72rem;background:var(--painel);
@@ -199,6 +245,10 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
   .nivel{height:80px}
   .nivel .eixo{writing-mode:horizontal-tb;transform:translateX(-50%);top:6px}
   .graf{grid-template-columns:1fr 1fr;grid-template-rows:auto 170px auto}
+  .perfil{flex-direction:row;flex-wrap:wrap;overflow:visible}
+  .ctr{flex:1 1 8rem}
+  #mhist{width:96vw;height:88vh;top:6vh}
+  #mhist .mcorpo{grid-template-columns:1fr;grid-template-rows:auto 1fr}
   .pilha{flex-direction:row;justify-content:space-between;gap:1rem}
   .tela{grid-column:1/-1}
   .big{font-size:2.6rem}
@@ -210,6 +260,14 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
   <span class="marca">SmartFilco</span>
   <span class="estado" id="estado"><i class="led" id="led"></i><span id="txtEstado">conectando</span></span>
   <span class="relogio" id="relogio">&mdash;&mdash;:&mdash;&mdash;:&mdash;&mdash;</span>
+
+  <button class="ico" id="btHist" aria-haspopup="dialog" title="Shots gravados">
+    <!-- relógio com seta anti-horária: o ícone convencional de histórico. "☰" era
+         menu, que é outra coisa. -->
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4"/><path d="M12 7v5l3.5 2"/>
+    </svg>
+  </button>
 
   <div class="tray" id="tray">
     <button id="btAmb" aria-expanded="false" aria-controls="painelAmb">
@@ -268,6 +326,10 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
         <div class="rot"><i class="pt" style="background:var(--massa)"></i>Na xícara</div>
         <div class="big" id="vMassa">&mdash;<u>g</u></div>
       </div>
+      <div class="metr">
+        <div class="rot"><i class="pt" style="background:var(--fosco)"></i>Tempo</div>
+        <div class="big" id="vTempo">&mdash;<u>s</u></div>
+      </div>
     </div>
     <div class="tela"><canvas id="plot"></canvas></div>
     <div class="rodape">
@@ -289,12 +351,38 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
     <div class="ctrl">
       <button class="acao" id="btShot">Puxar shot</button>
       <span class="vaz" id="vVazao">&mdash;</span>
-      <span class="crono" id="vCrono">0.0<u>s</u></span>
-      <button class="cfg" id="btHist" aria-haspopup="dialog"
-              title="Shots gravados no cartão">☰</button>
+      <span class="vaz" id="vMotivo"></span>
       <button class="cfg" id="btCfg" aria-haspopup="dialog"
               title="Configurações e simulação">⚙</button>
     </div>
+  </div>
+</div>
+
+<div class="perfil">
+  <div class="tit">Perfil</div>
+  <div class="ctr" data-k="sp" data-p="0.5" data-c="1" data-u=" °C">
+    <span class="cl">Boiler</span>
+    <div class="cv"><button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button></div>
+  </div>
+  <div class="ctr" data-k="alvo" data-p="1" data-c="0" data-u=" g">
+    <span class="cl">Alvo</span>
+    <div class="cv"><button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button></div>
+  </div>
+  <div class="ctr" data-k="prebar" data-p="0.5" data-c="1" data-u=" bar">
+    <span class="cl">Pré-infusão</span>
+    <div class="cv"><button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button></div>
+  </div>
+  <div class="ctr" data-k="pres" data-p="1" data-c="0" data-u=" s">
+    <span class="cl">Pré · tempo</span>
+    <div class="cv"><button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button></div>
+  </div>
+  <div class="ctr" data-k="plato" data-p="0.5" data-c="1" data-u=" bar">
+    <span class="cl">Platô</span>
+    <div class="cv"><button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button></div>
+  </div>
+  <div class="ctr" data-k="declinio" data-p="0.5" data-c="1" data-u=" bar">
+    <span class="cl">Declínio</span>
+    <div class="cv"><button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button></div>
   </div>
 </div>
 </div>
@@ -308,10 +396,12 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
     <button class="fechar" id="btHFechar" aria-label="fechar">&times;</button>
   </div>
   <div class="mcorpo">
-    <table class="hist"><tbody id="hLista"></tbody></table>
-    <p class="dica" id="hVazio">Nenhum shot no cartão ainda.</p>
+    <div class="hlado">
+      <table class="hist"><tbody id="hLista"></tbody></table>
+      <p class="dica" id="hVazio">Nenhum shot no cartão ainda.</p>
+    </div>
     <div class="hdet" id="hDet" hidden>
-      <div class="rot sec" id="hDetNome">&mdash;</div>
+      <div class="rot" id="hDetNome">&mdash;</div>
       <canvas id="hPlot"></canvas>
       <p class="dica" id="hDetInfo">&mdash;</p>
     </div>
@@ -397,6 +487,21 @@ function num(v,casas){
  return (s.charAt(0)==='-'?'':'\u2007')+s;
 }
 function env(s){ if(ws&&ws.readyState===1) ws.send(s); }
+
+/* Mede a largura da vaga do sinal NA FONTE REAL do número e publica como
+   variável CSS, para o rótulo alinhar com os dígitos em vez de com o menos.
+   Medir em vez de calcular porque o avanço da monoespaçada depende da fonte que
+   o sistema escolheu — supor 0,6em erraria em metade das máquinas. Refaz no
+   resize porque a raiz é fluida. */
+function mediSinal(){
+ var p=document.createElement('span');
+ p.textContent='\u2007';
+ p.style.cssText='position:absolute;visibility:hidden;white-space:pre';
+ vTemp.appendChild(p);
+ var w=p.getBoundingClientRect().width;
+ p.remove();
+ document.documentElement.style.setProperty('--sinal',w.toFixed(2)+'px');
+}
 
 // bandeja por clique, não por hover: numa tela sensível ao toque hover não existe
 btAmb.onclick=function(){
@@ -542,7 +647,7 @@ function desenhaTrem(frac){
  conta.textContent=disp+' disparo'+(disp===1?'':'s');
  vDuty.innerHTML=Math.round(frac*100)+'<u>%</u>';
 }
-addEventListener('resize',function(){desenhaTrem(dutyAtual);desenhaPlot();});
+addEventListener('resize',function(){mediSinal();desenhaTrem(dutyAtual);desenhaPlot();});
 
 /* ---------------------------------------------------------- ultrassônico
    Substituiu o VL53L1X. O ToF saiu por dois motivos independentes: era
@@ -615,15 +720,22 @@ function resumo(csv){
  var l=csv.trim().split('\n').filter(function(x){return x&&x[0]!=='#';});
  var col=l.shift().split(',');
  var it=col.indexOf('t_s'), ig=col.indexOf('massa_g'), ip=col.indexOf('pressao_bar');
- var ia=col.indexOf('alvo_bar');
- var pts=[],tf=0,gf=0;
+ var ia=col.indexOf('alvo_bar'), ib=col.indexOf('t_boiler_c');
+ var pts=[],tf=0,gf=0,tlo=1/0,thi=-1/0;
  l.forEach(function(x){
   var v=x.split(',');
-  var t=+v[it], g=+v[ig], p=+v[ip], a=ia>=0?+v[ia]:NaN;
+  var t=+v[it], g=+v[ig], p=+v[ip];
+  var a=ia>=0?+v[ia]:NaN, b=ib>=0?+v[ib]:NaN;
   if(isNaN(t))return;
-  pts.push([t,p,g,a]); tf=t; gf=g;
+  if(!isNaN(b)){ if(b<tlo)tlo=b; if(b>thi)thi=b; }
+  pts.push([t,p,g,a,b]); tf=t; gf=g;
  });
- return {pts:pts,t:tf,g:gf,q:tf>0?gf/tf:0};
+ // Faixa da temperatura com vão mínimo de 3 °C: num shot bem controlado ela
+ // varia menos de 1 °C, e escala automática crua transformaria ruído em
+ // montanha. Mesma regra do gráfico ao vivo.
+ var c=(tlo+thi)/2, d=Math.max(thi-tlo,3)*1.2/2;
+ return {pts:pts,t:tf,g:gf,q:tf>0?gf/tf:0,
+         tf:isFinite(tlo)?[c-d,c+d]:null};
 }
 function desenhaHist(r){
  var cv=hPlot,ctx=cv.getContext('2d'),dpr=devicePixelRatio||1;
@@ -633,11 +745,22 @@ function desenhaHist(r){
  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
  var tmax=r.t||1, gmax=Math.max(r.g,1);
  var eb=14;
- // Mesma convenção do painel ao vivo: pressão em azul com escala fixa 0-12,
- // massa em verde com escala própria, e o ALVO de pressão tracejado atrás. É a
- // coluna que o CSV grava justamente para o gráfico mostrar não só o que
- // aconteceu, mas o que era para acontecer.
- [[3,12,'#3d86c8',1],[1,12,'#3d86c8',0],[2,gmax,'#7a9a5b',0]].forEach(function(s){
+ // Mesma convenção do painel ao vivo, e pela mesma razão: quem já leu o painel
+ // lê isto sem legenda. Pressão azul em escala fixa 0-12, massa verde em escala
+ // própria, TEMPERATURA em âmbar com faixa automática, e o alvo de pressão
+ // tracejado atrás — a coluna que o CSV grava para o gráfico mostrar não só o
+ // que aconteceu, mas o que era para acontecer.
+ //
+ // Cada série tem [índice, faixa, cor, tracejado]. `null` na faixa significa
+ // "não desenhe": arquivo antigo sem a coluna some da lista em vez de virar
+ // linha em zero.
+ var ft=r.tf;
+ [[3,[0,12],'#3d86c8',1],
+  [4,ft,'#c98330',0],
+  [1,[0,12],'#3d86c8',0],
+  [2,[0,gmax],'#7a9a5b',0]].forEach(function(s){
+  var f=s[1];
+  if(!f)return;
   ctx.save();
   ctx.strokeStyle=s[2];
   if(s[3]){ctx.globalAlpha=.42;ctx.lineWidth=1.5;ctx.setLineDash([4,4]);}
@@ -647,16 +770,25 @@ function desenhaHist(r){
   r.pts.forEach(function(p){
    var v=p[s[0]];
    if(isNaN(v))return;
-   var x=p[0]/tmax*(w-4)+2, y=h-eb-(v/s[1])*(h-eb-4);
+   var x=p[0]/tmax*(w-4)+2;
+   var y=h-eb-((v-f[0])/(f[1]-f[0]))*(h-eb-4);
    primeiro?ctx.moveTo(x,y):ctx.lineTo(x,y);
    primeiro=false;
   });
   ctx.stroke();
   ctx.restore();
  });
- ctx.fillStyle='#5d564c';ctx.font='9px ui-monospace,Menlo,monospace';
+ ctx.font='9px ui-monospace,Menlo,monospace';
+ ctx.fillStyle='#5d564c';
  ctx.textAlign='left';ctx.fillText('0 s',2,h-3);
  ctx.textAlign='right';ctx.fillText(tmax.toFixed(0)+' s',w-2,h-3);
+ // rótulo de eixo na cor da série, como no painel: é o que resolve "qual escala
+ // é de quem" sem gastar espaço com legenda
+ if(ft){
+  ctx.fillStyle='#c98330';ctx.textAlign='left';
+  ctx.fillText(ft[1].toFixed(1)+' °C',2,9);
+ }
+ ctx.fillStyle='#3d86c8';ctx.textAlign='right';ctx.fillText('12 bar',w-2,9);
 }
 var histCarregado=0;
 function carregaHist(){
@@ -729,6 +861,31 @@ btShot.onclick=function(){
  env(btShot.dataset.on==='1'?'shot stop':'shot start');
 };
 
+/* ---------------------------------------------------------- perfil (+/-)
+   O valor mostrado vem SEMPRE do firmware, nunca de um contador local: o
+   servidor é quem limita a faixa, e um espelho local acabaria mostrando 13 bar
+   enquanto a máquina guardou 12. O botão só pede; quem confirma é o próximo
+   quadro do WebSocket. */
+var ctrs=[].slice.call(document.querySelectorAll('.ctr'));
+ctrs.forEach(function(c){
+ var b=c.querySelector('b');
+ [].forEach.call(c.querySelectorAll('button'),function(bt){
+  bt.onclick=function(){
+   var v=parseFloat(b.dataset.v||'0')+(+bt.dataset.d)*(+c.dataset.p);
+   env('set '+c.dataset.k+' '+v.toFixed(2));
+  };
+ });
+});
+function pintaPerfil(m){
+ ctrs.forEach(function(c){
+  var v=m[c.dataset.k];
+  if(v===undefined)return;
+  var b=c.querySelector('b');
+  b.dataset.v=v;
+  b.textContent=(+v).toFixed(+c.dataset.c).replace('.',',')+c.dataset.u;
+ });
+}
+
 /* ---------------------------------------------------------------- render */
 var EXTRAINDO={'pré-infusão':1,'rampa':1,'platô':1,'declínio':1};
 
@@ -751,8 +908,10 @@ function pinta(d){
  // desabilitado diz isso antes, em vez de deixar descobrir na xícara.
  btShot.disabled=falhou||(!ext&&m.est!=='pronta');
 
- vCrono.innerHTML=m.t.toFixed(1)+'<u>s</u>';
  vVazao.textContent=ext?m.q.toFixed(1)+' g/s':'';
+ // o motivo do fim fica à vista enquanto o painel mostra o resultado: "fim"
+ // sozinho obriga a adivinhar entre bater o alvo e estourar o tempo
+ vMotivo.textContent=(m.est==='fim'&&m.mot)?('· '+m.mot):'';
  desenhaTrem(m.bmb);
  rotBomba.textContent=ext?('alvo '+m.ap.toFixed(1)+' bar'):'PSM';
  pePsm.textContent=d.m.sim
@@ -775,6 +934,8 @@ function pinta(d){
   vTemp.innerHTML=num(m.tb,1)+'<u>°C</u>';
   vPress.innerHTML=num(m.pr,1)+'<u>bar</u>';
   vMassa.innerHTML=num(m.g,1)+'<u>g</u>';
+  vTempo.innerHTML=num(m.t,1)+'<u>s</u>';
+  pintaPerfil(m);
   relogio.textContent=d.hr;
   // "INVÁLIDA" = o DS3231 avisou que o oscilador parou (OSF). A hora continua
   // à vista de propósito: esconder viraria "o relógio sumiu", e o que se quer
@@ -815,6 +976,6 @@ function liga_ws(){
  ws.onclose=function(){led.classList.remove('viva');txtEstado.textContent='reconectando';
   setTimeout(liga_ws,1000);};
 }
-desenhaPlot();desenhaTrem(0);liga_ws();
+mediSinal();desenhaPlot();desenhaTrem(0);liga_ws();
 </script>
 </body></html>
