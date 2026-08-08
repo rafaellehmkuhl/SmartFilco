@@ -40,6 +40,11 @@ typedef struct {
 
 // ---------------------------------------------------------------- interface
 
+// O barramento I²C é criado no main (BME680 e RTC já o usam); o HAL recebe o
+// handle em vez de criar o próprio, senão seriam dois drivers disputando os
+// mesmos pinos. Chamar ANTES de hal_iniciar.
+void hal_set_bus(void *bus);
+
 void hal_iniciar(void);
 void hal_ler(hal_ent_t *e);
 void hal_escrever(const hal_sai_t *s);

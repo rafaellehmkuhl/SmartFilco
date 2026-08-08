@@ -83,6 +83,20 @@ table.hist tr:hover td{background:rgba(201,160,106,.07)}
 table.hist tr.sel td{color:var(--crema)}
 table.hist td.q{text-align:right;color:var(--cinza)}
 table.hist td.g{text-align:right;color:var(--osso);font-weight:600}
+.modal.larga{width:min(34rem,94vw)}
+table.dbg{width:100%;border-collapse:collapse}
+table.dbg td{padding:.4rem .3rem;border-bottom:1px solid var(--linha);
+  font-size:.7rem;vertical-align:top}
+table.dbg tr:last-child td{border-bottom:0}
+table.dbg .nome{color:var(--osso);font-weight:600}
+table.dbg .onde{color:var(--fosco);font-size:.62rem;display:block;margin-top:.1rem}
+table.dbg .val{font-family:ui-monospace,Menlo,monospace;color:var(--cinza);
+  font-variant-numeric:tabular-nums;font-size:.68rem;line-height:1.5}
+table.dbg .saude{text-align:right;white-space:nowrap;font-size:.64rem}
+.pto{display:inline-block;width:.5rem;height:.5rem;border-radius:50%;
+  margin-right:.45rem;vertical-align:.05rem}
+.pto.ok{background:#7a9a5b} .pto.mau{background:var(--brasa)}
+.pto.duvida{background:var(--crema)} .pto.n{background:var(--fosco)}
 .hdet{margin-top:.7rem;padding-top:.5rem;border-top:1px solid var(--linha)}
 
 /* Falha vira CARD, com a mesma linguagem dos outros: fundo próprio, borda de
@@ -284,6 +298,12 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
   <div class="tdir">
   <button class="ico" id="btLang" title="Language / Idioma"><b id="lang">EN</b></button>
 
+  <button class="ico" id="btDbg" aria-haspopup="dialog" data-i18n-t="tt_dbg">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="4" y="9" width="16" height="11" rx="2"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/>
+      <path d="M2 14h2M20 14h2M6.5 5.5 8 7M17.5 5.5 16 7"/>
+    </svg>
+  </button>
   <button class="ico" id="btHist" aria-haspopup="dialog" data-i18n-t="tt_hist">
     <!-- relógio com seta anti-horária: o ícone convencional de histórico -->
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -433,6 +453,22 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
 </div>
 </div>
 
+<!-- Debug de sensores. A coluna que importa é a da direita: nesta bancada já
+     apareceu sensor PRESENTE no barramento devolvendo número inventado (o ToF
+     lendo 38 cm com status "válido"), e sensor cujo driver simplesmente não
+     existia devolvendo zero plausível. Presente, saudável e implementado são
+     três coisas diferentes, e a tela mostra as três. -->
+<div class="modal larga" id="mdbg" role="dialog">
+  <div class="mcab" id="mdcab">
+    <span class="rot"><span data-i18n="sensors">Sensors</span> <s id="dSub"></s></span>
+    <button class="fechar" id="btDFechar" aria-label="close">&times;</button>
+  </div>
+  <div class="mcorpo">
+    <table class="dbg"><tbody id="dLista"></tbody></table>
+    <p class="dica" id="dScan"></p>
+  </div>
+</div>
+
 <!-- Histórico: lista e curva lado a lado, porque comparar shots é o motivo de ele
      existir e rolagem entre uma coisa e outra quebra a comparação. -->
 <div class="modal" id="mhist" role="dialog">
@@ -541,7 +577,13 @@ en:{
  psm_pe:'120 half-cycles · 1 s at 60 Hz',psm_sim:' · SIMULATED source',
  shots_u:'shots',shot_u:'shot',target_p:'target',
  samples:'samples',avg:'avg',
- noclock:'no clock',at:'at',uptime:'since boot'
+ noclock:'no clock',at:'at',uptime:'since boot',
+ sensors:'Sensors',tt_dbg:'Connected sensors and live values',
+ s_absent:'absent',s_nodrv:'no driver',s_ok:'ok',s_susp:'suspect',
+ s_notbought:'not purchased',s_scan:'I²C scan',s_mode:'source',
+ s_ambient:'Ambient',s_clock:'Clock',s_press:'Group pressure',
+ s_level:'Reservoir',s_card:'Card',s_boiler:'Boiler probe',s_scale:'Load cell',
+ s_valid:'valid',s_free:'free',s_writes:'no card'
 },
 pt:{
  idle:'ocioso',heat:'aquecendo',ready:'pronta',pre:'pré-infusão',ramp:'rampa',
@@ -578,7 +620,13 @@ pt:{
  psm_pe:'120 semiciclos · 1 s a 60 Hz',psm_sim:' · fonte SIMULADA',
  shots_u:'disparos',shot_u:'disparo',target_p:'alvo',
  samples:'amostras',avg:'médio',
- noclock:'sem relógio',at:'às',uptime:'desde o boot'
+ noclock:'sem relógio',at:'às',uptime:'desde o boot',
+ sensors:'Sensores',tt_dbg:'Sensores ligados e valores ao vivo',
+ s_absent:'ausente',s_nodrv:'sem driver',s_ok:'ok',s_susp:'suspeito',
+ s_notbought:'não comprada',s_scan:'varredura I²C',s_mode:'fonte',
+ s_ambient:'Ambiente',s_clock:'Relógio',s_press:'Pressão do grupo',
+ s_level:'Reservatório',s_card:'Cartão',s_boiler:'Sonda do boiler',s_scale:'Célula de carga',
+ s_valid:'válidas',s_free:'livres',s_writes:'sem cartão'
 }};
 var idi = (localStorage.getItem('lang')==='pt') ? 'pt' : 'en';
 function t(k){ return (L[idi][k]!==undefined) ? L[idi][k] : (L.en[k]!==undefined?L.en[k]:k); }
@@ -951,6 +999,75 @@ function carregaHist(){
  }).catch(function(){hSub.textContent=t('noresp');});
 }
 btHist.onclick=function(){ if(abrir(mhist)) carregaHist(); };
+arrastavel(mdbg,mdcab,btDFechar);
+btDbg.onclick=function(){abrir(mdbg);};
+
+/* ---------------------------------------------------------- debug de sensores
+   Três estados, não dois. Esta bancada já produziu os três:
+
+   · ausente    — não responde. Conserto é fiação.
+   · sem driver — responde ou nem existe, mas o firmware não lê. Conserto é código.
+   · suspeito   — responde, o número é plausível, e mesmo assim está errado. Foi o
+                  ToF lendo 38 cm com status "válido", e o BME680 devolvendo Pa
+                  rotulado como hPa. É o caso mais caro, e o único que exige uma
+                  ÂNCORA: um valor esperado independente, contra o qual comparar.
+
+   Por isso a última coluna nunca é só "ok" — ela diz o que foi conferido. */
+function pto(c){return '<i class="pto '+c+'"></i>';}
+function linhaDbg(nome,onde,cls,estado,val){
+ return '<tr><td><span class="nome">'+pto(cls)+nome+'</span>'+
+        '<span class="onde">'+onde+'</span></td>'+
+        '<td class="val">'+(val||'—')+'</td>'+
+        '<td class="saude">'+estado+'</td></tr>';
+}
+function pintaDbg(d){
+ if(!mdbg.classList.contains('aberto'))return;
+ var m=d.m, L=[];
+ dSub.textContent=t('s_mode')+': '+(m.sim?t('simulated'):t('realhw'));
+
+ // BME680 — a âncora é a pressão do ar: ~945–955 hPa para os ~600 m daqui. Foi
+ // ela que denunciou o driver devolvendo Pa com o header dizendo hPa.
+ var hpa=d.pa/100, bmeOk=d.bme===680, bmeSus=bmeOk&&(hpa<900||hpa>1010);
+ L.push(linhaDbg('BME680','I²C 0x77',bmeOk?(bmeSus?'duvida':'ok'):'mau',
+   bmeOk?(bmeSus?t('s_susp'):t('s_ok')):t('s_absent'),
+   bmeOk?((d.t/100).toFixed(2)+' °C · '+(d.rh/100).toFixed(1)+' %<br>'+
+          hpa.toFixed(1)+' hPa · '+(d.gas/1000).toFixed(1)+' kΩ'):''));
+
+ // DS3231 — presença não basta: o OSF diz se a hora tem procedência
+ var rOk=d.rtc===1, rInv=d.fonte==='INVÁLIDA';
+ L.push(linhaDbg('DS3231','I²C 0x68',rOk?(rInv?'duvida':'ok'):'mau',
+   rOk?(rInv?t('invalid'):d.fonte):t('s_absent'),
+   rOk?(d.hr+' · '+d.dt+'<br>'+(d.rtemp/100).toFixed(2)+' °C'):''));
+
+ // ADS1115 — fora da faixa elétrica é FIO, não pressão
+ var aOk=d.i2c.indexOf(0x48)>=0;
+ L.push(linhaDbg('ADS1115','I²C 0x48 · A0',aOk?(m.pok?'ok':'duvida'):'mau',
+   aOk?(m.pok?t('s_ok'):t('s_susp')):t('s_absent'),
+   aOk?(m.pv.toFixed(4)+' V · '+m.pcru+'<br>'+m.pr.toFixed(2)+' bar'):''));
+
+ // HC-SR04 — a saúde é a TAXA DE ECOS, não o valor: eco parado com distância
+ // congelada parece leitura estabilíssima
+ var uOk=d.uhz>1;
+ L.push(linhaDbg('HC-SR04','GPIO 15/16',uOk?(d.uok?'ok':'duvida'):'mau',
+   uOk?(d.uv+'/'+d.ut+' '+t('s_valid')):t('s_absent'),
+   uOk?((d.umm/10).toFixed(1)+' cm · '+d.uhz.toFixed(1)+' Hz<br>'+
+        (d.ulo/10).toFixed(1)+'–'+(d.uhi/10).toFixed(1)+' cm'):''));
+
+ L.push(linhaDbg('microSD','SPI · CS 14',d.sd?'ok':'mau',
+   d.sd?t('s_ok'):t('s_absent'),
+   d.sd?((d.sdkb/1024).toFixed(0)+' MB '+t('s_free')):t('s_writes')));
+
+ // Cinza, não vermelho: falta CÓDIGO, não fio. Ponto vermelho aqui mandaria
+ // procurar mau contato onde o problema é driver não escrito.
+ L.push(linhaDbg('MAX31865 + PT100','SPI · CS 10',m.drv_t?'ok':'n',
+   m.drv_t?t('s_ok'):t('s_nodrv'),''));
+ L.push(linhaDbg(t('s_scale'),'NAU7802 / HX711',m.drv_g?'ok':'n',
+   m.drv_g?t('s_ok'):t('s_notbought'),''));
+
+ dLista.innerHTML=L.join('');
+ dScan.textContent=t('s_scan')+': '+
+   d.i2c.map(function(a){return (NOMES[a]||'?')+' '+hex(a);}).join(' · ');
+}
 
 /* -------------------------------------------------- controles do simulador */
 function liga(el,cmd,fmt,alvo){
@@ -1063,6 +1180,7 @@ function pinta(d){
    aFonte.textContent=d.i2c.map(function(a){return (NOMES[a]||'?')+' '+hex(a);})
     .join(' · ')+' · '+d.ip;
   }
+  pintaDbg(d);
   if(document.activeElement!==swSim) swSim.value=m.sim?'1':'0';
   dicaModo.textContent=m.sim?t('tip_sim'):t('tip_real');
  }

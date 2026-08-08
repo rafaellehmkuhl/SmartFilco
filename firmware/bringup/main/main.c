@@ -22,6 +22,7 @@
 #include "maquina.h"
 #include "rtc.h"
 #include "sd.h"
+#include "ads.h"
 #include "ultra.h"
 #include "tof.h"
 #include "freertos/FreeRTOS.h"
@@ -580,6 +581,10 @@ static int montar_json(char *buf, size_t tam)
     mq_publicar(&m);
     sim_espia_t esp;
     sim_espiar(&esp);
+    // volts CRUS vão para a página: é o que permite calibrar contra o manômetro
+    // sem refazer a conta de cabeça, como a docs/07 especifica
+    ads_med_t pmed;
+    ads_ler(&pmed);
     mq_perfil_t pf;
     mq_perfil_get(&pf);
 
@@ -589,14 +594,21 @@ static int montar_json(char *buf, size_t tam)
                   "\"t\":%.1f,\"falha\":\"%s\",\"mot\":\"%s\",\"sim\":%d,"
                   "\"sp\":%.1f,\"alvo\":%.0f,\"tmax\":%.0f,"
                   "\"prebar\":%.1f,\"pres\":%.0f,\"plato\":%.1f,\"declinio\":%.1f,"
-                  "\"vaz\":%.2f,\"tagua\":%.1f,\"w\":%.0f}}",
+                  "\"vaz\":%.2f,\"tagua\":%.1f,\"w\":%.0f,"
+                  "\"pv\":%.4f,\"pcru\":%d,\"pok\":%d,"
+                  // 1 = driver escrito. A tela de debug precisa separar "sensor
+                  // ausente" de "driver não existe" — são consertos diferentes,
+                  // e um ponto vermelho igual para os dois manda procurar fiação
+                  // onde o que falta é código.
+                  "\"drv_t\":0,\"drv_g\":0}}",
                   NOMES[m.estado], m.t_boiler, m.pressao, m.massa, m.vazao,
                   m.nivel_pct, m.alvo_pressao, m.ssr, m.bomba, m.shot_s,
                   m.falha ? m.falha : "", m.motivo ? m.motivo : "",
                   hal_modo() == HAL_SIM ? 1 : 0,
                   pf.setpoint_c, pf.alvo_g, pf.tempo_max_s,
                   pf.pre_bar, pf.pre_s, pf.plato_bar, pf.declinio_bar,
-                  esp.vazao_g_s, esp.t_agua_grupo, esp.energia_w);
+                  esp.vazao_g_s, esp.t_agua_grupo, esp.energia_w,
+                  pmed.volts, pmed.cru, pmed.valida ? 1 : 0);
     return p;
 }
 
@@ -698,6 +710,49 @@ static esp_err_t h_sd(httpd_req_t *req)
     char buf[1024];
     int n = sd_listar(buf, sizeof(buf));
     httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, buf, n);
+}
+
+// ---------------------------------------------------- bancada: pressão
+//
+// `GET /p`             leitura crua
+// `GET /p?zero=1`      grava a tensão ATUAL como 0 bar
+// `GET /p?bar=9.0`     com o manômetro em 9,0 bar, fecha o segundo ponto
+//
+// Calibração de dois pontos contra o manômetro analógico, que é o que a docs/07
+// especifica. O nominal (0,5 V e 3,45 bar/V) é ponto de partida, não verdade:
+// sensor de 200 PSI barato erra offset e ganho, e o manômetro já está no TEE.
+static esp_err_t h_p(httpd_req_t *req)
+{
+    char q[48], v[16];
+    const char *acao = "leitura";
+    ads_med_t m;
+    ads_ler(&m);
+    float v0, esc;
+    ads_get_cal(&v0, &esc);
+
+    if (httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK) {
+        if (httpd_query_key_value(q, "zero", v, sizeof(v)) == ESP_OK) {
+            if (m.valida) { ads_calibrar(m.volts, esc); acao = "zero"; }
+            else acao = "sinal fora de faixa";
+        } else if (httpd_query_key_value(q, "bar", v, sizeof(v)) == ESP_OK) {
+            float alvo = atof(v);
+            float dv = m.volts - v0;
+            // Sem tensão suficiente acima do zero a divisão amplifica ruído e a
+            // escala sai absurda. Exigir um ponto longe do zero é o que faz a
+            // calibração de dois pontos valer alguma coisa.
+            if (alvo > 0.5f && dv > 0.3f) { ads_calibrar(v0, alvo / dv); acao = "escala"; }
+            else acao = "afaste mais do zero";
+        }
+    }
+    ads_get_cal(&v0, &esc);
+    char buf[220];
+    int n = snprintf(buf, sizeof(buf),
+                     "{\"acao\":\"%s\",\"v\":%.4f,\"cru\":%d,\"ok\":%d,"
+                     "\"bar\":%.3f,\"v0\":%.4f,\"esc\":%.4f}",
+                     acao, m.volts, m.cru, m.valida ? 1 : 0, m.bar, v0, esc);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
     return httpd_resp_send(req, buf, n);
 }
 
@@ -844,6 +899,7 @@ static void http_iniciar(void)
 
     httpd_uri_t u_pag = { .uri = "/", .method = HTTP_GET, .handler = h_pagina };
     httpd_uri_t u_rgb = { .uri = "/rgb", .method = HTTP_GET, .handler = h_rgb };
+    httpd_uri_t u_p = { .uri = "/p", .method = HTTP_GET, .handler = h_p };
     httpd_uri_t u_sd = { .uri = "/sd", .method = HTTP_GET, .handler = h_sd };
     httpd_uri_t u_tof = { .uri = "/tof", .method = HTTP_GET, .handler = h_tof };
     httpd_uri_t u_ws = {
@@ -851,6 +907,7 @@ static void http_iniciar(void)
     };
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_pag));
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_rgb));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_p));
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_sd));
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_tof));
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_ws));
@@ -885,6 +942,10 @@ void app_main(void)
 
     // o LED sobe antes da rede: dá feedback visual mesmo se o Wi-Fi falhar
     xTaskCreatePinnedToCore(tarefa_led, "led", 3072, NULL, 5, NULL, CORE_RT);
+
+    // O HAL precisa do barramento antes de a task de controle subir: é ela que
+    // chama hal_iniciar(), e o ADS1115 mora no mesmo I²C do BME680.
+    hal_set_bus(i2c_bus);
 
     // Controle no core de tempo-real e com prioridade acima do LED: se algum dia
     // faltar CPU, o que pode piscar feio é a animação, não o PID da caldeira.

@@ -11,7 +11,9 @@
 
 #include "hal.h"
 
+#include "driver/i2c_master.h"
 #include "esp_log.h"
+#include "ads.h"
 #include "ultra.h"
 
 static const char *TAG = "hal";
@@ -33,10 +35,18 @@ static void real_ler(hal_ent_t *e)
     e->t_boiler = 0.0f;
     e->falha_temp = true;
 
-    // PENDENTE 05/08 — ADS1115 no I²C, canal A0, PGA ±6,144 V.
-    // P(bar) = (V − 0,5) / 4,0 × 13,8. Fora de 0,4–4,6 V = falha elétrica.
-    e->pressao = 0.0f;
-    e->falha_press = true;
+    // ✅ ADS1115 ligado, em modo contínuo — ler não bloqueia o laço.
+    ads_med_t a;
+    if (ads_ler(&a) == ESP_OK) {
+        e->pressao = a.bar;
+        // Fora da faixa elétrica não é "pressão estranha", é FIO: sensor solto,
+        // sem alimentação ou saída em curto. Reportar como falha em vez de como
+        // pressão evita a máquina tentar controlar contra um número inventado.
+        e->falha_press = !a.valida;
+    } else {
+        e->pressao = 0.0f;
+        e->falha_press = true;
+    }
 
     // PENDENTE — célula de carga. Amplificador ainda não decidido
     // ([docs/02]): NAU7802 no I²C ou HX711 em 2 GPIOs.
@@ -71,6 +81,10 @@ static void real_escrever(const hal_sai_t *s)
 
 // ---------------------------------------------------------------- despacho
 
+static i2c_master_bus_handle_t hal_bus;
+
+void hal_set_bus(void *bus) { hal_bus = (i2c_master_bus_handle_t)bus; }
+
 void hal_iniciar(void)
 {
     sim_iniciar();
@@ -78,6 +92,7 @@ void hal_iniciar(void)
     // leitura real com a do modelo lado a lado, que é como se descobre que o
     // modelo está mentindo antes de confiar nele.
     if (ultra_iniciar() != ESP_OK) ESP_LOGW(TAG, "hc-sr04 não iniciou");
+    if (ads_iniciar(hal_bus, 0x48) != ESP_OK) ESP_LOGW(TAG, "ads1115 não iniciou");
     ESP_LOGI(TAG, "modo=%s", s_modo == HAL_SIM ? "SIMULADO" : "real");
 }
 
