@@ -91,6 +91,45 @@ static void pid_zerar(pid_ctrl_t *p)
     p->primeiro = true;
 }
 
+// ------------------------------------------------------- filtro de temperatura
+//
+// MEDIANA, não média — e a escolha é oposta à da pressão de propósito, porque o
+// ruído é de outra natureza.
+//
+// A pressão sofre ONDULAÇÃO periódica (60 Hz da bomba), que a média anula quando
+// a janela cobre um número inteiro de ciclos — está em `ads.c`. A temperatura não
+// tem periodicidade: o que a estraga é OUTLIER, uma leitura SPI corrompida ou um
+// pico isolado do conversor. Média espalha o intruso por toda a janela; mediana
+// o ignora por completo.
+//
+// Foi a mesma lógica que resolveu o ultrassônico: uma amostra de 3 m no meio de
+// 32 desloca a média em 9 cm e não move a mediana.
+//
+// 9 amostras a 100 Hz = 90 ms. O boiler tem ~400 J/K e sobe uns 2,5 °C/s no
+// talo, então 90 ms são 0,2 °C de defasagem — invisível para o PID e barato
+// perto de deixar um pico virar chute de derivada.
+#define JAN_T 9
+static float jt[JAN_T];
+static uint8_t jt_n, jt_i;
+
+static float mediana_temp(float x)
+{
+    jt[jt_i] = x;
+    jt_i = (uint8_t)((jt_i + 1) % JAN_T);
+    if (jt_n < JAN_T) jt_n++;
+
+    float v[JAN_T];
+    memcpy(v, jt, sizeof(float) * jt_n);
+    // insertion sort: com 9 elementos é mais rápido que qsort e não aloca
+    for (uint8_t i = 1; i < jt_n; i++) {
+        float k = v[i];
+        int8_t j = (int8_t)i - 1;
+        while (j >= 0 && v[j] > k) { v[j + 1] = v[j]; j--; }
+        v[j + 1] = k;
+    }
+    return v[jt_n / 2];
+}
+
 // ---------------------------------------------------------------- estado
 
 // tau_d generoso na temperatura (2 s) porque planta térmica é lenta e o ruído do
@@ -127,7 +166,7 @@ static float massa_ini;      // tara no início do shot
 static float duty_plato;     // duty da bomba quando o declínio começou
 static float decl_s;         // tempo dentro do declínio
 static float massa_ant, vazao_filt;
-static float t_boiler, pressao, massa, nivel_mm, alvo_p;
+static float t_boiler, t_boiler_cru, pressao, massa, nivel_mm, alvo_p;
 static hal_sai_t saida;
 
 void mq_iniciar(void)
@@ -215,7 +254,7 @@ static float alvo_do_perfil(void)
 static void proteger(const hal_ent_t *e)
 {
     if (e->falha_temp) { falha = "temp_aberta"; }
-    else if (t_boiler > T_MAX) { falha = "temp_alta"; }
+    else if (t_boiler_cru > T_MAX) { falha = "temp_alta"; }
     else if (extraindo() && e->falha_press) { falha = "press_faixa"; }
     else if (extraindo() && pressao > P_MAX) { falha = "press_alta"; }
     else if (extraindo() && shot_s > SHOT_TETO_S) { falha = "bomba_timeout"; }
@@ -231,7 +270,12 @@ void mq_passo(float dt_s)
     hal_ent_t e;
     hal_ler(&e);
 
-    t_boiler = e.t_boiler;
+    // ⚠️ CRU para a proteção, FILTRADO para o controle — e a ordem importa.
+    // Sobreaquecimento não pode esperar 90 ms de janela para aparecer, e um pico
+    // isolado que dispare a proteção erra para o lado seguro. Já o PID tem que
+    // ver sinal limpo, senão a derivada vira chute a cada leitura ruim.
+    t_boiler_cru = e.t_boiler;
+    t_boiler = mediana_temp(e.t_boiler);
     pressao = e.pressao;
     massa = e.massa;
     nivel_mm = e.nivel_mm;

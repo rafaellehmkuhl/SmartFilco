@@ -1043,7 +1043,9 @@ function pintaDbg(d){
  var aOk=d.i2c.indexOf(0x48)>=0;
  L.push(linhaDbg('ADS1115','I²C 0x48 · A0',aOk?(m.pok?'ok':'duvida'):'mau',
    aOk?(m.pok?t('s_ok'):t('s_susp')):t('s_absent'),
-   aOk?(m.pv.toFixed(4)+' V · '+m.pcru+'<br>'+m.pr.toFixed(2)+' bar'):''));
+   aOk?(m.pv.toFixed(4)+' V '+t('s_filt')+'<br>'+
+        m.pvc.toFixed(4)+' V '+t('s_raw')+'<br>'+
+        m.pr.toFixed(2)+' bar'):''));
 
  // HC-SR04 — a saúde é a TAXA DE ECOS, não o valor: eco parado com distância
  // congelada parece leitura estabilíssima

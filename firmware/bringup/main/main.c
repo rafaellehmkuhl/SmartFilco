@@ -595,7 +595,7 @@ static int montar_json(char *buf, size_t tam)
                   "\"sp\":%.1f,\"alvo\":%.0f,\"tmax\":%.0f,"
                   "\"prebar\":%.1f,\"pres\":%.0f,\"plato\":%.1f,\"declinio\":%.1f,"
                   "\"vaz\":%.2f,\"tagua\":%.1f,\"w\":%.0f,"
-                  "\"pv\":%.4f,\"pcru\":%d,\"pok\":%d,"
+                  "\"pv\":%.4f,\"pvc\":%.4f,\"pcru\":%d,\"pok\":%d,"
                   // 1 = driver escrito. A tela de debug precisa separar "sensor
                   // ausente" de "driver não existe" — são consertos diferentes,
                   // e um ponto vermelho igual para os dois manda procurar fiação
@@ -608,7 +608,7 @@ static int montar_json(char *buf, size_t tam)
                   pf.setpoint_c, pf.alvo_g, pf.tempo_max_s,
                   pf.pre_bar, pf.pre_s, pf.plato_bar, pf.declinio_bar,
                   esp.vazao_g_s, esp.t_agua_grupo, esp.energia_w,
-                  pmed.volts, pmed.cru, pmed.valida ? 1 : 0);
+                  pmed.volts, pmed.volts_cru, pmed.cru, pmed.valida ? 1 : 0);
     return p;
 }
 
@@ -748,9 +748,10 @@ static esp_err_t h_p(httpd_req_t *req)
     ads_get_cal(&v0, &esc);
     char buf[220];
     int n = snprintf(buf, sizeof(buf),
-                     "{\"acao\":\"%s\",\"v\":%.4f,\"cru\":%d,\"ok\":%d,"
+                     "{\"acao\":\"%s\",\"v\":%.4f,\"vcru\":%.4f,\"cru\":%d,\"ok\":%d,"
                      "\"bar\":%.3f,\"v0\":%.4f,\"esc\":%.4f}",
-                     acao, m.volts, m.cru, m.valida ? 1 : 0, m.bar, v0, esc);
+                     acao, m.volts, m.volts_cru, m.cru, m.valida ? 1 : 0,
+                     m.bar, v0, esc);
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
     return httpd_resp_send(req, buf, n);

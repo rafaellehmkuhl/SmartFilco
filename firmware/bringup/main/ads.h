@@ -28,7 +28,8 @@
 #include "esp_err.h"
 
 typedef struct {
-    float volts;      // tensão crua na entrada A0
+    float volts;      // tensão FILTRADA (média móvel de 3 ciclos de rede)
+    float volts_cru;  // última conversão, sem filtro — para a tela de debug
     float bar;        // já convertida
     int16_t cru;      // contagem do ADC, para depurar sem refazer a conta
     bool  valida;     // dentro da faixa elétrica do sensor
