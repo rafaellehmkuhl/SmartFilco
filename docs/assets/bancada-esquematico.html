@@ -94,7 +94,7 @@ code{background:var(--ground);padding:.1em .4em;border-radius:4px;font-size:.92e
 </section>
 
 <section class="scroll">
-<svg viewBox="0 0 1240 1010" role="img" aria-label="Esquemático das ligações de bancada">
+<svg viewBox="0 0 1240 1265" role="img" aria-label="Esquemático das ligações de bancada">
   <defs>
     <marker id="dot" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5">
       <circle cx="3.5" cy="3.5" r="3" fill="currentColor"/>
@@ -114,7 +114,7 @@ code{background:var(--ground);padding:.1em .4em;border-radius:4px;font-size:.92e
   <!-- 3 13  --><rect x="220" y="100" width="44" height="48" rx="4" fill="var(--spi)"/><text x="242" y="129" font-size="14" font-weight="700" text-anchor="middle" fill="#101319">13</text>
   <!-- 4 12  --><rect x="270" y="100" width="44" height="48" rx="4" fill="var(--spi)"/><text x="292" y="129" font-size="14" font-weight="700" text-anchor="middle" fill="#101319">12</text>
   <!-- 5 11  --><rect x="320" y="100" width="44" height="48" rx="4" fill="var(--spi)"/><text x="342" y="129" font-size="14" font-weight="700" text-anchor="middle" fill="#101319">11</text>
-  <!-- 6 10  --><rect x="370" y="100" width="44" height="48" rx="4" fill="none" stroke="var(--spi)" stroke-width="2" stroke-dasharray="4 3"/><text x="392" y="129" font-size="14" font-weight="700" text-anchor="middle" fill="var(--spi)">10</text>
+  <!-- 6 10  --><rect x="370" y="100" width="44" height="48" rx="4" fill="var(--spi)"/><text x="392" y="129" font-size="14" font-weight="700" text-anchor="middle" fill="#101319">10</text>
   <!-- 7 9   --><rect x="420" y="100" width="44" height="48" rx="4" fill="var(--i2c)"/><text x="442" y="129" font-size="14" font-weight="700" text-anchor="middle" fill="#101319">9</text>
   <!-- 8 46  --><rect x="470" y="100" width="44" height="48" rx="4" fill="var(--dim)"/><text x="492" y="129" font-size="14" font-weight="700" text-anchor="middle" fill="var(--panel)">46</text>
   <!-- 9 3   --><rect x="520" y="100" width="44" height="48" rx="4" fill="var(--dim)"/><text x="542" y="129" font-size="14" font-weight="700" text-anchor="middle" fill="var(--panel)">3</text>
@@ -217,20 +217,25 @@ code{background:var(--ground);padding:.1em .4em;border-radius:4px;font-size:.92e
     <line x1="805" y1="500" x2="805" y2="264" stroke="var(--gnd)"/><circle cx="805" cy="264" r="4" fill="var(--gnd)"/>
   </g>
 
-  <!-- VL53L1X -->
-  <rect x="935" y="500" width="235" height="150" rx="8" fill="none" stroke="var(--i2c)" stroke-width="1.5"/>
-  <text x="953" y="527" font-size="13" font-weight="700" fill="var(--ink)">VL53L1X (CJMCU-531)</text>
-  <text x="953" y="546" font-size="10.5" fill="var(--ink-3)">I²C 0x29 · detecção de copo</text>
+  <!-- MAX31865 + PT100 -->
+  <rect x="935" y="500" width="235" height="150" rx="8" fill="none" stroke="var(--spi)" stroke-width="1.5"/>
+  <text x="953" y="527" font-size="13" font-weight="700" fill="var(--ink)">MAX31865 + PT100</text>
+  <text x="953" y="546" font-size="10.5" fill="var(--ink-3)">boiler · SPI modo 1 · 3 fios</text>
   <g font-size="11.5" fill="var(--ink-2)">
-    <text x="953" y="573">SCL · SDA · VCC → 3V3 · GND</text>
-    <text x="953" y="593">XSHUT → <tspan fill="var(--gpio)" font-weight="700">17</tspan>  (opcional)</text>
-    <text x="953" y="613">GPIO1 → <tspan fill="var(--gpio)" font-weight="700">18</tspan>  (opcional)</text>
+    <text x="953" y="573">MOSI · SCK · MISO · VCC → 3V3</text>
+    <text x="953" y="593">CS → <tspan fill="var(--spi)" font-weight="700">GPIO 10</tspan></text>
+    <text x="953" y="613"><tspan font-weight="700">Rref 430 Ω</tspan> — conferir antes de ligar</text>
   </g>
+  <g stroke="var(--spi)" stroke-width="2.5" fill="none">
+    <line x1="960"  y1="500" x2="960"  y2="366"/><circle cx="960" cy="366" r="4" fill="var(--spi)"/>
+    <line x1="990"  y1="500" x2="990"  y2="392"/><circle cx="990" cy="392" r="4" fill="var(--spi)"/>
+    <line x1="1020" y1="500" x2="1020" y2="418"/><circle cx="1020" cy="418" r="4" fill="var(--spi)"/>
+    <path d="M1050 500 L1050 462 L392 462 L392 148"/>
+  </g>
+  <text x="1064" y="484" font-size="10" fill="var(--spi)">CS → 10</text>
   <g stroke-width="2.5" fill="none">
-    <line x1="970"  y1="500" x2="970"  y2="300" stroke="var(--i2c)"/><circle cx="970" cy="300" r="4" fill="var(--i2c)"/>
-    <line x1="1000" y1="500" x2="1000" y2="330" stroke="var(--i2c)"/><circle cx="1000" cy="330" r="4" fill="var(--i2c)"/>
-    <line x1="1030" y1="500" x2="1030" y2="200" stroke="var(--v33)"/><circle cx="1030" cy="200" r="4" fill="var(--v33)"/>
-    <line x1="1060" y1="500" x2="1060" y2="264" stroke="var(--gnd)"/><circle cx="1060" cy="264" r="4" fill="var(--gnd)"/>
+    <line x1="1080" y1="500" x2="1080" y2="200" stroke="var(--v33)"/><circle cx="1080" cy="200" r="4" fill="var(--v33)"/>
+    <line x1="1110" y1="500" x2="1110" y2="264" stroke="var(--gnd)"/><circle cx="1110" cy="264" r="4" fill="var(--gnd)"/>
   </g>
 
   <!-- ================= HC-SR04 + divisor ================= -->
@@ -287,13 +292,74 @@ code{background:var(--ground);padding:.1em .4em;border-radius:4px;font-size:.92e
 
   <!-- reservado -->
   <rect x="790" y="730" width="380" height="230" rx="8" fill="none" stroke="var(--dim)" stroke-dasharray="5 4"/>
-  <text x="808" y="758" font-size="12" font-weight="700" fill="var(--ink-3)">Reservado ao projeto — não usar na bancada</text>
+  <text x="808" y="758" font-size="12" font-weight="700" fill="var(--ink-3)">Reservado — rede AC, ainda não ligar</text>
   <g font-size="11.5" fill="var(--ink-3)">
-    <text x="808" y="790">GPIO 10 — CS do MAX31865 (mesmo SPI)</text>
-    <text x="808" y="814">GPIO 4  — Z-C   (zero-cross, ISR em IRAM)</text>
-    <text x="808" y="838">GPIO 5  — Dim   (gate do TRIAC, PSM)</text>
-    <text x="808" y="862">GPIO 6  — SSR   (resistência)</text>
-    <text x="808" y="900" font-size="10.5">Deixar livres agora evita refazer o chicote depois.</text>
+    <text x="808" y="792">GPIO 4  — Z-C   (zero-cross, ISR em IRAM)</text>
+    <text x="808" y="818">GPIO 5  — Dim   (gate do TRIAC, PSM)</text>
+    <text x="808" y="844">GPIO 6  — SSR   (resistência do boiler)</text>
+    <text x="808" y="882" font-size="10.5">Só entram com a máquina aberta e o dimmer</text>
+    <text x="808" y="900" font-size="10.5">em mãos. Bancada não toca em 220 V.</text>
+    <text x="808" y="932" font-size="10.5">GPIO 10 saiu daqui — o MAX31865 chegou.</text>
+  </g>
+
+  <!-- ================= cadeia de pressão ================= -->
+  <text x="80" y="1012" font-size="12" letter-spacing="2.5" fill="var(--ink-3)">CADEIA DE PRESSÃO — O ÚNICO RAMO EM 5 V NO I²C</text>
+
+  <!-- O shifter fica ENTRE as barras e o ADS1115 porque é literalmente o que
+       separa os dois níveis. Desenhá-lo ao lado esconderia o papel dele. -->
+  <rect x="80" y="1042" width="240" height="180" rx="8" fill="none" stroke="var(--v5)" stroke-width="2"/>
+  <text x="98" y="1070" font-size="13" font-weight="700" fill="var(--ink)">Level shifter (MOSFET)</text>
+  <text x="98" y="1088" font-size="10.5" fill="var(--v5)">OBRIGATÓRIO — ver armadilha 1</text>
+  <g font-size="11.5" fill="var(--ink-2)">
+    <text x="98" y="1118">LV → 3V3 · LV1/LV2 → SDA/SCL</text>
+    <text x="98" y="1140">HV → 5 V · HV1/HV2 → ADS1115</text>
+    <text x="98" y="1168" font-size="10.5" fill="var(--ink-3)">GND comum aos dois lados</text>
+    <text x="98" y="1188" font-size="10.5" fill="var(--ink-3)">pull-ups do ADS1115 ficam no HV</text>
+  </g>
+  <g stroke-width="2.5" fill="none">
+    <line x1="120" y1="1042" x2="120" y2="300" stroke="var(--i2c)"/><circle cx="120" cy="300" r="4" fill="var(--i2c)"/>
+    <line x1="150" y1="1042" x2="150" y2="330" stroke="var(--i2c)"/><circle cx="150" cy="330" r="4" fill="var(--i2c)"/>
+    <line x1="180" y1="1042" x2="180" y2="200" stroke="var(--v33)"/><circle cx="180" cy="200" r="4" fill="var(--v33)"/>
+    <line x1="240" y1="1042" x2="240" y2="264" stroke="var(--gnd)"/><circle cx="240" cy="264" r="4" fill="var(--gnd)"/>
+  </g>
+
+  <rect x="390" y="1042" width="250" height="180" rx="8" fill="none" stroke="var(--i2c)" stroke-width="1.5"/>
+  <text x="408" y="1070" font-size="13" font-weight="700" fill="var(--ink)">ADS1115</text>
+  <text x="408" y="1088" font-size="10.5" fill="var(--ink-3)">I²C 0x48 · 16 bits · alimentado em 5 V</text>
+  <g font-size="11.5" fill="var(--ink-2)">
+    <text x="408" y="1118">VDD → <tspan fill="var(--v5)" font-weight="700">5 V</tspan> · GND</text>
+    <text x="408" y="1140">SDA/SCL → lado <tspan fill="var(--v5)" font-weight="700">HV</tspan> do shifter</text>
+    <text x="408" y="1162">ADDR → GND  (0x48)</text>
+    <text x="408" y="1190" font-size="10.5" fill="var(--v5)">PGA ±6,144 V — senão 4,5 V satura</text>
+  </g>
+  <g stroke="var(--v5)" stroke-width="2.5" fill="none">
+    <line x1="320" y1="1112" x2="390" y2="1112"/>
+    <line x1="320" y1="1134" x2="390" y2="1134"/>
+  </g>
+  <text x="355" y="1104" font-size="9.5" text-anchor="middle" fill="var(--v5)">I²C 5 V</text>
+
+  <rect x="710" y="1042" width="250" height="180" rx="8" fill="none" stroke="var(--v5)" stroke-width="1.5"/>
+  <text x="728" y="1070" font-size="13" font-weight="700" fill="var(--ink)">Sensor 200 PSI</text>
+  <text x="728" y="1088" font-size="10.5" fill="var(--ink-3)">0–13,8 bar · 1/8&quot; NPT · 0,5–4,5 V</text>
+  <g font-size="11.5" fill="var(--ink-2)">
+    <text x="728" y="1118">VCC → <tspan fill="var(--v5)" font-weight="700">5 V</tspan> · GND</text>
+    <text x="728" y="1140">OUT → <tspan fill="var(--i2c)" font-weight="700">A0</tspan> do ADS1115</text>
+    <text x="728" y="1168" font-size="10.5" fill="var(--ink-3)">0,5 V = 0 bar · 4,5 V = 13,8 bar</text>
+    <text x="728" y="1190" font-size="10.5" fill="var(--ink-3)">calibrar contra o manômetro</text>
+  </g>
+  <g stroke="var(--i2c)" stroke-width="2.5" fill="none">
+    <line x1="640" y1="1132" x2="710" y2="1132"/>
+  </g>
+  <text x="675" y="1124" font-size="9.5" text-anchor="middle" fill="var(--i2c)">A0</text>
+
+  <rect x="1000" y="1042" width="170" height="180" rx="8" fill="none" stroke="var(--v5)" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="1016" y="1070" font-size="12" font-weight="700" fill="var(--v5)">5 V vem de FORA</text>
+  <g font-size="10.5" fill="var(--ink-2)">
+    <text x="1016" y="1098">O 5V-IN do devkit mede</text>
+    <text x="1016" y="1116">0,25 V: é entrada, não</text>
+    <text x="1016" y="1134">saída.</text>
+    <text x="1016" y="1164" fill="var(--v5)">Fonte externa, com</text>
+    <text x="1016" y="1182" fill="var(--v5)">GND em comum.</text>
   </g>
 
   </g>
@@ -306,17 +372,15 @@ code{background:var(--ground);padding:.1em .4em;border-radius:4px;font-size:.92e
   <table>
     <thead><tr><th>GPIO</th><th>Sinal</th><th>Vai em</th><th>Tensão</th></tr></thead>
     <tbody>
-      <tr><td><span class="pin" style="background:var(--i2c)">8</span></td><td>I²C SDA</td><td>BME680 + DS3231 + VL53L1X</td><td>3,3 V</td></tr>
-      <tr><td><span class="pin" style="background:var(--i2c)">9</span></td><td>I²C SCL</td><td>BME680 + DS3231 + VL53L1X</td><td>3,3 V</td></tr>
-      <tr><td><span class="pin" style="background:var(--spi)">11</span></td><td>SPI MOSI</td><td>MicroSD</td><td>3,3 V</td></tr>
-      <tr><td><span class="pin" style="background:var(--spi)">12</span></td><td>SPI SCK</td><td>MicroSD</td><td>3,3 V</td></tr>
-      <tr><td><span class="pin" style="background:var(--spi)">13</span></td><td>SPI MISO</td><td>MicroSD</td><td>3,3 V</td></tr>
+      <tr><td><span class="pin" style="background:var(--i2c)">8</span></td><td>I²C SDA</td><td>BME680 · DS3231 · ADS1115 (via shifter)</td><td>3,3 V</td></tr>
+      <tr><td><span class="pin" style="background:var(--i2c)">9</span></td><td>I²C SCL</td><td>BME680 · DS3231 · ADS1115 (via shifter)</td><td>3,3 V</td></tr>
+      <tr><td><span class="pin" style="background:var(--spi)">11</span></td><td>SPI MOSI</td><td>MicroSD + MAX31865</td><td>3,3 V</td></tr>
+      <tr><td><span class="pin" style="background:var(--spi)">12</span></td><td>SPI SCK</td><td>MicroSD + MAX31865</td><td>3,3 V</td></tr>
+      <tr><td><span class="pin" style="background:var(--spi)">13</span></td><td>SPI MISO</td><td>MicroSD + MAX31865</td><td>3,3 V</td></tr>
       <tr><td><span class="pin" style="background:var(--spi)">14</span></td><td>CS microSD</td><td>MicroSD</td><td>3,3 V</td></tr>
       <tr><td><span class="pin" style="background:var(--gpio)">15</span></td><td>TRIG</td><td>HC-SR04</td><td>3,3 V</td></tr>
       <tr><td><span class="pin" style="background:var(--gpio)">16</span></td><td>ECHO</td><td>HC-SR04 <strong>via divisor</strong></td><td>5 V → 3,3 V</td></tr>
-      <tr><td><span class="pin" style="background:var(--gpio)">17</span></td><td>XSHUT</td><td>VL53L1X <span class="muted">(opcional)</span></td><td>3,3 V</td></tr>
-      <tr><td><span class="pin" style="background:var(--gpio)">18</span></td><td>GPIO1 / INT</td><td>VL53L1X <span class="muted">(opcional)</span></td><td>3,3 V</td></tr>
-      <tr class="muted"><td><span class="pin" style="background:var(--dim)">10</span></td><td colspan="3">reservado — CS do MAX31865</td></tr>
+      <tr><td><span class="pin" style="background:var(--spi)">10</span></td><td>CS MAX31865</td><td>PT100 do boiler</td><td>3,3 V</td></tr>
       <tr class="muted"><td><span class="pin" style="background:var(--dim)">4 5 6</span></td><td colspan="3">reservados — Z-C, Dim, SSR</td></tr>
     </tbody>
   </table>
@@ -328,10 +392,20 @@ code{background:var(--ground);padding:.1em .4em;border-radius:4px;font-size:.92e
   <div class="grid">
 
     <div class="card trap">
-      <h3>1 · O microSD pode impedir o MAX31865 de funcionar</h3>
-      <p>O adaptador usa um <strong>74LVC125</strong> como buffer. Na maioria dessas placas o buffer do <strong>MISO tem o <em>output enable</em> preso em ativo</strong> — o módulo dirige o MISO o tempo todo, mesmo com o CS desativado. Num barramento compartilhado isso é fatal: o MAX31865 nunca consegue responder.</p>
-      <p><strong>Teste:</strong> com o cartão ligado e CS em nível alto, verificar se o MISO fica em alta impedância. Se estiver forçado, usar os <strong>dois hosts SPI</strong> do S3 ou modificar a placa.</p>
+      <h3>1 · O ADS1115 em 5 V <strong>não pode</strong> tocar o I²C direto</h3>
+      <p>Ele roda em 5 V para ter folga nos 4,5 V do sensor de pressão. Isso põe os pull-ups dele em 5 V — e o barramento é o <strong>mesmo</strong> onde já estão o BME680 e o DS3231, ambos de 3,3 V.</p>
+      <p>Ligar direto puxa <code>SDA</code> e <code>SCL</code> para 5 V e ataca <strong>três coisas de uma vez</strong>: os pinos do ESP32-S3, o BME680 e o DS3231. Não é degradação lenta — é dano na hora.</p>
+      <p><strong>O level shifter fica entre os dois lados</strong>, LV em 3,3 V e HV em 5 V, com GND comum. Os pull-ups de 10 k que vêm no módulo ADS1115 <strong>ficam no lado HV</strong>: é a configuração normal desse shifter, não remova.</p>
+      <p><strong>Conferir antes de energizar o 5 V:</strong> multímetro entre <code>SDA</code> e <code>GND</code> do lado do ESP32 — tem que dar <strong>3,3 V</strong>. Se der 5 V, o shifter está ausente, invertido ou em curto.</p>
     </div>
+
+    <div class="card trap">
+      <h3>2 · O 5 V não sai do devkit</h3>
+      <p><strong>Medido em 30/07/2026:</strong> <code>5V-IN</code> contra <code>GND</code> dá <strong>0,25 V</strong> com a placa na USB, enquanto o <code>3V3</code> dá 3,3 V certinho na mesma medição. O pino é <strong>entrada</strong>, como a serigrafia <code>IN</code> sugere.</p>
+      <p>Quem precisa de 5 V agora são <strong>três</strong>: ADS1115, sensor de pressão e HC-SR04. Todos saem de <strong>fonte externa</strong> com o <strong>GND em comum</strong> com o ESP32 — sem esse comum o I²C não fecha e o eco do ultrassônico vira ruído.</p>
+    </div>
+
+    
 
     <div class="card">
       <h3>✔ DS3231 — circuito de carga desativado</h3>
@@ -341,16 +415,12 @@ code{background:var(--ground);padding:.1em .4em;border-radius:4px;font-size:.92e
       <p>A ~1 µA no modo bateria, uma CR2032 de 220 mAh dura <strong>anos</strong> — mais que a fase de prototipagem.</p>
     </div>
 
-    <div class="card trap">
-      <h3>3 · O <code>5V-IN</code> não entrega 5 V — <span class="muted">medido</span></h3>
-      <p><strong>Medido em 30/07/2026, placa na USB:</strong> <code>5V-IN</code> → <code>GND</code> dá <strong>0,25 V</strong>. Na mesma medição o <code>3V3</code> dá 3,3 V certinho, então não é ponta de prova nem GND ruim — o pino <strong>é entrada, não saída</strong>, como a serigrafia <code>IN</code> já sugeria. Vários clones da DevKitC-1 põem um Schottky ali: alimenta a placa, não deixa puxar dela.</p>
-      <p><strong>Consequência direta na bancada:</strong> o <strong>HC-SR04</strong> (5 V) e o <strong>módulo microSD</strong> (regulador de 5 V a bordo) precisam de <strong>fonte externa de 5 V com o GND em comum com o ESP32</strong>. Sem o GND comum o eco do ultrassônico vira ruído e o SD não monta.</p>
-      <p>Não muda a <a href="../02-arquitetura-eletrica-pinout.md">02</a>: lá o 5 V vem do <strong>HLK-5M05</strong> e é o devkit que recebe, não o contrário. A armadilha é só de bancada, enquanto a alimentação é USB.</p>
-    </div>
+    
 
     <div class="card">
       <h3>Pull-ups de I²C somam em paralelo</h3>
-      <p>Confirmado na placa: o DS3231 traz dois resistores marcados <code>472</code> — 4,7 kΩ. Com BME680 e VL53L1X trazendo os deles, ficam <strong>três pares em paralelo ≈ 1,6 kΩ</strong>.</p>
+      <p>Confirmado na placa: o DS3231 traz dois resistores marcados <code>472</code> — 4,7 kΩ. Com o BME680 trazendo os dele, ficam <strong>dois pares em paralelo ≈ 2,35 kΩ</strong> no lado de 3,3 V.</p>
+      <p>Os 10 k do ADS1115 <strong>não entram nesta conta</strong>: eles ficam do lado HV do shifter, que é outro barramento. Foi por isso que o número caiu de 1,6 k para 2,35 k quando o ToF saiu e o ADS1115 entrou — não é o mesmo troca-troca.</p>
       <p>Funciona em 3,3 V (puxa ~2 mA, dentro do que o ESP32 drena), mas é o <strong>primeiro suspeito</strong> se o barramento der erro. Solução: remover os pull-ups de dois dos três módulos.</p>
     </div>
 
@@ -374,8 +444,8 @@ code{background:var(--ground);padding:.1em .4em;border-radius:4px;font-size:.92e
     </div>
 
     <div class="card trap">
-      <h3>⏳ microSD e MAX31865 no mesmo SPI — <span class="muted">falta testar</span></h3>
-      <p>A <a href="../02-arquitetura-eletrica-pinout.md">02</a> planeja os dois no mesmo barramento, com <code>CS</code> separados. O risco não são os modos SPI (o IDF troca por transação): é o <strong><code>MISO</code> do módulo microSD</strong>.</p>
+      <h3>3 · microSD e MAX31865 no mesmo SPI — <span class="muted">medir agora</span></h3>
+      <p>⚠️ <strong>Deixou de ser plano: os dois estão no barramento agora.</strong> Com <code>CS</code> separados. O risco não são os modos SPI (o IDF troca por transação): é o <strong><code>MISO</code> do módulo microSD</strong>.</p>
       <p>Muito módulo barato usa um <strong>74LVC125</strong> só nas linhas de entrada e liga o <code>MISO</code> do cartão direto ao header, ou por um buffer <strong>sempre habilitado</strong>. Aí ele <strong>não solta o barramento</strong> com <code>CS</code> alto, e o MAX31865 não consegue responder. Falha traiçoeira: o SD funciona sozinho, o MAX31865 funciona sozinho, os dois juntos leem lixo.</p>
       <p><strong>Teste, com o módulo alimentado e <code>CS</code> em 3V3:</strong> medir <code>MISO</code> contra <code>GND</code>. <strong>Alta impedância / segue o pull-up</strong> → compartilha. <strong>Preso em nível fixo</strong> → o módulo precisa de um buffer com <code>OE</code>, ou o MAX31865 vai para o segundo host SPI.</p>
     </div>
@@ -398,7 +468,7 @@ code{background:var(--ground);padding:.1em .4em;border-radius:4px;font-size:.92e
   <table>
     <thead><tr><th>Endereço</th><th>Dispositivo</th></tr></thead>
     <tbody>
-      <tr><td><code>0x29</code></td><td>VL53L1X — <strong>confirmado na bancada</strong></td></tr>
+      <tr><td><code>0x48</code></td><td>ADS1115 — <strong>via level shifter</strong> <span class="muted">(ADDR em GND)</span></td></tr>
       <tr><td><code>0x57</code></td><td>AT24C32 — EEPROM do módulo DS3231</td></tr>
       <tr><td><code>0x68</code></td><td>DS3231</td></tr>
       <tr><td><code>0x77</code></td><td>BME680 — <strong>confirmado na bancada</strong> <span class="muted">(0x76 se SDO em GND)</span></td></tr>
