@@ -194,6 +194,38 @@ mas não escreve. E se a placa não subir depois da gravação, aperte **RST**: 
 da USB-JTAG é o GPIO0 e derruba a placa em download mode. Detalhes em
 [`docs/05`](../../docs/05-firmware-arquitetura.md#-o-dtr-da-usb-jtag-é-o-gpio0).
 
+## Gravar pela rede (OTA)
+
+Depois da primeira gravação por cabo, o cabo sai de cena:
+
+```bash
+idf.py -C firmware/bringup build
+curl --data-binary @firmware/bringup/build/smartfilco_bringup.bin \
+  "http://IP-DA-PLACA/ota?k=SEU_TOKEN"
+```
+
+A placa responde com os bytes gravados e reinicia sozinha. Para ver o que está
+rodando agora — partição, versão e data de build:
+
+```bash
+curl http://IP-DA-PLACA/ota
+```
+
+**O `OTA_TOKEN` mora no `wifi_cfg.h`**, junto da senha do Wi-Fi. Sem ele definido
+o `POST /ota` é recusado: o firmware nasce fechado, e a mensagem de erro diz o
+que falta. Não é autenticação de verdade — é HTTP em texto claro na rede local, e
+serve para impedir gravação acidental, não invasor.
+
+**Se o firmware novo não conectar no Wi-Fi, a placa volta sozinha para o
+anterior** no boot seguinte. É o rollback do bootloader, e é o que torna seguro
+atualizar com o cabo longe: o único jeito de a placa sair da rede seria um
+firmware que sobe, conecta, e só depois quebra.
+
+⚠️ A tabela de partições mudou para caber duas imagens de app. **A primeira
+gravação depois dessa mudança tem que ser por cabo** — o OTA da versão antiga não
+sabe da tabela nova. A NVS ficou no mesmo lugar de propósito, então nada
+guardado nela se perde.
+
 ## Onde mexer
 
 | Constante (`main/main.c`) | Efeito |

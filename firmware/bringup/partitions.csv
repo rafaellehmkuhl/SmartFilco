@@ -6,10 +6,26 @@
 # MCU), mas entram os drivers de MAX31865, ADS1115 e célula de carga, mais o
 # ProfileModule e o histórico.
 #
-# ⚠️ Mudar esta tabela depois invalida a NVS — as credenciais de Wi-Fi e as
-# configurações persistidas somem. Por isso o tamanho já nasce folgado.
+# ## Duas partições de app, porque agora tem OTA
+#
+# `ota_0` e `ota_1` se revezam: o binário novo entra sempre na que NÃO está
+# rodando, e só no fim, com o checksum conferido, o `otadata` aponta para ela. Se
+# a gravação for interrompida no meio — queda de Wi-Fi, cabo da fonte esbarrado —
+# a partição em uso fica intacta e a placa reinicia no firmware velho. Não existe
+# janela em que a máquina fique sem firmware válido.
+#
+# 4 + 4 MB somam 8,5 MB dos 16. Sobra flash para dobrar o app se um dia precisar.
+#
+# ⚠️ **A NVS não se mexeu de lugar de propósito.** Continua em 0x9000 com 0x6000,
+# exatamente como antes, para que a mudança desta tabela NÃO apague o que está
+# guardado nela. Quem mudou de endereço foi a `phy_init`, e o que ela guarda é
+# calibração de rádio, que se refaz sozinha.
+#
+# Este é o último flash que precisa de cabo. Depois dele, `POST /ota`.
 
 # Nome,     Tipo, SubTipo,  Offset,   Tamanho
 nvs,        data, nvs,      0x9000,   0x6000
-phy_init,   data, phy,      0xf000,   0x1000
-factory,    app,  factory,  0x10000,  4M
+otadata,    data, ota,      0xf000,   0x2000
+phy_init,   data, phy,      0x11000,  0x1000
+ota_0,      app,  ota_0,    0x20000,  4M
+ota_1,      app,  ota_1,    0x420000, 4M

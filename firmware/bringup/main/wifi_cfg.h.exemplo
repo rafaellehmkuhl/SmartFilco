@@ -2,3 +2,8 @@
 #pragma once
 #define WIFI_SSID "sua-rede"
 #define WIFI_PASS "sua-senha"
+
+// Sem este token o POST /ota é recusado — o firmware nasce fechado de propósito.
+// Não é autenticação de verdade: é HTTP em texto claro na rede local, e serve
+// para impedir flash acidental, não invasor. Ver o comentário do /ota no main.c.
+#define OTA_TOKEN "troque-isto"

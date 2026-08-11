@@ -8,8 +8,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "esp_app_desc.h"
 #include "esp_event.h"
 #include "esp_http_server.h"
+#include "esp_ota_ops.h"
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_random.h"
@@ -491,6 +493,11 @@ static void ao_evento(void *arg, esp_event_base_t base, int32_t id, void *dados)
         ip_event_got_ip_t *e = (ip_event_got_ip_t *)dados;
         ESP_LOGI(TAG, "conectado: ip=" IPSTR, IP2STR(&e->ip_info.ip));
         xEventGroupSetBits(eventos, BIT_CONECTADO);
+        // Prova de vida do firmware recém-instalado: pegou IP, então o caminho de
+        // volta existe e o OTA pode ser refeito. Sem esta chamada o bootloader
+        // reverte para a imagem anterior no próximo boot — ver o /ota. Fora de
+        // PENDING_VERIFY ela é inócua, então não custa chamar a cada reconexão.
+        esp_ota_mark_app_valid_cancel_rollback();
     }
 }
 
@@ -968,12 +975,168 @@ static void tarefa_ws(void *arg)
     }
 }
 
+// ---------------------------------------------------- OTA pela rede local
+//
+// `GET  /ota`          o que está rodando: partição, versão, data de build
+// `POST /ota?k=TOKEN`  grava o .bin que vier no corpo e reinicia
+//
+//     idf.py build
+//     curl --data-binary @build/smartfilco_bringup.bin "http://IP/ota?k=TOKEN"
+//
+// ## A gravação não tem janela de risco
+//
+// O binário entra sempre na partição que NÃO está rodando, e o ponteiro de boot
+// só muda no fim, depois de `esp_ota_end` conferir o checksum. Wi-Fi caindo no
+// meio da transferência deixa a partição em uso intacta: a placa segue no
+// firmware velho e não existe instante em que ela fique sem firmware válido.
+//
+// ## Depois do reboot, o firmware novo tem que se provar
+//
+// Com `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE`, o app novo sobe em
+// PENDING_VERIFY. Se ninguém chamar `esp_ota_mark_app_valid_cancel_rollback()`,
+// o bootloader volta sozinho para o anterior no próximo boot. A prova aqui é a
+// que importa para este problema: **pegou IP**. Firmware que quebre a rede se
+// desfaz sozinho — e rede quebrada é exatamente o caso em que o cabo USB voltaria
+// a ser obrigatório.
+//
+// Consequência honesta, para não assustar depois: se o roteador estiver fora do
+// ar no boot seguinte a um OTA, a placa reverte. Reverter para um firmware que
+// também não conecta não muda nada, e quando a rede voltar ela sobe no velho e
+// aceita um OTA novo. O rollback também só acontece no PRÓXIMO boot — um
+// firmware que sobe e não conecta continua rodando até alguém reiniciar.
+//
+// ## O token não é autenticação
+//
+// É HTTP na rede local, em texto claro. O `k=` impede flash acidental e
+// varredura boba; não resiste a quem já esteja na sua rede farejando pacote. Se
+// isto um dia sair da bancada, o conserto é HTTPS com certificado, não um token
+// maior.
+#ifndef OTA_TOKEN
+#define OTA_TOKEN ""
+#endif
+
+static esp_err_t h_ota_get(httpd_req_t *req)
+{
+    const esp_partition_t *rod = esp_ota_get_running_partition();
+    const esp_app_desc_t *d = esp_app_get_description();
+    esp_ota_img_states_t st = ESP_OTA_IMG_UNDEFINED;
+    esp_ota_get_state_partition(rod, &st);
+
+    char buf[300];
+    int n = snprintf(buf, sizeof(buf),
+                     "{\"part\":\"%s\",\"ver\":\"%s\",\"build\":\"%s %s\","
+                     "\"estado\":%d,\"token\":%d}",
+                     rod->label, d->version, d->date, d->time, (int)st,
+                     OTA_TOKEN[0] ? 1 : 0);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    return httpd_resp_send(req, buf, n);
+}
+
+static esp_err_t h_ota_post(httpd_req_t *req)
+{
+    char q[80], k[48];
+
+    if (!OTA_TOKEN[0]) {
+        ESP_LOGE(TAG, "ota recusado: OTA_TOKEN vazio — defina em wifi_cfg.h");
+        httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "sem OTA_TOKEN no firmware");
+        return ESP_FAIL;
+    }
+    if (httpd_req_get_url_query_str(req, q, sizeof(q)) != ESP_OK ||
+        httpd_query_key_value(q, "k", k, sizeof(k)) != ESP_OK ||
+        strcmp(k, OTA_TOKEN) != 0) {
+        ESP_LOGW(TAG, "ota recusado: token");
+        httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "token");
+        return ESP_FAIL;
+    }
+
+    // Reiniciar com atuador energizado deixaria resistência ou bomba ligadas
+    // durante o boot, que dura segundos e não tem PID nenhum vigiando. Hoje as
+    // saídas reais ainda são vazias, mas a regra tem que nascer junto com o
+    // caminho que vai usá-las.
+    mq_estado_pub_t m;
+    mq_publicar(&m);
+    if (m.ssr > 0.0f || m.bomba > 0.0f) {
+        ESP_LOGW(TAG, "ota recusado: máquina energizada (ssr=%.2f bomba=%.2f)",
+                 m.ssr, m.bomba);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "maquina energizada");
+        return ESP_FAIL;
+    }
+
+    const esp_partition_t *alvo = esp_ota_get_next_update_partition(NULL);
+    if (!alvo) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "sem particao ota");
+        return ESP_FAIL;
+    }
+
+    esp_ota_handle_t h = 0;
+    esp_err_t e = esp_ota_begin(alvo, OTA_WITH_SEQUENTIAL_WRITES, &h);
+    if (e != ESP_OK) {
+        ESP_LOGE(TAG, "esp_ota_begin: %s", esp_err_to_name(e));
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, esp_err_to_name(e));
+        return ESP_FAIL;
+    }
+
+    // 4 KB no heap, não na pilha: a task do httpd não tem folga para isso.
+    char *buf = malloc(4096);
+    if (!buf) {
+        esp_ota_abort(h);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "sem heap");
+        return ESP_FAIL;
+    }
+
+    ESP_LOGW(TAG, "ota: recebendo %d bytes para %s", req->content_len, alvo->label);
+    int total = 0;
+    while (total < req->content_len) {
+        int r = httpd_req_recv(req, buf, 4096);
+        // Timeout não é fim: Wi-Fi doméstico engasga, e abortar um upload de 1 MB
+        // por causa de uma pausa de 5 s seria desistir cedo demais.
+        if (r == HTTPD_SOCK_ERR_TIMEOUT) continue;
+        if (r <= 0 || esp_ota_write(h, buf, r) != ESP_OK) {
+            free(buf);
+            esp_ota_abort(h);
+            ESP_LOGE(TAG, "ota abortado com %d de %d bytes", total, req->content_len);
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "gravacao falhou");
+            return ESP_FAIL;
+        }
+        total += r;
+    }
+    free(buf);
+
+    // Aqui é onde uma imagem truncada ou de outro chip é reprovada — antes de o
+    // ponteiro de boot se mexer.
+    e = esp_ota_end(h);
+    if (e == ESP_OK) e = esp_ota_set_boot_partition(alvo);
+    if (e != ESP_OK) {
+        ESP_LOGE(TAG, "ota reprovado: %s", esp_err_to_name(e));
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, esp_err_to_name(e));
+        return ESP_FAIL;
+    }
+
+    char resp[120];
+    int n = snprintf(resp, sizeof(resp),
+                     "{\"ok\":1,\"bytes\":%d,\"part\":\"%s\"}", total, alvo->label);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, resp, n);
+
+    ESP_LOGW(TAG, "ota: %d bytes em %s — reiniciando", total, alvo->label);
+    vTaskDelay(pdMS_TO_TICKS(300));   // deixa a resposta sair antes do reset
+    esp_restart();
+    return ESP_OK;
+}
+
 static void http_iniciar(void)
 {
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
     cfg.core_id = CORE_NET;     // servidor fora do core de tempo-real
     cfg.lru_purge_enable = true;
     cfg.max_open_sockets = MAX_SOCKS;
+    // O padrão é 8 e são 9 rotas com o OTA. Estourar aqui não é aviso: o
+    // ESP_ERROR_CHECK do registro derruba a placa no boot.
+    cfg.max_uri_handlers = 12;
+    // O handler de OTA chama esp_ota_write, que escreve em flash. 4 KB é apertado
+    // para isso.
+    cfg.stack_size = 8192;
 
     ESP_ERROR_CHECK(httpd_start(&servidor, &cfg));
 
@@ -983,6 +1146,8 @@ static void http_iniciar(void)
     httpd_uri_t u_t = { .uri = "/t", .method = HTTP_GET, .handler = h_t };
     httpd_uri_t u_sd = { .uri = "/sd", .method = HTTP_GET, .handler = h_sd };
     httpd_uri_t u_tof = { .uri = "/tof", .method = HTTP_GET, .handler = h_tof };
+    httpd_uri_t u_otag = { .uri = "/ota", .method = HTTP_GET, .handler = h_ota_get };
+    httpd_uri_t u_otap = { .uri = "/ota", .method = HTTP_POST, .handler = h_ota_post };
     httpd_uri_t u_ws = {
         .uri = "/ws", .method = HTTP_GET, .handler = h_ws, .is_websocket = true
     };
@@ -992,6 +1157,8 @@ static void http_iniciar(void)
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_t));
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_sd));
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_tof));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_otag));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_otap));
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_ws));
 
     // push fica no core da rede: mandar frame do core 1 furaria a separação

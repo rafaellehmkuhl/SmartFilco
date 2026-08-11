@@ -41,3 +41,9 @@ CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 # não aparece. Nome de shot com data legível vale os bytes de heap.
 CONFIG_FATFS_LFN_HEAP=y
 CONFIG_FATFS_MAX_LFN=64
+
+# OTA com rollback. O app novo sobe em PENDING_VERIFY e só vira definitivo quando
+# ele mesmo confirma que pegou IP; senão o bootloader volta para a imagem
+# anterior no próximo boot. É o que torna seguro atualizar sem o cabo por perto —
+# firmware que quebra a rede se desfaz sozinho. Ver o /ota no main.c.
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
