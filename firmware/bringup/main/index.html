@@ -1059,10 +1059,20 @@ function pintaDbg(d){
    d.sd?t('s_ok'):t('s_absent'),
    d.sd?((d.sdkb/1024).toFixed(0)+' MB '+t('s_free')):t('s_writes')));
 
- // Cinza, não vermelho: falta CÓDIGO, não fio. Ponto vermelho aqui mandaria
- // procurar mau contato onde o problema é driver não escrito.
- L.push(linhaDbg('MAX31865 + PT100','SPI · CS 10',m.drv_t?'ok':'n',
-   m.drv_t?t('s_ok'):t('s_nodrv'),''));
+ // Quatro estados, e cada um manda para um lugar diferente:
+ //   cinza    driver não existe        → escrever código
+ //   vermelho chip não respondeu       → conferir fio, CS, alimentação
+ //   dúvida   respondeu com falha      → conferir sonda (o texto diz qual)
+ //   ok       lendo
+ // Colapsar os dois primeiros num ponto só manda procurar mau contato onde o
+ // problema é software, e vice-versa.
+ // Os ohms crus ficam à vista porque é o número que se confere no borne — e
+ // jumper de 3 fios errado aparece ali antes de aparecer na temperatura.
+ var tLendo=m.drv_t&&m.tpr;
+ L.push(linhaDbg('MAX31865 + PT100','SPI · CS 10',
+   !m.drv_t?'n':(!m.tpr?'mau':(m.tok?'ok':'duvida')),
+   !m.drv_t?t('s_nodrv'):(!m.tpr?t('s_absent'):(m.tok?t('s_ok'):(m.tfa||t('s_susp')))),
+   tLendo?(m.tc.toFixed(2)+' °C<br>'+m.tohm.toFixed(1)+' Ω '+t('s_raw')):''));
  L.push(linhaDbg(t('s_scale'),'NAU7802 / HX711',m.drv_g?'ok':'n',
    m.drv_g?t('s_ok'):t('s_notbought'),''));
 

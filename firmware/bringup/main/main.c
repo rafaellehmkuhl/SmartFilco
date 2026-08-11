@@ -23,6 +23,7 @@
 #include "rtc.h"
 #include "sd.h"
 #include "ads.h"
+#include "max.h"
 #include "ultra.h"
 #include "tof.h"
 #include "freertos/FreeRTOS.h"
@@ -525,6 +526,26 @@ static esp_err_t h_pagina(httpd_req_t *req)
     return httpd_resp_send(req, index_html_start, index_html_end - index_html_start - 1);
 }
 
+// `snprintf` devolve o que CABERIA, não o que coube. Somar o retorno direto faz
+// `tam - p` ficar negativo quando o JSON estoura o buffer; `size_t` transforma
+// isso num número gigante e a escrita seguinte passa do fim do vetor — que aqui é
+// pilha. Truncar já é ruim (JSON inválido, página sem dados); corromper pilha é
+// pior e não aparece perto da causa.
+static int avanca(int p, int escrito, size_t tam)
+{
+    p += escrito;
+    if (p > (int)tam - 1) {
+        static bool avisou;
+        if (!avisou) {
+            avisou = true;
+            ESP_LOGE(TAG, "json truncado: precisava de %d bytes, o buffer tem %u",
+                     p, (unsigned)tam);
+        }
+        p = (int)tam - 1;
+    }
+    return p;
+}
+
 static int montar_json(char *buf, size_t tam)
 {
     wifi_ap_record_t ap;
@@ -547,18 +568,18 @@ static int montar_json(char *buf, size_t tam)
         }
     }
 
-    int p = snprintf(buf, tam,
+    int p = avanca(0, snprintf(buf, tam,
                      "{\"rgb\":[%u,%u,%u],\"max\":%d,\"brilho\":%u,\"ip\":\"" IPSTR "\",\"rssi\":%d,"
                      "\"up\":%lld,\"ws\":%d,\"wserr\":%d,\"wstx\":%lu,\"i2c\":[",
                      cor[0], cor[1], cor[2], MAXV, brilho, IP2STR(&ip.ip), rssi,
                      (esp_timer_get_time() - t0) / 1000000,
-                     assinantes, ws_falhas, (unsigned long)ws_enviados);
+                     assinantes, ws_falhas, (unsigned long)ws_enviados), tam);
 
     uint8_t n = i2c_n;
     for (uint8_t i = 0; i < n && p < (int)tam - 8; i++) {
-        p += snprintf(buf + p, tam - p, i ? ",%u" : "%u", i2c_achados[i]);
+        p = avanca(p, snprintf(buf + p, tam - p, i ? ",%u" : "%u", i2c_achados[i]), tam);
     }
-    p += snprintf(buf + p, tam - p,
+    p = avanca(p, snprintf(buf + p, tam - p,
                   "],\"bme\":%d,\"t\":%ld,\"pa\":%lu,\"rh\":%lu,\"gas\":%lu,"
                   "\"tof\":%d,\"mm\":%u,\"dst\":%u,\"sg\":%u,\"sn\":%u,\"amb\":%u,\"tn\":%u,"
                   "\"rtc\":%d,\"hr\":\"%s\",\"dt\":\"%s\",\"rtemp\":%d,\"fonte\":\"%s\","
@@ -570,7 +591,7 @@ static int montar_json(char *buf, size_t tam)
                   s_dist_sigma, s_dist_sinal, s_dist_amb, s_dist_n,
                   rtc_ok ? 1 : 0, s_hora, s_data, s_rtc_temp_c100, s_rtc_fonte,
                   sd_montado() ? 1 : 0, (unsigned long long)sd_livre_kb(),
-                  s_u_mm, s_u_ok ? 1 : 0, s_u_lo, s_u_hi, s_u_val, s_u_tot, s_u_hz);
+                  s_u_mm, s_u_ok ? 1 : 0, s_u_lo, s_u_hi, s_u_val, s_u_tot, s_u_hz), tam);
 
     // --- máquina. Floats saem com casa decimal já formatada: a página não deve
     //     ter que saber a escala de cada grandeza.
@@ -585,10 +606,15 @@ static int montar_json(char *buf, size_t tam)
     // sem refazer a conta de cabeça, como a docs/07 especifica
     ads_med_t pmed;
     ads_ler(&pmed);
+    // Ohms crus vão junto pelo mesmo motivo dos volts crus do ADS1115: é o número
+    // que se confere com multímetro no borne, sem refazer Callendar–Van Dusen de
+    // cabeça — e é ele que denuncia jumper de 3 fios errado.
+    max_med_t tmed;
+    max_ler(&tmed);
     mq_perfil_t pf;
     mq_perfil_get(&pf);
 
-    p += snprintf(buf + p, tam - p,
+    p = avanca(p, snprintf(buf + p, tam - p,
                   ",\"m\":{\"est\":\"%s\",\"tb\":%.1f,\"pr\":%.2f,\"g\":%.1f,"
                   "\"q\":%.2f,\"niv\":%.0f,\"ap\":%.2f,\"ssr\":%.2f,\"bmb\":%.2f,"
                   "\"t\":%.1f,\"falha\":\"%s\",\"mot\":\"%s\",\"sim\":%d,"
@@ -596,11 +622,12 @@ static int montar_json(char *buf, size_t tam)
                   "\"prebar\":%.1f,\"pres\":%.0f,\"plato\":%.1f,\"declinio\":%.1f,"
                   "\"vaz\":%.2f,\"tagua\":%.1f,\"w\":%.0f,"
                   "\"pv\":%.4f,\"pvc\":%.4f,\"pcru\":%d,\"pok\":%d,"
-                  // 1 = driver escrito. A tela de debug precisa separar "sensor
-                  // ausente" de "driver não existe" — são consertos diferentes,
-                  // e um ponto vermelho igual para os dois manda procurar fiação
-                  // onde o que falta é código.
-                  "\"drv_t\":0,\"drv_g\":0}}",
+                  "\"tc\":%.2f,\"tohm\":%.1f,\"tok\":%d,\"tfa\":\"%s\",\"tpr\":%d,"
+                  // `drv_t` = existe CÓDIGO. `tpr` = o chip RESPONDEU. São duas
+                  // perguntas diferentes e a tela precisa das duas: "falta driver"
+                  // manda escrever código, "não respondeu" manda conferir fio, e
+                  // trocar uma pela outra manda procurar no lugar errado.
+                  "\"drv_t\":1,\"drv_g\":0}}",
                   NOMES[m.estado], m.t_boiler, m.pressao, m.massa, m.vazao,
                   m.nivel_pct, m.alvo_pressao, m.ssr, m.bomba, m.shot_s,
                   m.falha ? m.falha : "", m.motivo ? m.motivo : "",
@@ -608,7 +635,9 @@ static int montar_json(char *buf, size_t tam)
                   pf.setpoint_c, pf.alvo_g, pf.tempo_max_s,
                   pf.pre_bar, pf.pre_s, pf.plato_bar, pf.declinio_bar,
                   esp.vazao_g_s, esp.t_agua_grupo, esp.energia_w,
-                  pmed.volts, pmed.volts_cru, pmed.cru, pmed.valida ? 1 : 0);
+                  pmed.volts, pmed.volts_cru, pmed.cru, pmed.valida ? 1 : 0,
+                  tmed.celsius, tmed.ohms, tmed.valida ? 1 : 0, tmed.falha_txt,
+                  max_pronto() ? 1 : 0), tam);
     return p;
 }
 
@@ -616,7 +645,7 @@ static int montar_json(char *buf, size_t tam)
 // WebSocket; este aqui é para checar a placa de um terminal sem cliente WS.
 static esp_err_t h_rgb(httpd_req_t *req)
 {
-    char buf[800];   // folga: truncar aqui vira JSON inválido, e a página quebra calada
+    char buf[1100];  // folga: truncar aqui vira JSON inválido, e a página quebra calada
     int n = montar_json(buf, sizeof(buf));
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
@@ -710,6 +739,56 @@ static esp_err_t h_sd(httpd_req_t *req)
     char buf[1024];
     int n = sd_listar(buf, sizeof(buf));
     httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, buf, n);
+}
+
+// ---------------------------------------------------- bancada: temperatura
+//
+// `GET /t`             leitura crua, com os ohms
+// `GET /t?rref=429.3`  grava o valor MEDIDO do resistor de referência
+// `GET /t?c=93.5`      com um termômetro de referência no ponto de trabalho,
+//                      fecha o offset
+//
+// Dois ajustes, dois momentos. O `rref` é de bancada e se faz uma vez, com o
+// multímetro no resistor da placa — ele erra a escala inteira, então mexer nele
+// depois desloca toda a curva. O `c` é de máquina fechada, contra um termômetro
+// no ponto de trabalho, e é o que a docs/07 chama de offset.
+//
+// ⚠️ Na ordem inversa não funciona: corrigir o offset primeiro e o Rref depois
+// joga fora a correção, porque a escala se move debaixo dela.
+static esp_err_t h_t(httpd_req_t *req)
+{
+    char q[48], v[16];
+    const char *acao = "leitura";
+    max_med_t m;
+    max_ler(&m);
+    float rref, off;
+    max_get_cal(&rref, &off);
+
+    if (httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK) {
+        if (httpd_query_key_value(q, "rref", v, sizeof(v)) == ESP_OK) {
+            float r = atof(v);
+            // Faixa larga só para barrar dedo escorregado: 430 é PT100, 4300 é
+            // PT1000, e qualquer coisa fora disso é digitação.
+            if (r > 100.0f && r < 5000.0f) { max_calibrar(r, off); acao = "rref"; }
+            else acao = "rref implausível";
+        } else if (httpd_query_key_value(q, "c", v, sizeof(v)) == ESP_OK) {
+            float alvo = atof(v);
+            // Sem leitura válida não há o que corrigir: gravar offset contra uma
+            // sonda aberta grava o erro inteiro como se fosse calibração.
+            if (m.valida) { max_calibrar(rref, off + (alvo - m.celsius)); acao = "offset"; }
+            else acao = "leitura inválida";
+        }
+    }
+    max_get_cal(&rref, &off);
+    char buf[240];
+    int n = snprintf(buf, sizeof(buf),
+                     "{\"acao\":\"%s\",\"c\":%.2f,\"ohm\":%.2f,\"cru\":%u,\"ok\":%d,"
+                     "\"falha\":\"%s\",\"rref\":%.1f,\"off\":%.2f,\"drv\":%d}",
+                     acao, m.celsius, m.ohms, m.cru, m.valida ? 1 : 0,
+                     m.falha_txt, rref, off, max_pronto() ? 1 : 0);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
     return httpd_resp_send(req, buf, n);
 }
 
@@ -854,7 +933,7 @@ static esp_err_t h_ws(httpd_req_t *req)
 // morto — e nunca fica dessincronizado.
 static void tarefa_ws(void *arg)
 {
-    char buf[800];   // folga: truncar aqui vira JSON inválido, e a página quebra calada
+    char buf[1100];  // folga: truncar aqui vira JSON inválido, e a página quebra calada
     int fds[MAX_SOCKS];
 
     while (1) {
@@ -901,6 +980,7 @@ static void http_iniciar(void)
     httpd_uri_t u_pag = { .uri = "/", .method = HTTP_GET, .handler = h_pagina };
     httpd_uri_t u_rgb = { .uri = "/rgb", .method = HTTP_GET, .handler = h_rgb };
     httpd_uri_t u_p = { .uri = "/p", .method = HTTP_GET, .handler = h_p };
+    httpd_uri_t u_t = { .uri = "/t", .method = HTTP_GET, .handler = h_t };
     httpd_uri_t u_sd = { .uri = "/sd", .method = HTTP_GET, .handler = h_sd };
     httpd_uri_t u_tof = { .uri = "/tof", .method = HTTP_GET, .handler = h_tof };
     httpd_uri_t u_ws = {
@@ -909,6 +989,7 @@ static void http_iniciar(void)
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_pag));
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_rgb));
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_p));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_t));
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_sd));
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_tof));
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_ws));

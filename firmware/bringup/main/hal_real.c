@@ -1,10 +1,13 @@
 // HAL real + o despacho entre real e simulado.
 //
-// ⚠️ **Nada aqui está ligado ainda.** PT100/MAX31865 e o sensor de 200 PSI chegam
-// 05/08; a célula de carga não foi comprada. Cada leitura ausente devolve
-// `falha_* = true` em vez de zero — porque zero é um número plausível, e número
-// plausível vindo de sensor inexistente é o modo de falha que mais custou nesta
-// bancada (o ToF lendo 38 cm com status "válido").
+// **Estado dos periféricos (11/08/2026):** temperatura, pressão e nível estão
+// ligados de verdade — MAX31865, ADS1115 e HC-SR04. Faltam a célula de carga
+// (amplificador não decidido) e os dois atuadores, que só entram com a máquina
+// aberta.
+//
+// Cada leitura ausente devolve `falha_* = true` em vez de zero — porque zero é um
+// número plausível, e número plausível vindo de sensor inexistente é o modo de
+// falha que mais custou nesta bancada (o ToF lendo 38 cm com status "válido").
 //
 // Trocar para hardware é preencher as funções marcadas com PENDENTE. A lógica de
 // máquina não muda uma linha.
@@ -14,6 +17,7 @@
 #include "driver/i2c_master.h"
 #include "esp_log.h"
 #include "ads.h"
+#include "max.h"
 #include "ultra.h"
 
 static const char *TAG = "hal";
@@ -30,10 +34,19 @@ static hal_sai_t s_saida;
 
 static void real_ler(hal_ent_t *e)
 {
-    // PENDENTE 05/08 — MAX31865 no SPI, CS no GPIO10. Ler o registrador de FAULT,
-    // não só o valor: a detecção de sonda aberta/curta é por hardware.
-    e->t_boiler = 0.0f;
-    e->falha_temp = true;
+    // ✅ MAX31865 ligado. A falha vem do registrador 0x07 do chip, não de palpite
+    // sobre o valor: sonda aberta e boiler frio dão números parecidos e consertos
+    // opostos. Sem leitura válida, congela o último bom — zero seria "boiler
+    // gelado", que faz o controle mandar potência máxima na resistência.
+    max_med_t t;
+    static float t_bom = 20.0f;
+    if (max_ler(&t) == ESP_OK && t.valida) {
+        t_bom = t.celsius;
+        e->falha_temp = false;
+    } else {
+        e->falha_temp = true;
+    }
+    e->t_boiler = t_bom;
 
     // ✅ ADS1115 ligado, em modo contínuo — ler não bloqueia o laço.
     ads_med_t a;
@@ -93,6 +106,9 @@ void hal_iniciar(void)
     // modelo está mentindo antes de confiar nele.
     if (ultra_iniciar() != ESP_OK) ESP_LOGW(TAG, "hc-sr04 não iniciou");
     if (ads_iniciar(hal_bus, 0x48) != ESP_OK) ESP_LOGW(TAG, "ads1115 não iniciou");
+    // Também sobe em modo simulado, pelo mesmo motivo do ultrassônico: comparar a
+    // sonda real com o modelo lado a lado é como se descobre que o modelo mente.
+    if (max_iniciar() != ESP_OK) ESP_LOGW(TAG, "max31865 não iniciou");
     ESP_LOGI(TAG, "modo=%s", s_modo == HAL_SIM ? "SIMULADO" : "real");
 }
 
