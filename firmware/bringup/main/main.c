@@ -1069,8 +1069,19 @@ static esp_err_t h_ota_post(httpd_req_t *req)
         return ESP_FAIL;
     }
 
+    // Apagar TUDO de uma vez aqui, em vez de setor a setor durante o streaming
+    // (`OTA_WITH_SEQUENTIAL_WRITES`). Medido em 11/08/2026: com o erase
+    // intercalado, a placa reiniciava por TG1WDT — o interrupt watchdog — depois
+    // de ~135 KB, e a taxa era de 20 KB/s. Apagar setor de flash desliga cache e
+    // interrupção; fazer isso 270 vezes no meio de tráfego de Wi-Fi é o padrão
+    // que quebra. Com o erase concentrado numa chamada só, o IDF fatia ele
+    // sozinho (SPI_FLASH_YIELD_DURING_ERASE) e o streaming depois é só page
+    // program, que é curto.
+    //
+    // Passar o tamanho exato em vez de OTA_SIZE_UNKNOWN apaga ~1,1 MB e não os
+    // 4 MB da partição inteira.
     esp_ota_handle_t h = 0;
-    esp_err_t e = esp_ota_begin(alvo, OTA_WITH_SEQUENTIAL_WRITES, &h);
+    esp_err_t e = esp_ota_begin(alvo, req->content_len, &h);
     if (e != ESP_OK) {
         ESP_LOGE(TAG, "esp_ota_begin: %s", esp_err_to_name(e));
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, esp_err_to_name(e));
@@ -1100,6 +1111,20 @@ static esp_err_t h_ota_post(httpd_req_t *req)
             return ESP_FAIL;
         }
         total += r;
+
+        // ⚠️ Sem esta linha a placa REINICIA no meio do upload — medido em
+        // 11/08/2026, aos ~140 KB de 1,1 MB.
+        //
+        // `esp_ota_write` apaga e grava setor de flash, e enquanto faz isso o
+        // core não solta. Com o socket já cheio, `httpd_req_recv` volta na hora e
+        // o laço nunca bloqueia: a task ociosa do core da rede não roda, e o task
+        // watchdog (5 s, com panic) derruba a placa. O sintoma engana, porque
+        // parece queda de Wi-Fi — o `curl` morre sem resposta e o log só mostra
+        // "PRO CPU has been reset by WDT" no boot seguinte.
+        //
+        // 1 tick por bloco de 4 KB custa ~270 ms num binário de 1,1 MB, contra
+        // vários segundos de gravação em flash. É barato.
+        vTaskDelay(1);
     }
     free(buf);
 

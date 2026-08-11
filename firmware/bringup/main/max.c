@@ -150,22 +150,6 @@ esp_err_t max_iniciar(void)
 {
     autoteste();
 
-    spi_bus_config_t bus = {
-        .mosi_io_num = PIN_MOSI,
-        .miso_io_num = PIN_MISO,
-        .sclk_io_num = PIN_SCK,
-        .quadwp_io_num = -1,
-        .quadhd_io_num = -1,
-        .max_transfer_sz = 4000,
-    };
-    // INVALID_STATE = o sd.c já criou o barramento. É esperado, e qual dos dois
-    // sobe primeiro não deve importar.
-    esp_err_t e = spi_bus_initialize(SPI2_HOST, &bus, SPI_DMA_CH_AUTO);
-    if (e != ESP_OK && e != ESP_ERR_INVALID_STATE) {
-        ESP_LOGE(TAG, "spi_bus_initialize: %s", esp_err_to_name(e));
-        return e;
-    }
-
     spi_device_interface_config_t dev = {
         .mode = 1,                 // CPOL=0, CPHA=1 — o cartão SD é modo 0, e o
                                    // IDF troca por transação
@@ -174,8 +158,32 @@ esp_err_t max_iniciar(void)
         .address_bits = 8,
         .queue_size = 1,
     };
-    e = spi_bus_add_device(SPI2_HOST, &dev, &s_dev);
-    if (e != ESP_OK) return e;
+
+    // Entrar primeiro, criar só se não houver barramento. Na ordem inversa — que
+    // é a intuitiva — o IDF loga um ERRO vermelho de "SPI bus already
+    // initialized" em todo boot em que o sd.c chegou antes, e log vermelho que
+    // não significa nada ensina a ignorar log vermelho.
+    esp_err_t e = spi_bus_add_device(SPI2_HOST, &dev, &s_dev);
+    if (e == ESP_ERR_INVALID_STATE) {
+        spi_bus_config_t bus = {
+            .mosi_io_num = PIN_MOSI,
+            .miso_io_num = PIN_MISO,
+            .sclk_io_num = PIN_SCK,
+            .quadwp_io_num = -1,
+            .quadhd_io_num = -1,
+            .max_transfer_sz = 4000,
+        };
+        e = spi_bus_initialize(SPI2_HOST, &bus, SPI_DMA_CH_AUTO);
+        if (e != ESP_OK) {
+            ESP_LOGE(TAG, "spi_bus_initialize: %s", esp_err_to_name(e));
+            return e;
+        }
+        e = spi_bus_add_device(SPI2_HOST, &dev, &s_dev);
+    }
+    if (e != ESP_OK) {
+        ESP_LOGE(TAG, "spi_bus_add_device: %s", esp_err_to_name(e));
+        return e;
+    }
 
     e = reg_escrever(REG_CONFIG, CONFIG | CFG_LIMPA_FALHA);
     if (e != ESP_OK) { s_dev = NULL; return e; }
