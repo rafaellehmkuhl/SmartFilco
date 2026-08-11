@@ -27,7 +27,16 @@ void sim_iniciar(void);
 void sim_passo(float dt_s, const hal_sai_t *s);
 void sim_ler(hal_ent_t *e);
 
-static hal_modo_t s_modo = HAL_SIM;
+// Nasce em REAL desde 11/08/2026. Enquanto não havia sensor nenhum ligado,
+// simulado era o único modo que mostrava alguma coisa; agora temperatura, pressão
+// e nível são leitura de verdade, e abrir a página em simulado passou a esconder
+// justamente o que se quer ver.
+//
+// Consequência esperada, não defeito: com um sensor faltando a máquina cai em
+// FALHA logo no boot, porque `proteger()` derruba com `falha_temp`. É o
+// comportamento certo — e a página tem "falha limpar" para reconhecer, embora ela
+// volte a cair enquanto o fio estiver solto.
+static hal_modo_t s_modo = HAL_REAL;
 static hal_sai_t s_saida;
 
 // ---------------------------------------------------------------- real
