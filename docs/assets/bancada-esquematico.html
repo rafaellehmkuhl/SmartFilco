@@ -639,6 +639,137 @@ td.n{width:2.2em;color:var(--ink-3)}
 </section>
 
 <section>
+  <h2>SSR da resistência — e o transistor que precisa existir</h2>
+  <p style="margin:0 0 1rem;font-family:ui-sans-serif,system-ui,sans-serif;font-size:.85rem;color:var(--ink-2);max-width:70ch">
+    Este é o único sinal do projeto que <strong>não</strong> vai direto do GPIO ao módulo. Nem por
+    causa de corrente — o ESP32 dá conta dos 7,5 mA — mas por causa de <strong>tensão</strong>, e de
+    uma coisa que tem que acontecer antes do firmware existir.
+  </p>
+  <div class="scroll">
+  <svg viewBox="0 0 1240 330" role="img" aria-label="Ligação do SSR ao ESP32 com estágio de transistor">
+  <defs>
+    <marker id="arg3" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto">
+      <path d="M0 0 L12 5 L0 10 z" fill="var(--gpio)"/></marker>
+    <pattern id="ac2" width="10" height="10" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+      <line x1="0" y1="0" x2="0" y2="10" stroke="var(--v5)" stroke-width="3" opacity=".18"/>
+    </pattern>
+  </defs>
+  <g font-family="ui-monospace,SFMono-Regular,Menlo,monospace">
+
+    <!-- ESP32 -->
+    <rect x="30" y="40" width="220" height="210" rx="8" fill="none" stroke="var(--gpio)" stroke-width="1.5"/>
+    <text x="48" y="70" font-size="13" font-weight="700" fill="var(--ink)">ESP32-S3</text>
+    <text x="48" y="88" font-size="10.5" fill="var(--ink-3)">saída, 3,3 V</text>
+    <text x="232" y="124" font-size="11" font-weight="700" text-anchor="end" fill="var(--gpio)">GPIO 6</text>
+    <text x="232" y="200" font-size="10.5" text-anchor="end" fill="var(--ink-3)">janela lenta de PWM</text>
+    <text x="232" y="218" font-size="10.5" text-anchor="end" fill="var(--ink-3)">1–2 s por ciclo</text>
+
+    <!-- +5 V -->
+    <line x1="300" y1="60" x2="650" y2="60" stroke="var(--v5)" stroke-width="2.5"/>
+    <text x="306" y="50" font-size="10.5" fill="var(--v5)">+5 V ↑ — o mesmo trilho dos sensores</text>
+
+    <!-- base: GPIO -> R1 -> nó -> base -->
+    <g stroke="var(--gpio)" stroke-width="2.5" fill="none">
+      <line x1="250" y1="130" x2="380" y2="130"/>
+      <line x1="440" y1="130" x2="500" y2="130"/>
+      <line x1="460" y1="130" x2="460" y2="160"/>
+      <line x1="460" y1="212" x2="460" y2="232"/>
+    </g>
+    <rect x="380" y="118" width="60" height="24" rx="3" fill="none" stroke="var(--gpio)" stroke-width="2"/>
+    <text x="410" y="135" font-size="11" font-weight="700" text-anchor="middle" fill="var(--gpio)">1 k</text>
+    <rect x="448" y="160" width="24" height="52" rx="3" fill="none" stroke="var(--gpio)" stroke-width="2"/>
+    <text x="424" y="192" font-size="11" font-weight="700" text-anchor="end" fill="var(--gpio)">10 k</text>
+    <circle cx="460" cy="130" r="4.5" fill="var(--gpio)"/>
+
+    <!-- transistor -->
+    <g stroke="var(--ink-2)" stroke-width="2.5" fill="none">
+      <line x1="500" y1="106" x2="500" y2="154"/>
+      <line x1="500" y1="118" x2="530" y2="100"/>
+      <line x1="500" y1="142" x2="530" y2="160"/>
+      <line x1="530" y1="100" x2="530" y2="100"/>
+    </g>
+    <path d="M520 152 L530 160 L519 162 z" fill="var(--ink-2)"/>
+    <text x="500" y="94" font-size="11" font-weight="700" text-anchor="middle" fill="var(--ink)">2N2222</text>
+
+    <!-- coletor -> SSR (-) -->
+    <line x1="530" y1="100" x2="650" y2="100" stroke="var(--gpio)" stroke-width="2.5"/>
+    <!-- emissor -> GND -->
+    <g stroke="var(--gnd)" stroke-width="2.5" fill="none">
+      <line x1="530" y1="160" x2="530" y2="232"/>
+      <line x1="460" y1="232" x2="530" y2="232"/>
+      <line x1="479" y1="244" x2="511" y2="244"/>
+      <line x1="485" y1="251" x2="505" y2="251"/>
+      <line x1="491" y1="258" x2="499" y2="258"/>
+      <line x1="495" y1="232" x2="495" y2="244"/>
+    </g>
+
+    <!-- SSR -->
+    <rect x="650" y="40" width="260" height="210" rx="8" fill="none" stroke="var(--v5)" stroke-width="2"/>
+    <text x="666" y="32" font-size="13" font-weight="700" fill="var(--ink)">SSR-40DA</text>
+    <text x="666" y="66" font-size="10.5" font-weight="700" fill="var(--v5)">3 (+)</text>
+    <text x="666" y="106" font-size="10.5" font-weight="700" fill="var(--gpio)">4 (−)</text>
+    <text x="666" y="146" font-size="10" fill="var(--ink-3)">entrada</text>
+    <text x="666" y="163" font-size="10" fill="var(--ink-3)">3–32 VDC</text>
+    <text x="666" y="180" font-size="10" fill="var(--ink-3)">~7,5 mA</text>
+    <line x1="780" y1="40" x2="780" y2="250" stroke="var(--v5)" stroke-width="2" stroke-dasharray="6 5"/>
+    <text x="795" y="146" font-size="10" fill="var(--ink-3)">zero-cross</text>
+    <text x="795" y="163" font-size="10" fill="var(--ink-3)">dissipador</text>
+    <text x="795" y="180" font-size="10" fill="var(--ink-3)">obrigatório</text>
+    <text x="894" y="86" font-size="10.5" font-weight="700" text-anchor="end" fill="var(--v5)">1 ~</text>
+    <text x="894" y="126" font-size="10.5" font-weight="700" text-anchor="end" fill="var(--v5)">2 ~</text>
+    <text x="780" y="272" font-size="10" text-anchor="middle" fill="var(--v5)">o opto mora aqui dentro</text>
+
+    <g stroke="var(--v5)" stroke-width="2.5" fill="none">
+      <line x1="910" y1="80" x2="980" y2="80"/>
+      <line x1="910" y1="120" x2="980" y2="120"/>
+    </g>
+
+    <!-- AC -->
+    <rect x="980" y="40" width="230" height="210" rx="8" fill="url(#ac2)" stroke="var(--v5)" stroke-width="2"/>
+    <text x="996" y="70" font-size="13" font-weight="700" fill="var(--v5)">Rede 220 V</text>
+    <text x="996" y="94" font-size="10.5" fill="var(--ink-2)">resistência do boiler</text>
+    <text x="996" y="124" font-size="10.5" fill="var(--ink-2)">com o termostato de</text>
+    <text x="996" y="142" font-size="10.5" fill="var(--ink-2)">vapor ~140 °C em série</text>
+    <text x="996" y="176" font-size="11" font-weight="700" fill="var(--v5)">A bancada não liga</text>
+    <text x="996" y="194" font-size="11" font-weight="700" fill="var(--v5)">este lado.</text>
+    <text x="996" y="222" font-size="10" fill="var(--ink-3)">backstop de hardware —</text>
+    <text x="996" y="238" font-size="10" fill="var(--ink-3)">ver docs/07</text>
+
+  </g>
+  </svg>
+  </div>
+
+  <div class="grid" style="margin-top:1rem">
+    <div class="card trap">
+      <h3>O <code>10 k</code> é o que mantém o boiler desligado no boot</h3>
+      <p>De todos os componentes deste esquemático, este é o único cuja <strong>ausência liga alguma coisa</strong>.</p>
+      <p>Os GPIOs do ESP32 ficam em <strong>alta impedância durante o reset e o boot</strong> — algumas centenas de milissegundos em que ninguém está dirigindo o pino — e voltam para lá depois de um crash. Base flutuante pode passar do limiar do transistor sozinha, com ruído da própria placa.</p>
+      <p>O resistor de <code>10 k</code> da base para GND garante <strong>desligado até o firmware afirmar o contrário</strong>. Numa resistência de 220 V dentro de uma máquina fechada, é a diferença entre um bug e um incêndio.</p>
+    </div>
+
+    <div class="card trap">
+      <h3>Por que não ligar direto no GPIO 6</h3>
+      <p>Corrente não é o problema: o SSR-40DA puxa ~7,5 mA e o ESP32 fornece 20 mA sem reclamar. <strong>Tensão é.</strong></p>
+      <p>A entrada dele é especificada para <strong>3–32 VDC</strong>, e 3,3 V está <strong>0,3 V acima do piso</strong>. Fotek genuíno dispara; clone é cara ou coroa.</p>
+      <p>E a falha não é limpa. Corrente marginal no LED interno faz o opto disparar em <strong>alguns semiciclos e não em outros</strong> — a resistência entrega uma potência que não corresponde ao comando, e o PID passa a integrar contra uma planta que mente. Você procuraria isso no ajuste do controle durante semanas.</p>
+      <p>Com o transistor chaveando os <strong>5 V</strong> que já existem no trilho, some a dúvida inteira. <code>2N2222</code> ou <code>BC337</code>; um <code>2N7000</code>/<code>BS170</code> no lugar faz o mesmo com os mesmos dois resistores.</p>
+    </div>
+
+    <div class="card">
+      <h3>Não precisa de opto, nem de shifter</h3>
+      <p>O SSR <strong>é</strong> o isolador — o optoacoplador está dentro dele, e é isso que a tracejada no meio do desenho representa. Acrescentar um opto na entrada seria isolar o que já está isolado.</p>
+      <p>O que ele precisa e costuma faltar é <strong>dissipador</strong>: 40 A é o rating com dissipação, não sem.</p>
+    </div>
+
+    <div class="card">
+      <h3>Zero-cross manda na janela do PWM</h3>
+      <p>O SSR só comuta na passagem por zero, então a menor coisa que ele sabe fazer é <strong>um semiciclo, 8,33 ms</strong>. Não existe "meio semiciclo".</p>
+      <p>Por isso o controle da resistência é <strong>janela lenta</strong>, de 1 a 2 s: com janela de 100 ms sobrariam 12 degraus de potência, e a quantização apareceria como oscilação no PID. Com 2 s são 240 — resolução de sobra para algo com a inércia térmica de um boiler.</p>
+    </div>
+  </div>
+</section>
+
+<section>
   <h2>Conferência na bancada</h2>
   <div class="scroll" style="padding:0">
   <table>
@@ -655,7 +786,7 @@ td.n{width:2.2em;color:var(--ink-3)}
       <tr><td><span class="pin" style="background:var(--gpio)">16</span></td><td>ECHO</td><td>HC-SR04 <strong>via shifter, canal 4</strong></td><td>5 V → 3,3 V</td></tr>
       <tr class="muted"><td><span class="pin" style="background:var(--dim)">4</span></td><td>Z-C <span class="muted">(ou TX na V2)</span></td><td>dimmer — entrada, ISR em IRAM</td><td>3,3 V</td></tr>
       <tr class="muted"><td><span class="pin" style="background:var(--dim)">5</span></td><td>PSM <span class="muted">(ou RX na V2)</span></td><td>dimmer — saída</td><td>3,3 V</td></tr>
-      <tr class="muted"><td><span class="pin" style="background:var(--dim)">6</span></td><td>SSR</td><td>resistência do boiler</td><td>3,3 V</td></tr>
+      <tr class="muted"><td><span class="pin" style="background:var(--dim)">6</span></td><td>SSR</td><td>resistência — <strong>via transistor</strong>, com pulldown de 10 k</td><td>3,3 V → 5 V</td></tr>
       <tr class="muted"><td><span class="pin" style="background:var(--v5)">5V</span></td><td colspan="3"><strong>não ligar</strong> — é entrada do devkit, mede 0,25 V</td></tr>
     </tbody>
   </table>
