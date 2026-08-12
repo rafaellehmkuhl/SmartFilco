@@ -558,7 +558,8 @@ en:{
  distance:'distance (median)',wrange:'window range',valid:'valid samples',
  rate:'rate',eqlevel:'equivalent level',clock:'Clock',date:'date',
  provenance:'provenance',chiptemp:'chip temp.',absent:'absent',invalid:'INVALID',
- nowindow:'no window',window60:'60 s window',
+ nowindow:'no window',window60:'1 h window',now:'now',
+ s_filt:'filtered',s_raw:'raw',
  recorded:'Recorded shots',noshots:'No shots on the card yet.',
  card:'card',free:'MB free',nocard:'no card',noresp:'card did not respond',
  simulation:'Simulation',bench:'bench',datasource:'Data source',
@@ -601,7 +602,8 @@ pt:{
  distance:'distância (mediana)',wrange:'faixa da janela',valid:'amostras válidas',
  rate:'taxa',eqlevel:'nível equivalente',clock:'Relógio',date:'data',
  provenance:'procedência',chiptemp:'temp. do chip',absent:'ausente',invalid:'INVÁLIDA',
- nowindow:'sem janela',window60:'janela 60 s',
+ nowindow:'sem janela',window60:'janela 1 h',now:'agora',
+ s_filt:'filtrado',s_raw:'cru',
  recorded:'Shots gravados',noshots:'Nenhum shot no cartão ainda.',
  card:'cartão',free:'MB livres',nocard:'sem cartão',noresp:'cartão não respondeu',
  simulation:'Simulação',bench:'bancada',datasource:'Fonte dos dados',
@@ -669,6 +671,13 @@ addEventListener('click',function(e){
    de lugar ao ganhar/perder o sinal — que em painel não se lê como variação, se
    lê como defeito. A vaga do sinal é sempre ocupada: menos, ou U+2007, que tem
    exatamente a largura de um dígito. */
+// Duração legível: segundos até 1 min, depois minutos. Mostrar "3600 s" seria
+// tecnicamente certo e ilegível.
+function dur(s){
+ if(s<90)return Math.round(s)+' s';
+ var m=s/60;
+ return (m<10?m.toFixed(1):Math.round(m))+' min';
+}
 function num(v,casas){
  var s=v.toFixed(casas);
  if(parseFloat(s)===0)s=(0).toFixed(casas);
@@ -699,22 +708,47 @@ function mediSinal(){
    9 bar); temperatura AUTO com vão mínimo, senão 0,3 °C vira linha reta morta.
    As REFERÊNCIAS (setpoint) vão tracejadas, esmaecidas e por baixo. */
 function REM(){return parseFloat(getComputedStyle(document.documentElement).fontSize)||14;}
-var PASSO=250, NPT=240;
-var serT=[], serP=[], serTa=[], serPa=[], tAmostra=0;
 
-function faixa(s,vao){
+/* ------------------------------------------------------------- histórico vivo
+   A janela era de 60 s e jogava fora tudo o que passava disso. Agora guarda
+   **1 hora**, e só começa a descartar quando enche — antes disso o eixo do tempo
+   CRESCE, mostrando desde o boot.
+
+   1 h a 250 ms são 14.400 pontos por série, 4 séries. Em array comum de JS isso
+   seria ~460 kB e um `shift()` por amostra, que é O(n) — a 4 Hz o navegador
+   passaria o dia realocando. Com `Float32Array` em buffer circular são 230 kB e
+   escrita em tempo constante.
+
+   ⚠️ E desenhar 14.400 pontos num canvas de ~600 px seria 24 pontos por pixel:
+   lento e inútil. O traçado agrega por COLUNA DE PIXEL guardando mín e máx, o
+   que preserva o envelope — decimação simples (pegar 1 a cada 24) esconderia
+   justamente os picos de pressão, que é o que se quer ver. */
+var PASSO=250, JANELA_S=3600;
+var NPT=Math.round(JANELA_S*1000/PASSO);
+var serT=new Float32Array(NPT), serP=new Float32Array(NPT);
+var serTa=new Float32Array(NPT), serPa=new Float32Array(NPT);
+var escI=0, nPts=0, tAmostra=0;
+// NaN é o "sem dado" aqui: Float32Array não guarda null, e 0 seria um valor
+// legítimo de pressão. NaN !== NaN é o teste, igual ao que o ultrassônico faz.
+function at(s,i){return s[(escI-nPts+i+NPT*2)%NPT];}
+
+function faixa2(a,b,vao){
  var lo=1/0,hi=-1/0,n=0;
- for(var i=0;i<s.length;i++){var v=s[i];if(v==null)continue;
-  n++;if(v<lo)lo=v;if(v>hi)hi=v;}
+ for(var i=0;i<nPts;i++){
+  var v=at(a,i); if(v===v){n++;if(v<lo)lo=v;if(v>hi)hi=v;}
+  if(b){var w=at(b,i); if(w===w){n++;if(w<lo)lo=w;if(w>hi)hi=w;}}
+ }
  if(!n)return null;
  var c=(lo+hi)/2, d=Math.max(hi-lo,vao)*1.2/2;
  return [c-d,c+d];
 }
-function traca(ctx,s,f,cor,x0,pw,y0,ph,len,alvo){
- if(!f)return;
- var px=function(i){return x0+pw*(i+NPT-len)/(NPT-1);};
- var py=function(v){return y0+ph-(v-f[0])/(f[1]-f[0])*ph;};
- var r=REM();
+// Agrega por coluna de pixel: para cada coluna, o mín e o máx dos pontos que
+// caem nela viram um segmento vertical. É assim que se desenha forma de onda sem
+// mentir — decimação simples pularia os picos.
+function traca(ctx,s,f,cor,x0,pw,y0,ph,alvo){
+ if(!f||!nPts)return;
+ var py=function(v){return y0+ph-(Math.max(f[0],Math.min(f[1],v))-f[0])/(f[1]-f[0])*ph;};
+ var r=REM(), cols=Math.max(2,Math.floor(pw));
  ctx.save();
  ctx.strokeStyle=cor;ctx.lineJoin='round';ctx.lineCap='round';
  if(alvo){
@@ -723,11 +757,19 @@ function traca(ctx,s,f,cor,x0,pw,y0,ph,len,alvo){
  }else{ ctx.lineWidth=Math.max(2,r/7); }
  ctx.beginPath();
  var atras=false,ux=0,uy=0;
- for(var i=0;i<len;i++){
-  var v=s[i];
-  if(v==null){atras=false;continue;}
-  ux=px(i);uy=py(Math.max(f[0],Math.min(f[1],v)));
-  if(atras)ctx.lineTo(ux,uy);else ctx.moveTo(ux,uy);
+ for(var c=0;c<cols;c++){
+  var i0=Math.floor(c*nPts/cols), i1=Math.max(i0+1,Math.floor((c+1)*nPts/cols));
+  var lo=1/0,hi=-1/0,ult=NaN;
+  for(var i=i0;i<i1&&i<nPts;i++){
+   var v=at(s,i); if(v!==v)continue;
+   if(v<lo)lo=v; if(v>hi)hi=v; ult=v;
+  }
+  if(ult!==ult){atras=false;continue;}
+  var x=x0+pw*(c+0.5)/cols;
+  if(atras)ctx.lineTo(x,py(lo));else ctx.moveTo(x,py(lo));
+  if(hi!==lo)ctx.lineTo(x,py(hi));
+  ux=x;uy=py(ult);
+  ctx.lineTo(ux,uy);
   atras=true;
  }
  ctx.stroke();
@@ -748,8 +790,11 @@ function desenhaPlot(){
  if(pw<3*r||ph<2*r)return;
  // a faixa olha medida E alvo: senão a referência sai do plot justamente quando
  // está longe da medida, que é quando ela mais importa
- var fT=faixa(serT.concat(serTa),3), fP=[0,12];
- var temP=serP.some(function(v){return v!=null;});
+ // a faixa olha medida E alvo juntos: senão a referência sai do plot justamente
+ // quando está longe da medida, que é quando ela mais importa
+ var fT=faixa2(serT,serTa,3), fP=[0,12];
+ var temP=false;
+ for(var i=0;i<nPts&&!temP;i++){var v=at(serP,i);temP=(v===v);}
 
  ctx.font=(.72*r).toFixed(1)+'px ui-monospace,Menlo,monospace';ctx.textBaseline='middle';
  for(var k=0;k<=3;k++){
@@ -762,19 +807,23 @@ function desenhaPlot(){
   ctx.fillText((fP[1]-(fP[1]-fP[0])*k/3).toFixed(0),x0+pw+.5*r,y);
   ctx.globalAlpha=1;
  }
- var len=serT.length;
- traca(ctx,serPa,fP,'#3d86c8',x0,pw,y0,ph,len,true);
- traca(ctx,serTa,fT,'#c98330',x0,pw,y0,ph,len,true);
- traca(ctx,serP,fP,'#3d86c8',x0,pw,y0,ph,len);
- traca(ctx,serT,fT,'#c98330',x0,pw,y0,ph,len);
+ // referências primeiro, para as medidas ficarem POR CIMA: quando coincidem,
+ // quem tem que ganhar o pixel é o que aconteceu de verdade
+ traca(ctx,serPa,fP,'#3d86c8',x0,pw,y0,ph,true);
+ traca(ctx,serTa,fT,'#c98330',x0,pw,y0,ph,true);
+ traca(ctx,serP,fP,'#3d86c8',x0,pw,y0,ph);
+ traca(ctx,serT,fT,'#c98330',x0,pw,y0,ph);
 
+ // O span CRESCE até encher a hora, então o rótulo tem que ser calculado, não
+ // fixo. "−60 s" chumbado passaria a mentir no primeiro minuto de uso.
  ctx.fillStyle='#5d564c';ctx.font=(.64*r).toFixed(1)+'px ui-monospace,Menlo,monospace';
- ctx.textAlign='left';ctx.fillText('−60 s',x0,h-.45*r);
- ctx.textAlign='right';ctx.fillText('now',x0+pw,h-.45*r);
+ ctx.textAlign='left';ctx.fillText('−'+dur(nPts*PASSO/1000),x0,h-.45*r);
+ ctx.textAlign='right';ctx.fillText(t('now'),x0+pw,h-.45*r);
 }
 function amostra(a,b,c,d){
- serT.push(a);serP.push(b);serTa.push(c);serPa.push(d);
- if(serT.length>NPT){serT.shift();serP.shift();serTa.shift();serPa.shift();}
+ serT[escI]=a;serP[escI]=b;serTa[escI]=c;serPa[escI]=d;
+ escI=(escI+1)%NPT;
+ if(nPts<NPT)nPts++;      // só desliza depois de encher a hora inteira
  desenhaPlot();
 }
 
