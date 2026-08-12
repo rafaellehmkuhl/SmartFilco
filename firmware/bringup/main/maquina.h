@@ -54,6 +54,11 @@ void mq_iniciar(void);
 void mq_passo(float dt_s);          // chamar em cadência fixa
 void mq_publicar(mq_estado_pub_t *o);
 
+// A máquina NASCE em repouso, com a resistência desligada. Sair de lá é ato
+// explícito — ver o comentário em maquina.c sobre o estado seguro no boot.
+void mq_ligar(bool on);
+bool mq_ligada(void);
+
 void mq_shot_iniciar(void);
 void mq_shot_parar(void);
 void mq_perfil_get(mq_perfil_t *p);

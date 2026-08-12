@@ -624,7 +624,7 @@ static int montar_json(char *buf, size_t tam)
     p = avanca(p, snprintf(buf + p, tam - p,
                   ",\"m\":{\"est\":\"%s\",\"tb\":%.1f,\"pr\":%.2f,\"g\":%.1f,"
                   "\"q\":%.2f,\"niv\":%.0f,\"ap\":%.2f,\"ssr\":%.2f,\"bmb\":%.2f,"
-                  "\"t\":%.1f,\"falha\":\"%s\",\"mot\":\"%s\",\"sim\":%d,"
+                  "\"t\":%.1f,\"falha\":\"%s\",\"mot\":\"%s\",\"on\":%d,\"sim\":%d,"
                   "\"sp\":%.1f,\"alvo\":%.0f,\"tmax\":%.0f,"
                   "\"prebar\":%.1f,\"pres\":%.0f,\"plato\":%.1f,\"declinio\":%.1f,"
                   "\"vaz\":%.2f,\"tagua\":%.1f,\"w\":%.0f,"
@@ -637,7 +637,7 @@ static int montar_json(char *buf, size_t tam)
                   "\"drv_t\":1,\"drv_g\":0}}",
                   NOMES[m.estado], m.t_boiler, m.pressao, m.massa, m.vazao,
                   m.nivel_pct, m.alvo_pressao, m.ssr, m.bomba, m.shot_s,
-                  m.falha ? m.falha : "", m.motivo ? m.motivo : "",
+                  m.falha ? m.falha : "", m.motivo ? m.motivo : "", mq_ligada() ? 1 : 0,
                   hal_modo() == HAL_SIM ? 1 : 0,
                   pf.setpoint_c, pf.alvo_g, pf.tempo_max_s,
                   pf.pre_bar, pf.pre_s, pf.plato_bar, pf.declinio_bar,
@@ -879,6 +879,8 @@ static void ws_comando(char *s)
         brilho = (uint8_t)lim(val, 0, MAXV);
         return;
     }
+    if (strncmp(s, "maq on", 6) == 0) { mq_ligar(true); return; }
+    if (strncmp(s, "maq off", 7) == 0) { mq_ligar(false); return; }
     if (strncmp(s, "shot start", 10) == 0) { mq_shot_iniciar(); return; }
     if (strncmp(s, "shot stop", 9) == 0) { mq_shot_parar(); return; }
     if (strncmp(s, "falha limpar", 12) == 0) { mq_limpar_falha(); return; }

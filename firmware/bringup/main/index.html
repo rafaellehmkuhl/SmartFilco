@@ -97,6 +97,12 @@ table.dbg .saude{text-align:right;white-space:nowrap;font-size:.64rem}
   margin-right:.45rem;vertical-align:.05rem}
 .pto.ok{background:#7a9a5b} .pto.mau{background:var(--brasa)}
 .pto.duvida{background:var(--crema)} .pto.n{background:var(--fosco)}
+/* O botão de energia é o único que muda de cor pelo estado da MÁQUINA, não pelo
+   ponteiro: aceso = resistência sob controle do PID. Num painel de máquina, saber
+   se ela está energizada não pode depender de ler texto. */
+.ico.pwr svg{stroke:var(--fosco)}
+.ico.pwr.on{border-color:var(--crema);background:rgba(201,160,106,.14)}
+.ico.pwr.on svg{stroke:var(--crema)}
 .hdet{margin-top:.7rem;padding-top:.5rem;border-top:1px solid var(--linha)}
 
 /* Falha vira CARD, com a mesma linguagem dos outros: fundo próprio, borda de
@@ -296,6 +302,11 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
   <span class="relogio" id="relogio">&mdash;&mdash;:&mdash;&mdash;:&mdash;&mdash;</span>
 
   <div class="tdir">
+  <button class="ico pwr" id="btPwr" data-i18n-t="tt_power">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 3v9"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/>
+    </svg>
+  </button>
   <button class="ico" id="btLang" title="Language / Idioma"><b id="lang">EN</b></button>
 
   <button class="ico" id="btDbg" aria-haspopup="dialog" data-i18n-t="tt_dbg">
@@ -580,6 +591,7 @@ en:{
  samples:'samples',avg:'avg',
  noclock:'no clock',at:'at',uptime:'since boot',
  sensors:'Sensors',tt_dbg:'Connected sensors and live values',
+ tt_power:'Turn the machine on or off',standby:'at rest',
  s_absent:'absent',s_nodrv:'no driver',s_ok:'ok',s_susp:'suspect',
  s_notbought:'not purchased',s_scan:'I²C scan',s_mode:'source',
  s_ambient:'Ambient',s_clock:'Clock',s_press:'Group pressure',
@@ -624,6 +636,7 @@ pt:{
  samples:'amostras',avg:'médio',
  noclock:'sem relógio',at:'às',uptime:'desde o boot',
  sensors:'Sensores',tt_dbg:'Sensores ligados e valores ao vivo',
+ tt_power:'Liga ou desliga a máquina',standby:'em repouso',
  s_absent:'ausente',s_nodrv:'sem driver',s_ok:'ok',s_susp:'suspeito',
  s_notbought:'não comprada',s_scan:'varredura I²C',s_mode:'fonte',
  s_ambient:'Ambiente',s_clock:'Relógio',s_press:'Pressão do grupo',
@@ -819,6 +832,13 @@ function desenhaPlot(){
  ctx.fillStyle='#5d564c';ctx.font=(.64*r).toFixed(1)+'px ui-monospace,Menlo,monospace';
  ctx.textAlign='left';ctx.fillText('−'+dur(nPts*PASSO/1000),x0,h-.45*r);
  ctx.textAlign='right';ctx.fillText(t('now'),x0+pw,h-.45*r);
+}
+// Zera o histórico do gráfico. Chamada na borda de início do shot: com janela de
+// 1 h, uma extração de 30 s ocuparia 0,8% da largura e viraria um risco fino.
+// Limpando, o eixo recomeça do zero e o shot toma a tela inteira enquanto corre.
+function limparSerie(){
+ escI=0; nPts=0;
+ desenhaPlot();
 }
 function amostra(a,b,c,d){
  serT[escI]=a;serP[escI]=b;serTa[escI]=c;serPa[escI]=d;
@@ -1147,6 +1167,7 @@ btLimpar.onclick=function(){env('falha limpar');};
  b.onclick=function(){ env('set '+b.dataset.f+' '+(b.classList.toggle('on')?1:0)); };
 });
 btShot.onclick=function(){ env(btShot.dataset.on==='1'?'shot stop':'shot start'); };
+btPwr.onclick=function(){ env(btPwr.classList.contains('on')?'maq off':'maq on'); };
 
 /* ---------------------------------------------------------- perfil (+/-)
    O valor mostrado vem SEMPRE do firmware, nunca de um contador local: o
@@ -1175,6 +1196,7 @@ function pintaPerfil(m){
 
 /* ---------------------------------------------------------------- render */
 var EXTRAINDO={pre:1,ramp:1,plateau:1,decline:1};
+var extAnt=false;
 
 function pinta(d){
  var tm=performance.now();
@@ -1186,12 +1208,21 @@ function pinta(d){
  estado.classList.toggle('falha',falhou);
  txtEstado.textContent=falhou?t(m.falha||'fault'):t(m.est);
 
+ btPwr.classList.toggle('on',!!m.on);
+
  var ext=!!EXTRAINDO[m.est];
+ // Limpa na BORDA do estado, não no clique do botão: assim vale também para shot
+ // disparado de outro navegador, e um dia pelo botão físico da máquina. O clique
+ // só pede; quem manda é a máquina dizer que começou.
+ if(ext&&!extAnt)limparSerie();
+ extAnt=ext;
  btShot.textContent=ext?t('stop'):t('pull');
  btShot.classList.toggle('parar',ext);
  btShot.dataset.on=ext?'1':'0';
  // Puxar shot com a máquina fria dá café ruim de forma silenciosa; o botão diz
  // isso antes, em vez de deixar descobrir na xícara.
+ // Só de PRONTA. Máquina em repouso ou ainda aquecendo não puxa shot — o botão
+ // desabilitado diz isso antes de virar café ruim.
  btShot.disabled=falhou||(!ext&&m.est!=='ready');
 
  vVazao.textContent=ext?m.q.toFixed(1)+' g/s':'';

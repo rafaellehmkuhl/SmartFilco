@@ -185,15 +185,37 @@ void mq_limpar_falha(void)
     falha = NULL;
     estado = MQ_OCIOSO;
     pid_zerar(&pid_ctrl_temp);
-    ESP_LOGW(TAG, "falha reconhecida, voltando a ocioso");
+    // Repouso, não aquecendo: depois de uma falha quem decide religar é quem
+    // olhou o que aconteceu.
+    ESP_LOGW(TAG, "falha reconhecida, máquina em repouso");
 }
+
+static bool extraindo(void);
+
+void mq_ligar(bool on)
+{
+    if (estado == MQ_FALHA) return;          // falha se resolve reconhecendo, não ligando
+    if (on) {
+        if (estado == MQ_OCIOSO) { pid_zerar(&pid_ctrl_temp); estado = MQ_AQUECENDO; }
+    } else {
+        // Desligar durante extração encerra o shot antes: bomba parando por
+        // desligamento geral não pode deixar o shot pendurado em "extraindo".
+        if (extraindo()) mq_shot_parar();
+        estado = MQ_OCIOSO;
+    }
+    ESP_LOGI(TAG, "máquina %s", on ? "ligada" : "em repouso");
+}
+
+bool mq_ligada(void) { return estado != MQ_OCIOSO && estado != MQ_FALHA; }
 
 void mq_shot_iniciar(void)
 {
     if (estado == MQ_FALHA) return;
     // Deixar puxar shot com a máquina fria é como o painel mostrar número
     // inventado: tecnicamente funciona e o resultado é lixo.
-    if (estado != MQ_PRONTA && estado != MQ_OCIOSO) return;
+    // Só de PRONTA. Antes aceitava de OCIOSO para facilitar teste, e isso deixava
+    // puxar shot com a máquina fria — café ruim de forma silenciosa.
+    if (estado != MQ_PRONTA) return;
     massa_ini = massa;         // tara: o que já está na balança não conta
     shot_s = 0.0f;
     t_log = 0.0f;
@@ -299,9 +321,27 @@ void mq_passo(float dt_s)
         return;
     }
 
-    // ---- temperatura: roda sempre, inclusive durante o shot
-    float u = pid_passo(&pid_ctrl_temp, perfil.setpoint_c, t_boiler, dt_s, 0.0f, 1.0f);
-    saida.ssr = fminf(fmaxf(u, 0.0f), 1.0f);
+    // ---- temperatura
+    //
+    // ⚠️ Em REPOUSO a resistência fica DESLIGADA, e isto é decisão de segurança,
+    // não de conveniência. A docs/07 exige "estado seguro no boot e em falha: SSR
+    // e bomba desligados", e a versão anterior subia aquecendo sozinha: no boot a
+    // máquina ia para AQUECENDO e mandava 100% no SSR sem ninguém ter pedido.
+    //
+    // Passava despercebido porque `real_escrever` ainda está vazio e o SSR não
+    // existe no hardware. No dia em que existir, seria uma resistência energizada
+    // durante o boot — que é justamente o intervalo em que não há PID vigiando.
+    //
+    // Zerar o integral junto importa: parado, o erro contra o setpoint continua
+    // grande, e sem isto o PID acumularia dívida em repouso e despejaria potência
+    // no instante em que alguém ligasse.
+    if (estado == MQ_OCIOSO) {
+        saida.ssr = 0.0f;
+        pid_zerar(&pid_ctrl_temp);
+    } else {
+        float u = pid_passo(&pid_ctrl_temp, perfil.setpoint_c, t_boiler, dt_s, 0.0f, 1.0f);
+        saida.ssr = fminf(fmaxf(u, 0.0f), 1.0f);
+    }
 
     bool na_faixa = fabsf(t_boiler - perfil.setpoint_c) <= PRONTA_JANELA;
 
@@ -310,8 +350,12 @@ void mq_passo(float dt_s)
 
     switch (estado) {
         case MQ_OCIOSO:
+            // Repouso não é transitório: só se sai daqui por mq_ligar().
+            saida.bomba = 0.0f;
+            break;
+
         case MQ_AQUECENDO:
-            estado = na_faixa ? MQ_PRONTA : MQ_AQUECENDO;
+            if (na_faixa) estado = MQ_PRONTA;
             saida.bomba = 0.0f;
             break;
 
@@ -350,7 +394,9 @@ void mq_passo(float dt_s)
             // shot continua publicado depois, então nada se perde.
             saida.bomba = 0.0f;
             fim_s += dt_s;
-            if (fim_s > 5.0f) { fim_s = 0.0f; estado = MQ_OCIOSO; }
+            // Volta a AQUECENDO, não a repouso: a máquina continua ligada, e o
+            // ciclo seguinte promove para PRONTA assim que a temperatura voltar.
+            if (fim_s > 5.0f) { fim_s = 0.0f; estado = MQ_AQUECENDO; }
             break;
 
         default:
