@@ -570,6 +570,7 @@ en:{
  rate:'rate',eqlevel:'equivalent level',clock:'Clock',date:'date',
  provenance:'provenance',chiptemp:'chip temp.',absent:'absent',invalid:'INVALID',
  nowindow:'no window',window60:'1 h window',now:'now',
+ zoomhint:'double-click to reset',
  s_filt:'filtered',s_raw:'raw',
  recorded:'Recorded shots',noshots:'No shots on the card yet.',
  card:'card',free:'MB free',nocard:'no card',noresp:'card did not respond',
@@ -615,6 +616,7 @@ pt:{
  rate:'taxa',eqlevel:'nível equivalente',clock:'Relógio',date:'data',
  provenance:'procedência',chiptemp:'temp. do chip',absent:'ausente',invalid:'INVÁLIDA',
  nowindow:'sem janela',window60:'janela 1 h',now:'agora',
+ zoomhint:'duplo clique para voltar',
  s_filt:'filtrado',s_raw:'cru',
  recorded:'Shots gravados',noshots:'Nenhum shot no cartão ainda.',
  card:'cartão',free:'MB livres',nocard:'sem cartão',noresp:'cartão não respondeu',
@@ -741,6 +743,25 @@ var NPT=Math.round(JANELA_S*1000/PASSO);
 var serT=new Float32Array(NPT), serP=new Float32Array(NPT);
 var serTa=new Float32Array(NPT), serPa=new Float32Array(NPT);
 var escI=0, nPts=0, tAmostra=0;
+
+/* ------------------------------------------------------------------ zoom
+   Só no eixo X, e isso é decisão, não limitação: a escala vertical da pressão é
+   FIXA em 0–12 bar de propósito (eixo que se ajusta sozinho mente sobre a
+   distância dos 9 bar), e a da temperatura olha o buffer INTEIRO. Se o Y
+   acompanhasse o zoom, a curva mudaria de forma ao aproximar — você compararia
+   dois desenhos diferentes achando que é o mesmo dado.
+
+   `vN` = quantos pontos cabem na janela (0 = tudo).
+   `vOff` = a quantos pontos do mais recente está a borda direita (0 = ao vivo).
+   Com vOff = 0 o gráfico segue sozinho; assim que você navega para trás, ele
+   PARA de correr — senão o dado que você está olhando escaparia da tela. */
+var vN=0, vOff=0;
+function janela(){
+ var n = vN>0 ? Math.min(vN,nPts) : nPts;
+ var off = Math.min(vOff, Math.max(0,nPts-n));
+ return [nPts-off-n, nPts-off];
+}
+function zoomado(){ return vN>0 && vN<nPts; }
 // NaN é o "sem dado" aqui: Float32Array não guarda null, e 0 seria um valor
 // legítimo de pressão. NaN !== NaN é o teste, igual ao que o ultrassônico faz.
 function at(s,i){return s[(escI-nPts+i+NPT*2)%NPT];}
@@ -758,10 +779,10 @@ function faixa2(a,b,vao){
 // Agrega por coluna de pixel: para cada coluna, o mín e o máx dos pontos que
 // caem nela viram um segmento vertical. É assim que se desenha forma de onda sem
 // mentir — decimação simples pularia os picos.
-function traca(ctx,s,f,cor,x0,pw,y0,ph,alvo){
- if(!f||!nPts)return;
+function traca(ctx,s,f,cor,x0,pw,y0,ph,ini,fim,alvo){
+ if(!f||fim<=ini)return;
  var py=function(v){return y0+ph-(Math.max(f[0],Math.min(f[1],v))-f[0])/(f[1]-f[0])*ph;};
- var r=REM(), cols=Math.max(2,Math.floor(pw));
+ var r=REM(), n=fim-ini, cols=Math.max(2,Math.floor(pw));
  ctx.save();
  ctx.strokeStyle=cor;ctx.lineJoin='round';ctx.lineCap='round';
  if(alvo){
@@ -771,9 +792,9 @@ function traca(ctx,s,f,cor,x0,pw,y0,ph,alvo){
  ctx.beginPath();
  var atras=false,ux=0,uy=0;
  for(var c=0;c<cols;c++){
-  var i0=Math.floor(c*nPts/cols), i1=Math.max(i0+1,Math.floor((c+1)*nPts/cols));
+  var i0=ini+Math.floor(c*n/cols), i1=Math.max(i0+1,ini+Math.floor((c+1)*n/cols));
   var lo=1/0,hi=-1/0,ult=NaN;
-  for(var i=i0;i<i1&&i<nPts;i++){
+  for(var i=i0;i<i1&&i<fim;i++){
    var v=at(s,i); if(v!==v)continue;
    if(v<lo)lo=v; if(v>hi)hi=v; ult=v;
   }
@@ -806,8 +827,9 @@ function desenhaPlot(){
  // a faixa olha medida E alvo juntos: senão a referência sai do plot justamente
  // quando está longe da medida, que é quando ela mais importa
  var fT=faixa2(serT,serTa,3), fP=[0,12];
+ var jw=janela(), ini=jw[0], fim=jw[1];
  var temP=false;
- for(var i=0;i<nPts&&!temP;i++){var v=at(serP,i);temP=(v===v);}
+ for(var i=ini;i<fim&&!temP;i++){var v=at(serP,i);temP=(v===v);}
 
  ctx.font=(.72*r).toFixed(1)+'px ui-monospace,Menlo,monospace';ctx.textBaseline='middle';
  for(var k=0;k<=3;k++){
@@ -822,28 +844,40 @@ function desenhaPlot(){
  }
  // referências primeiro, para as medidas ficarem POR CIMA: quando coincidem,
  // quem tem que ganhar o pixel é o que aconteceu de verdade
- traca(ctx,serPa,fP,'#3d86c8',x0,pw,y0,ph,true);
- traca(ctx,serTa,fT,'#c98330',x0,pw,y0,ph,true);
- traca(ctx,serP,fP,'#3d86c8',x0,pw,y0,ph);
- traca(ctx,serT,fT,'#c98330',x0,pw,y0,ph);
+ traca(ctx,serPa,fP,'#3d86c8',x0,pw,y0,ph,ini,fim,true);
+ traca(ctx,serTa,fT,'#c98330',x0,pw,y0,ph,ini,fim,true);
+ traca(ctx,serP,fP,'#3d86c8',x0,pw,y0,ph,ini,fim);
+ traca(ctx,serT,fT,'#c98330',x0,pw,y0,ph,ini,fim);
 
  // O span CRESCE até encher a hora, então o rótulo tem que ser calculado, não
  // fixo. "−60 s" chumbado passaria a mentir no primeiro minuto de uso.
  ctx.fillStyle='#5d564c';ctx.font=(.64*r).toFixed(1)+'px ui-monospace,Menlo,monospace';
- ctx.textAlign='left';ctx.fillText('−'+dur(nPts*PASSO/1000),x0,h-.45*r);
- ctx.textAlign='right';ctx.fillText(t('now'),x0+pw,h-.45*r);
+ ctx.textAlign='left';ctx.fillText('−'+dur((fim-ini)*PASSO/1000),x0,h-.45*r);
+ ctx.textAlign='right';
+ // quando você navegou para trás, o canto direito NÃO é "agora" — dizer que é
+ // seria a mentira mais fácil de cometer num gráfico que corre sozinho
+ ctx.fillText(vOff>0 ? ('−'+dur(vOff*PASSO/1000)) : t('now'), x0+pw, h-.45*r);
+ if(zoomado()||vOff>0){
+  ctx.textAlign='center';ctx.fillStyle='#c9a06a';
+  ctx.fillText(t('zoomhint'),x0+pw/2,h-.45*r);
+ }
 }
 // Zera o histórico do gráfico. Chamada na borda de início do shot: com janela de
 // 1 h, uma extração de 30 s ocuparia 0,8% da largura e viraria um risco fino.
 // Limpando, o eixo recomeça do zero e o shot toma a tela inteira enquanto corre.
 function limparSerie(){
  escI=0; nPts=0;
+ vN=0; vOff=0;      // shot novo começa vendo tudo e ao vivo
  desenhaPlot();
 }
 function amostra(a,b,c,d){
  serT[escI]=a;serP[escI]=b;serTa[escI]=c;serPa[escI]=d;
  escI=(escI+1)%NPT;
  if(nPts<NPT)nPts++;      // só desliza depois de encher a hora inteira
+ // Navegado para trás: o índice de tudo anda 1, então o deslocamento tem que
+ // andar junto para a tela ficar no MESMO trecho de tempo em vez de escorregar.
+ else if(vOff>0)vOff++;
+ if(vOff>nPts)vOff=nPts;
  desenhaPlot();
 }
 
@@ -873,6 +907,44 @@ function desenhaTrem(frac){
  vDuty.innerHTML=Math.round(frac*100)+'<u>%</u>';
 }
 addEventListener('resize',function(){mediSinal();desenhaTrem(dutyAtual);desenhaPlot();});
+
+/* ------------------------------------------------------- interação do gráfico
+   Roda do mouse = zoom no tempo, ANCORADO NO CURSOR: o instante embaixo do
+   ponteiro fica parado enquanto o resto se aproxima. Zoom que ancora no meio
+   obriga a caçar de novo o ponto que você estava olhando a cada passo.
+
+   Ancorar também dispensa arrastar: afasta, leva o cursor para onde quer, e
+   aproxima. Duas rodadas chegam em qualquer trecho da hora.
+
+   `preventDefault` porque senão a página inteira rola junto — e num painel que
+   cabe na tela sem rolagem, isso só produziria tremor. */
+var MIN_PTS=20;   // 5 s: abaixo disso a agregação por pixel perde o sentido
+plot.addEventListener('wheel',function(e){
+ if(!nPts)return;
+ e.preventDefault();
+ var jw=janela(), ini=jw[0], fim=jw[1], n=fim-ini;
+ var r=REM(), EL=3*r, ER=2.4*r;
+ var cx=plot.getBoundingClientRect();
+ var pw=cx.width-EL-ER;
+ var u=Math.max(0,Math.min(1,(e.clientX-cx.left-EL)/pw));   // 0..1 no eixo
+ var alvo=ini+u*n;                                          // índice sob o cursor
+
+ var f=e.deltaY<0?0.8:1.25;
+ var novo=Math.round(n*f);
+ novo=Math.max(MIN_PTS,Math.min(nPts,novo));
+ if(novo===n)return;
+
+ // mantém `alvo` na mesma fração da tela
+ var novoIni=Math.round(alvo-u*novo);
+ novoIni=Math.max(0,Math.min(nPts-novo,novoIni));
+ vN = novo>=nPts ? 0 : novo;
+ vOff = nPts-(novoIni+novo);
+ desenhaPlot();
+},{passive:false});
+
+// Duplo clique volta a ver tudo e a seguir ao vivo. Gesto de desfazer que não
+// gasta espaço na tela — e o rodapé avisa que ele existe enquanto há zoom.
+plot.addEventListener('dblclick',function(){ vN=0; vOff=0; desenhaPlot(); });
 
 /* Ultrassônico: a saúde do sensor não é sinal nem sigma, é a TAXA DE ECOS. Eco
    parado com distância congelada é sensor mudo, e sem a contagem isso pareceria

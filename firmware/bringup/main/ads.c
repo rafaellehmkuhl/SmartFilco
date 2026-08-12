@@ -67,6 +67,8 @@ static float cal_v0 = 0.5f;          // tensão a 0 bar
 static float cal_esc = 13.8f / 4.0f; // bar por volt: 13,8 bar em 4,0 V de span
 
 static void tarefa_ads(void *arg);
+static TaskHandle_t s_h;
+static TaskHandle_t s_task;
 
 esp_err_t ads_iniciar(i2c_master_bus_handle_t bus, uint8_t endereco7)
 {
@@ -99,7 +101,7 @@ esp_err_t ads_iniciar(i2c_master_bus_handle_t bus, uint8_t endereco7)
         return ESP_ERR_INVALID_RESPONSE;
     }
 
-    xTaskCreatePinnedToCore(tarefa_ads, "ads", 3072, NULL, 5, NULL, 0);
+    xTaskCreatePinnedToCore(tarefa_ads, "ads", 3072, NULL, 5, &s_h, 0);
 
     ESP_LOGI(TAG, "ads1115 0x%02x ok · PGA ±6,144 V · 860 SPS · média de %d @ %d Hz",
              endereco7, JANELA, 1000 / PERIODO_MS);
@@ -161,4 +163,15 @@ esp_err_t ads_ler(ads_med_t *o)
     o->valida = (s_cru >= V_MIN && s_cru <= V_MAX);
     o->bar = (o->volts - cal_v0) * cal_esc;
     return ESP_OK;
+}
+
+// A 500 Hz esta task é a maior fonte de interrupção da placa. Durante o OTA ela
+// precisa calar: a escrita em flash desabilita cache e interrupção em janelas
+// curtas, e com tráfego de I2C denso o watchdog de interrupção (TG1, 800 ms)
+// derruba a gravação no meio. Medido: OTA morria em 135 KB com os sensores
+// rodando e passava inteiro com eles parados.
+void ads_pausar(bool p)
+{
+    if (!s_h) return;
+    if (p) vTaskSuspend(s_h); else vTaskResume(s_h);
 }

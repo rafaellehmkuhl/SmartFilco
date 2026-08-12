@@ -62,6 +62,7 @@ static float s_temp_c = 20.0f;
 static float janela[JANELA];   // NaN = amostra inválida
 static uint8_t escrita;
 static float s_hz;
+static TaskHandle_t s_h;
 
 static void IRAM_ATTR eco_isr(void *arg)
 {
@@ -144,7 +145,7 @@ esp_err_t ultra_iniciar(void)
 
     // Core 0: a amostragem é cadenciada mas não é tempo-real duro, e o core 1
     // fica reservado ao PID e à futura ISR do PSM.
-    xTaskCreatePinnedToCore(tarefa_ultra, "ultra", 3072, NULL, 4, NULL, 0);
+    xTaskCreatePinnedToCore(tarefa_ultra, "ultra", 3072, NULL, 4, &s_h, 0);
 
     ESP_LOGI(TAG, "hc-sr04 trig=%d eco=%d, %d Hz, janela de %d",
              PIN_TRIG, PIN_ECHO, 1000 / PERIODO_MS, JANELA);
@@ -183,4 +184,12 @@ void ultra_ler(ultra_med_t *o)
     o->min_mm = v[0];
     o->max_mm = v[n - 1];
     o->valida = true;
+}
+
+// Mesma razão do ADS: durante o OTA a ISR de eco e o disparo periódico saem do
+// caminho. Aqui pesa também a ISR em IRAM, que roda mesmo com o cache desligado.
+void ultra_pausar(bool p)
+{
+    if (!s_h) return;
+    if (p) vTaskSuspend(s_h); else vTaskResume(s_h);
 }

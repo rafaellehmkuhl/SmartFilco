@@ -129,6 +129,7 @@ static volatile uint32_t ws_enviados;  // frames entregues, acumulado
 // mesmo padrão valer para setpoint de PID, aí sim precisa de proteção.
 static volatile uint8_t cor[3];
 
+static TaskHandle_t h_ctrl, h_led;
 static EventGroupHandle_t eventos;
 #define BIT_CONECTADO BIT0
 
@@ -1035,6 +1036,20 @@ static esp_err_t h_ota_get(httpd_req_t *req)
     return httpd_resp_send(req, buf, n);
 }
 
+// Silencia tudo que gera interrupção densa, para a escrita em flash não estourar
+// o watchdog de interrupção (TG1, 800 ms).
+//
+// ⚠️ Só é seguro porque o OTA já EXIGE a máquina em repouso: com SSR e bomba em
+// zero, suspender o laço de controle não deixa atuador ligado sem vigilância. A
+// ordem importa — a guarda de "maquina energizada" vem ANTES desta chamada.
+static void ota_silenciar(bool s)
+{
+    ads_pausar(s);
+    ultra_pausar(s);
+    if (h_ctrl) { if (s) vTaskSuspend(h_ctrl); else vTaskResume(h_ctrl); }
+    if (h_led)  { if (s) vTaskSuspend(h_led);  else vTaskResume(h_led);  }
+}
+
 static esp_err_t h_ota_post(httpd_req_t *req)
 {
     char q[80], k[48];
@@ -1083,8 +1098,10 @@ static esp_err_t h_ota_post(httpd_req_t *req)
     // Passar o tamanho exato em vez de OTA_SIZE_UNKNOWN apaga ~1,1 MB e não os
     // 4 MB da partição inteira.
     esp_ota_handle_t h = 0;
+    ota_silenciar(true);
     esp_err_t e = esp_ota_begin(alvo, req->content_len, &h);
     if (e != ESP_OK) {
+        ota_silenciar(false);
         ESP_LOGE(TAG, "esp_ota_begin: %s", esp_err_to_name(e));
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, esp_err_to_name(e));
         return ESP_FAIL;
@@ -1093,6 +1110,7 @@ static esp_err_t h_ota_post(httpd_req_t *req)
     // 4 KB no heap, não na pilha: a task do httpd não tem folga para isso.
     char *buf = malloc(4096);
     if (!buf) {
+        ota_silenciar(false);
         esp_ota_abort(h);
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "sem heap");
         return ESP_FAIL;
@@ -1107,7 +1125,8 @@ static esp_err_t h_ota_post(httpd_req_t *req)
         if (r == HTTPD_SOCK_ERR_TIMEOUT) continue;
         if (r <= 0 || esp_ota_write(h, buf, r) != ESP_OK) {
             free(buf);
-            esp_ota_abort(h);
+            ota_silenciar(false);
+        esp_ota_abort(h);
             ESP_LOGE(TAG, "ota abortado com %d de %d bytes", total, req->content_len);
             httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "gravacao falhou");
             return ESP_FAIL;
@@ -1217,7 +1236,7 @@ void app_main(void)
     xTaskCreatePinnedToCore(tarefa_bme, "bme", 4096, NULL, 3, NULL, CORE_NET);
 
     // o LED sobe antes da rede: dá feedback visual mesmo se o Wi-Fi falhar
-    xTaskCreatePinnedToCore(tarefa_led, "led", 3072, NULL, 5, NULL, CORE_RT);
+    xTaskCreatePinnedToCore(tarefa_led, "led", 3072, NULL, 5, &h_led, CORE_RT);
 
     // O HAL precisa do barramento antes de a task de controle subir: é ela que
     // chama hal_iniciar(), e o ADS1115 mora no mesmo I²C do BME680.
@@ -1225,7 +1244,7 @@ void app_main(void)
 
     // Controle no core de tempo-real e com prioridade acima do LED: se algum dia
     // faltar CPU, o que pode piscar feio é a animação, não o PID da caldeira.
-    xTaskCreatePinnedToCore(tarefa_controle, "ctrl", 4096, NULL, 6, NULL, CORE_RT);
+    xTaskCreatePinnedToCore(tarefa_controle, "ctrl", 4096, NULL, 6, &h_ctrl, CORE_RT);
 
     setenv("TZ", TZ_BR, 1);
     tzset();

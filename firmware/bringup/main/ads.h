@@ -42,6 +42,9 @@ esp_err_t ads_iniciar(i2c_master_bus_handle_t bus, uint8_t endereco7);
 // pega o valor mais recente sem esperar conversão.
 esp_err_t ads_ler(ads_med_t *o);
 
+// Silencia a amostragem durante o OTA — ver o comentário em ads.c.
+void ads_pausar(bool p);
+
 // Calibração de dois pontos contra o manômetro analógico, como a docs/07 manda.
 // `v0` é a tensão a 0 bar e `esc` os bar por volt. Nominais: 0,5 V e 3,45 bar/V.
 void ads_calibrar(float v0, float bar_por_volt);

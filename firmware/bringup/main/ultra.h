@@ -22,5 +22,8 @@ typedef struct {
 esp_err_t ultra_iniciar(void);
 void ultra_ler(ultra_med_t *o);
 
+// Silencia a amostragem durante o OTA — ver ads.c.
+void ultra_pausar(bool p);
+
 // Temperatura ambiente para corrigir a velocidade do som (~0,6 m/s por °C).
 void ultra_set_temp(float c);
