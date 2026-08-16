@@ -57,7 +57,7 @@ sozinho custa mais que boa parte da BOM deste projeto.
 
 - [ ] Traçar o caminho da água: reservatório → bomba → (OPV?) → boiler → grupo → porta-filtro.
 - [ ] **Existe OPV? Em que pressão abre?** Único item hidráulico ainda em aberto — a
-      [`03`](03-esquema-hidraulico.md#-decisão-30072026-não-comprar-opv-ajustável)
+      [`03`](03-esquema-hidraulico.md#️-decisão-30072026-não-comprar-opv-ajustável)
       já decidiu **não comprar** OPV ajustável; esta verificação só define se há algo
       a ajustar no que já existe.
 - [x] ~~Confirmar tipo de cesta~~ — **despressurizada (naked)**, confirmado em

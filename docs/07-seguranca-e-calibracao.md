@@ -151,7 +151,7 @@ fino e "trava" em ~11–12 bar sem chegar aos 9 bar desejados.
 2. **PSM (pulos de semiciclo):** ✅ **adotado.** Todo pulso que passa é **inteiro e em
    força total**; controla-se pela **contagem**. Comportamento em baixa potência é
    muito melhor, que é exatamente onde a pré-infusão vive.
-   Ver [02](02-arquitetura-eletrica-pinout.md#bypass-do-dimmerlink-para-psm-decidido).
+   Ver [02](02-arquitetura-eletrica-pinout.md#controle-da-bomba-dimmer-robotdyn-8a-standard-com-psm).
 3. **Malha fechada (o que faz o trabalho):** fechar o laço `pressão → PID → bomba`
    corrige a não-linearidade e é o que permite *pressure profiling* real. Continua
    essencial — o PSM melhora o atuador, não substitui o controle.
@@ -222,7 +222,7 @@ fino e "trava" em ~11–12 bar sem chegar aos 9 bar desejados.
 > O que pesou para antecipar: o ponto fraco previsível do ângulo de fase é exatamente
 > a pré-infusão, e a física é conhecida — solenoide com pulso cortado não completa o
 > curso. Não havia muito a aprender gastando bancada para confirmar um resultado já
-> esperado. Ver [02](02-arquitetura-eletrica-pinout.md#bypass-do-dimmerlink-para-psm-decidido).
+> esperado. Ver [02](02-arquitetura-eletrica-pinout.md#controle-da-bomba-dimmer-robotdyn-8a-standard-com-psm).
 >
 > Se ainda quiser rodar a caracterização com o V2 (que está comprado), os números
 > abaixo são o que medir — e o **mesmo procedimento serve para o PSM**, trocando
@@ -255,10 +255,13 @@ de quem controlou Ulka pelos dois métodos:
 - **Pulsando a bomba por microcontrolador:** funciona para pré-infusão, porém
   **mais barulhento**.
 
-Ou seja: **~3 bar é o piso esperado do ângulo de fase**, o que coincide exatamente com
-o limite inferior da faixa normal de pré-infusão. A leitura é moderadamente otimista —
-o DimmerLink deve alcançar a pré-infusão convencional (3–4 bar) e ficar de fora só das
-variantes mais agressivas.
+Ou seja: **~3 bar é o piso do ângulo de fase**, que coincide com o limite inferior da
+pré-infusão convencional — ele chegaria lá, e ficaria de fora só das variantes mais
+agressivas.
+
+> 🗄️ Análise feita quando o ângulo de fase ainda era o caminho. Com **PSM** o piso é
+> outro problema: não existe ângulo mínimo, existe **duty mínimo**, e o que limita é o
+> ripple de pressão em duty baixo — não a bomba travar.
 
 > ⚠️ Aquele thread é de **2018**, anterior ao amadurecimento do Gaggiuino. Os dados
 > empíricos valem; a conclusão de que "controle eletrônico de bomba vibratória

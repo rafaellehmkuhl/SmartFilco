@@ -4,7 +4,7 @@
 > Leva 2 já estava em mãos de projetos anteriores, e a OPV saiu do projeto.
 >
 > ✅ **Última compra feita em 30/07: dimmer RobotDyn `8A-Standard`**
-> ([modelo exato](02-arquitetura-eletrica-pinout.md#modelo-exato-a-comprar)), chegada
+> ([modelo exato](02-arquitetura-eletrica-pinout.md#controle-da-bomba-dimmer-robotdyn-8a-standard-com-psm)), chegada
 > ~10 dias depois. **Nada mais a comprar no AliExpress** — só miudeza de loja local.
 >
 > ⚠️ **O caminho crítico deixou de ser peça: virou abrir a máquina.** A
@@ -23,7 +23,8 @@ pressão vier com defeito, são +2 semanas de espera.
 
 | Item | Preço | Notas |
 |---|---|---|
-| **Dimmer AC RobotDyn 8A**, variante **UART/I²C (V2)** — traz o **DimmerLink** integrado | R$ 32,17 | 🔄 **Comprado, mas não será usado como veio.** A decisão de 29/07/2026 é atuar a bomba por **PSM**, o que dispensa o DimmerLink. Vira reserva — o clássico com pinos ZC/PWM é a peça certa, ver [Futuro](#-dimmer-comprar-o-clássico-para-psm) e [02](02-arquitetura-eletrica-pinout.md#bypass-do-dimmerlink-para-psm-decidido) |
+| **Dimmer AC RobotDyn `8A-Standard`** | R$ 32,17 | ✅ **Em mãos e em uso desde 12/08/2026.** Header `VCC GND Z-C PSM`; lado AC com `IN`/`OUT`/`N`. Ligação em [02](02-arquitetura-eletrica-pinout.md#controle-da-bomba-dimmer-robotdyn-8a-standard-com-psm) |
+| ~~Dimmer AC RobotDyn 8A, variante UART/I²C (V2)~~ | R$ 32,17 | 🗄️ **Reserva.** Foi a primeira compra; traz um controlador dedicado que só faz ângulo de fase, e chegar nos sinais de tempo exigiria dessoldar placa energizada. Nada no projeto depende dele |
 | **ADS1115** 16-bit I²C | R$ 11,99 | alimentar em **5 V**, PGA **±6,144 V** |
 | **Sensor de pressão 200 PSI**, 1/8" NPT, 5 V | R$ 45,39 | = **13,8 bar**. Rosca já é NPT ✅ |
 | **Cabo de silicone** (branco/vermelho/preto) | R$ 28,72 | |
@@ -163,7 +164,7 @@ sensor feito sob medida. Turbina de irrigação não é a peça.
 
 > Isto reverte a nota anterior, que marcava o flow meter como "mais necessário do que
 > parecia". Aquele raciocínio valia **porque** o DimmerLink só faz ângulo de fase.
-> Com a [decisão de ir para PSM](02-arquitetura-eletrica-pinout.md#bypass-do-dimmerlink-para-psm-decidido)
+> Com a [decisão de ir para PSM](02-arquitetura-eletrica-pinout.md#controle-da-bomba-dimmer-robotdyn-8a-standard-com-psm)
 > o atalho de contagem de pulsos volta a existir, e o sensor perde a razão de ser.
 
 #### ✅ Mas a vazão voltou ao escopo (01/08/2026) — pela balança
@@ -180,18 +181,16 @@ grandeza. O que mudou é que a **medida** de vazão deixou de depender dele.
 > Se algum dia houver medição de vazão de verdade, o critério é **faixa**: precisa
 > ler ~0,05–0,3 L/min, não 0,3–6.
 
-### 🛒 Dimmer: comprar o **clássico** para PSM
+### ✅ Dimmer — resolvido
 
-O V2 com DimmerLink integrado já está comprado, mas é a variante errada para PSM —
-chegar nos sinais `Z-C`/`Dim` nele exige dessoldagem em placa de rede AC. O **dimmer
-RobotDyn clássico expõe `Z-C` e `PWM` em header**, prontos, por ~R$ 32.
+O `8A-Standard` chegou em 12/08/2026 e é o que está na máquina.
 
 | Qtd | Item | Buscar por | Função |
 |---|---|---|---|
-| **2** | **Dimmer AC RobotDyn `8A-Standard`** | [item 32802025086](https://pt.aliexpress.com/item/32802025086.html) | bomba por PSM. Header `VCC GND Z-C `**`PSM`** (a serigrafia diz PSM, não PWM). TRIAC **BTA16-600B de aba isolada**. Comprar 2: o frete custa mais que a peça. ⚠️ **Não** a variante UART/I²C V2 |
+| ~~2~~ | ~~Dimmer AC RobotDyn `8A-Standard`~~ | [item 32802025086](https://pt.aliexpress.com/item/32802025086.html) | **comprado e instalado**. Foram 2 porque o frete custava mais que a peça — o segundo é reserva |
 
-Guardar o V2 como reserva. Detalhes em
-[02](02-arquitetura-eletrica-pinout.md#bypass-do-dimmerlink-para-psm-decidido).
+Ligação e escolha do método em
+[02](02-arquitetura-eletrica-pinout.md#controle-da-bomba-dimmer-robotdyn-8a-standard-com-psm).
 
 ---
 
@@ -218,7 +217,7 @@ bomba passar disso. E uma OPV regulada baixo brigaria com o controle em malha
 fechada, que é quem define a pressão de extração aqui.
 
 Argumento completo em
-[03](03-esquema-hidraulico.md#-decisão-30072026-não-comprar-opv-ajustável). Se ao
+[03](03-esquema-hidraulico.md#️-decisão-30072026-não-comprar-opv-ajustável). Se ao
 abrir a máquina existir uma OPV, a ação é no máximo **ajustar a que já está lá** —
 nunca adicionar outra.
 

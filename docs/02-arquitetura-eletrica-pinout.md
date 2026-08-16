@@ -161,10 +161,9 @@ amostragem tem que ser escolhida sabendo disso — é o mesmo acoplamento que a
 da máquina para deriva térmica. Tara antes de cada shot mata o offset; a deriva
 durante o shot é o que sobra.
 
-> GPIO4/GPIO5 eram a UART do DimmerLink. Com a
-> [decisão de ir para PSM](#bypass-do-dimmerlink-para-psm-decidido) voltaram ao papel
-> original de `Z-C`/`Dim`. **GPIO7 liberou** — era reserva do flow meter, que saiu do
-> projeto ([04](04-bom-lista-de-compras.md)).
+> GPIO4/GPIO5 chegaram a ser reservados para UART do DimmerLink; com a decisão de
+> ir para PSM voltaram ao papel original de `Z-C`/`Dim`. **GPIO7 liberou** — era
+> reserva do flow meter, que saiu do projeto ([04](04-bom-lista-de-compras.md)).
 
 Todos os pinos usados estão no **header esquerdo**, em sequência (4–14) — conveniente
 para o chicote e para a peça 3D.
@@ -223,198 +222,57 @@ mais 3 GPIOs da folga (`GPIO1, 2, 7, 15–18, 21, 38–42, 47`).
   limita muito antes do ADC.
 - Rode um **I²C scan** no primeiro boot para confirmar o endereço.
 
-## Controle da bomba: dimmer RobotDyn com **DimmerLink** integrado
+## Controle da bomba: dimmer RobotDyn 8A-Standard com PSM
 
-> ### 🔄 Decisão revista (29/07/2026): vamos de PSM, sem passar pelo DimmerLink
->
-> Esta seção descreve o módulo **comprado** e continua válida como descrição de
-> hardware — mas o **DimmerLink não será usado**. A bomba será atuada por **PSM**,
-> com `Z-C` e `Dim` ligados direto ao ESP32. Ver
-> [Bypass do DimmerLink para PSM](#bypass-do-dimmerlink-para-psm-decidido).
->
-> Consequência: os itens 1 e 2 abaixo **se invertem**. Volta a existir pino de
-> zero-cross e de gate, e volta a existir ISR de timing — bem menos crítica do que
-> com ângulo de fase, mas existe.
+**Em mãos e em uso desde 12/08/2026.** É o módulo TRIAC puro, que expõe os sinais
+de tempo num header de 4 pinos — sem controlador intermediário.
 
-O módulo comprado (variante "8A UART-I²C V2") traz o **DimmerLink** integrado —
-um controlador dedicado (Cortex-M+) que faz **toda** a parte crítica de tempo:
-detecção de zero-cross, cálculo do ângulo de fase e disparo do TRIAC.
-
-Normalmente o DimmerLink é uma placa **separada** entre o MCU e o módulo TRIAC:
-
-```
-MCU ──UART/I²C──► DimmerLink ──(Z-C + Dim)──► módulo TRIAC ──► carga
-```
-
-Na variante integrada os dois últimos estágios vêm na mesma placa, então o ESP32 só
-conversa por **UART ou I²C**. Isso muda três coisas no projeto:
-
-1. **Não existe mais pino de zero-cross nem de gate no ESP32.** Os dois GPIOs que
-   estavam reservados para isso foram realocados para a UART do DimmerLink.
-2. **Nenhuma ISR de timing crítico no firmware.** Era o maior risco de jitter do
-   laço de controle — some inteiro.
-3. **Aceita 1,8 / 3,3 / 5 V direto**, sem level converter.
-
-### UART ou I²C?
-
-**Escolhido: UART** (GPIO4/GPIO5, 115200 8N1).
-
-O I²C funcionaria — o DimmerLink responde em **0x50**, sem conflito com o ADS1115
-(0x48). Mas o barramento I²C aqui já atravessa um level shifter e carrega o ADC de
-pressão, que é lido em alta taxa durante o shot. Manter o atuador da bomba num canal
-próprio deixa os dois subsistemas independentes para depurar, e sobra GPIO de sobra.
-Comandos de 3–4 bytes a 115200 levam ~300 µs — irrelevante.
-
-> Se optar por I²C depois, note que o DimmerLink pede **100 kHz**; o barramento
-> inteiro teria que rodar nessa velocidade.
-
-### Protocolo (completo)
-
-Não há biblioteca — são bytes crus. Todo comando começa com **STX = `0x02`**; sem
-ele o comando é ignorado.
-
-| Comando | Código | Formato | Descrição |
-|---|---|---|---|
-| **SET** | `0x53` | `02 53 IDX LEVEL` | define o nível |
-| **GET** | `0x47` | `02 47 IDX` | lê o nível |
-| **CURVE** | `0x43` | `02 43 IDX TYPE` | curva: 0=LINEAR, 1=RMS, 2=LOG |
-| **GETCURVE** | `0x51` | `02 51 IDX` | lê a curva |
-| **FREQ** | `0x52` | `02 52` | lê a frequência da rede |
-| **RESET** | `0x58` | `02 58` | reset por software |
-| **SWITCH_I2C** | `0x5B` | `02 5B` | muda para I²C |
-
-Respostas: `0x00` OK · `0xF9` sintaxe · `0xFC` erro de EEPROM · `0xFD` índice
-inválido · `0xFE` parâmetro inválido.
-
-> 🔴 **`SWITCH_I2C` é irreversível pela UART.** Depois dele a UART é **desativada** e
-> o estado fica gravado em EEPROM, sobrevivendo a reboot — só se fala com a placa por
-> I²C em 0x50. Nunca emitir `0x02 0x5B` por acidente.
-
-> ✅ **`SET` não grava em EEPROM** (só o modo de interface grava). Pode ser chamado no
-> laço de controle dezenas de vezes por segundo sem desgastar a memória. Latência
-> UART direta < 1 ms.
-
-### ⚠️ Duas limitações que importam para este projeto
-
-**1. Resolução de 0–100 inteiro.** O `LEVEL` é **1 byte, 0 a 100** — 101 degraus, e
-nada mais fino. Não existe modo de atraso de fase cru nem upload de curva
-personalizada. Para *pressure profiling* isso é grosseiro justamente onde mais dói:
-a pré-infusão (3–4 bar) fica perto do mínimo da bomba, onde sobram poucos degraus
-úteis. Atenuante: pré-infusão é **teto de pressão**, não setpoint perseguido — o que
-se pede lá embaixo é ponto de operação estável, não autoridade fina de controle.
-Ver [05](05-firmware-arquitetura.md) e [07](07-seguranca-e-calibracao.md).
-
-**2. Só ângulo de fase.** Não há modo de pulos de ciclo (PSM). Ver
-[bypass para PSM](#bypass-do-dimmerlink-para-psm-decidido) abaixo.
-
-> Note que **mapeamento personalizado não é limitação**: o firmware monta a própria
-> LUT `pressão desejada → comando 0–100` a partir da caracterização, e a curva do
-> DimmerLink é só o que fica por baixo dela. O que **não** dá para consertar em
-> software é a quantização em 101 degraus e a ausência de PSM.
-
-### Curva de dimerização
-
-Curvas **Linear**, **RMS** e **Logarítmica**, com auto-detecção de 50/60 Hz
-(Brasil = 60 Hz, resolvido sozinho).
-
-➡️ **Começar pela RMS.** "Linear" é linear no *ângulo de fase*, que não tem relação
-útil com o que a bomba faz. A RMS mapeia o comando para **tensão RMS**, muito mais
-próxima da grandeza que move um solenoide — lineariza o processo antes do PID e
-melhora o aproveitamento dos 101 degraus. Confirmar na caracterização ([07](07-seguranca-e-calibracao.md)).
-
-### A confirmar no módulo em mãos
-
-- [ ] Quais pads estão expostos: UART, I²C, ou ambos.
-- [ ] ⚠️ **Não** usar a biblioteca `RBDDimmer` — é do dimmer clássico, com pinos ZC/PWM.
-
-## Bypass do DimmerLink para PSM (decidido)
-
-**Este é o plano corrente**, desde 29/07/2026. Era Plano B condicional, à espera da
-caracterização do DimmerLink; a decisão foi antecipar. A justificativa técnica já
-estava toda escrita abaixo — o que mudou foi parar de tratá-la como hipótese.
-
-> ### 🛒 Se for comprar de novo: o dimmer **clássico** é a peça certa
->
-> O V2 comprado (com DimmerLink integrado) é a variante **errada** para PSM: paga-se
-> por um controlador dedicado que será desligado, e chega-se aos sinais `Z-C`/`Dim`
-> por **dessoldagem em placa de rede AC** — possivelmente trocando a ponte
-> retificadora por um diodo.
->
-> O **dimmer RobotDyn clássico expõe `Z-C` e `PWM` em header**, prontos. Custa
-> ~R$ 32 — ordens de magnitude mais barato, e mais seguro, que cirurgia no V2.
->
-> ➡️ Comprar o clássico e guardar o V2 como reserva. Só encostar o ferro no V2 se
-> por algum motivo o clássico não vier.
-
-### Modelo exato a comprar
-
-**RobotDyn `8A-Standard`** ([loja oficial](https://pt.aliexpress.com/item/32802025086.html)),
-~R$ 23. Comprar **2** — o frete (~R$ 29) custa mais que a peça, e a segunda unidade
-não paga frete extra.
-
-⚠️ A mesma listagem vende três coisas diferentes. Só a **Standard** serve:
-
-| Variante | Header | Serve? |
+| Pino do header | Vai em | Papel |
 |---|---|---|
-| **8A-Standard** | `VCC` `GND` `Z-C` **`PSM`** | ✅ |
-| DIMMER + DimmerLink (8A UART-I2C V2) | `VCC` `GND` `TX/SDA` `RX/SCL` | ❌ é a que já temos |
-| DimmerLink avulsa | `TX/SDA` `RX/SCL` + `Z-C` `D-1` `D-2` | ❌ é só o controlador |
+| `VCC` | 3V3 | alimenta o lado isolado de sinal |
+| `GND` | GND | |
+| `Z-C` | **GPIO 4** | pulso a cada cruzamento por zero → ISR em **IRAM** |
+| `PSM` | **GPIO 5** | gate do TRIAC: passa ou pula o semiciclo |
 
-> A serigrafia do quarto pino é literalmente **`PSM`**, não "PWM" — a própria RobotDyn
-> nomeia o pino pelo método que escolhemos.
+> A serigrafia do quarto pino é literalmente **`PSM`** — a própria RobotDyn nomeia
+> o pino pelo método que usamos.
 
-**8A ou 4A? Os dois servem. O 4A não é compromisso.**
+### Ligação do lado AC
 
-A máquina é **220 V** (confirmado 30/07/2026), e a Ulka de 48 W puxa **~0,22 A**:
+O módulo tem **três terminais de parafuso**: `IN`, `OUT` e `N`.
 
-| Variante | TRIAC | Encapsulamento | Margem sobre 0,22 A |
-|---|---|---|---|
-| **8A** | BTA16-600B (ST) | TO-220, **aba isolada** | ~36× |
-| 4A | BT136S-600E (WeEn) | **TO-252 (DPAK) SMD**, tab vivo no pad | **~18×** |
+| Terminal | Recebe |
+|---|---|
+| `IN` | **fase** (marrom) vinda da máquina |
+| `OUT` | **fase** (marrom) que segue para a bomba |
+| `N` | **neutro** (azul) |
 
-**Tensão não diferencia:** ambos são **600 V**, que é o rating correto para 220 V
-(pico de rede = 311 V, ~2× de margem). Em 127 V daria para usar peça de 400 V; em
-220 V, 600 V é a escolha padrão — e as duas têm.
+O neutro da bomba continua **direto na rede** — não passa pelo dimmer. O terminal
+`N` existe só para o módulo alimentar a própria eletrônica e **referenciar a
+detecção de zero**. Sem ele o `Z-C` não pulsa e o PSM não tem em que sincronizar.
 
-**Térmica não diferencia:** a 0,22 A o TRIAC dissipa ~0,3 W. O DPAK segura isso no
-cobre da própria PCB, mesmo derratando para os ~50–60 °C de dentro da máquina.
-Nenhum dos dois precisa de dissipador (diferente do SSR, que precisa).
+> 🔴 **O fio amarelo é TERRA** e não entra no dimmer, em terminal nenhum — e
+> principalmente **não no `N`**. Terra no neutro põe a carcaça no caminho da
+> corrente de retorno. Ele fica onde está, na carcaça do boiler.
 
-> ⚠️ **Correção de ênfase (30/07/2026).** Este documento dizia que a aba isolada
-> tornava o 8A "menos perigoso" de montar. É verdade no princípio, mas **o peso
-> estava exagerado**: a vantagem da aba isolada é poder parafusar o **dissipador** no
-> chassi sem criar perigo — e a 0,22 A não há dissipador. Além disso, as duas placas
-> têm rede AC nos terminais de parafuso: nenhuma é segura de tocar, as duas precisam
-> de caixa. O pad vivo do DPAK é o mesmo perigo que as trilhas que já estão lá.
+**Antes de apertar, confirme qual marrom é qual.** Com a máquina fora da tomada,
+multímetro em continuidade: a ponta que fecha com o terminal da bomba é a do `OUT`.
+Inverter não queima o TRIAC (ele é bidirecional), mas a detecção de zero é
+referenciada ao neutro — invertido, o `Z-C` sai com fase errada e o disparo cai no
+instante errado. É o tipo de erro que quase funciona.
 
-➡️ **Recomendação: 8A**, por razões fracas e cumulativas — through-hole é mais robusto
-que SMD numa máquina que vibra por projeto (a bomba é um solenoide batendo 60×/s), a
-diferença de preço é ruído perto do frete, e sobra margem para a peça reserva.
-**Se só houver 4A disponível, comprar sem hesitar.**
+### Por que PSM e não ângulo de fase
 
-### ❌ Por que a V2 não faz PSM, nem com software
+Bomba vibratória é carga indutiva pulsada, não lâmpada. Ângulo de fase corta o meio
+do semiciclo e produz corrente com muita harmônica, aquecimento e ruído — e é o que
+faz o dimmer manual "travar" em 11–12 bar sem chegar aos 9, conforme a
+[07](07-seguranca-e-calibracao.md). PSM entrega **semiciclos inteiros**, escolhendo
+quais passam por um acumulador de Bresenham: a bomba vê ciclos completos, e o
+controle é a fração deles.
 
-Registrado porque a pergunta é natural — a V2 está comprada e é tentador economizar.
-São três impedimentos independentes, qualquer um bastaria.
-
-**1. O comando não existe.** A API completa do DimmerLink é `SET`, `GET`, `CURVE`,
-`GETCURVE`, `FREQ`, `RESET`, `SWITCH_I2C`. O único controle é "põe em X%", com escolha
-de curva. Nada de pulo de ciclo.
-
-**2. A UART é uma ordem de grandeza lenta demais.** A documentação do próprio
-fabricante manda *"add delay between commands (50-100 ms)"* e *"wait for
-acknowledgment before the next command"*. PSM precisa de uma decisão a cada **8,33 ms**.
-É 6 a 12× mais lento — arquitetura errada, não questão de otimizar.
-
-**3. Não há zero-cross no header.** A V2 expõe só `VCC`, `GND`, `TX/SDA`, `RX/SCL`.
-Sem `Z-C` não há em quê sincronizar.
-
-> E o DimmerLink é vendido como **"SEM Flicker"**: ele suaviza transições de propósito.
-> PSM quer o oposto — ligar e desligar abruptamente a cada semiciclo. O produto
-> trabalha ativamente contra o método.
-
-A V2 continua útil: é um dimmer de ângulo de fase funcional, e é o plano B caso o PSM
-decepcione na bancada.
+Custo do PSM, registrado com honestidade: **ripple de pressão em duty baixo**, já
+que os disparos ficam espaçados. O acumulador os DISTRIBUI em vez de agrupá-los, e
+o filtro do ADS1115 cobre o resto.
 
 ### Como o Gaggiuino faz
 
@@ -468,18 +326,6 @@ não de dano.
 > da bomba encurtaria a vida dela. Só que a patente da Breville é **manipulação de
 > forma de onda** — controle tipo fase, não PSM. Se esse relato valer algo, ele aponta
 > para o método que estamos usando, não para o plano B.
-
-### O caminho do bypass
-
-A arquitetura do DimmerLink joga a favor: normalmente ele é uma placa **separada**, e
-seu conector de saída expõe exatamente **VCC, GND, Z-C (zero-cross) e Dim (gate do
-TRIAC)** — os mesmos dois sinais que o PSM precisa. Na variante integrada esses dois
-estágios estão na mesma PCB, mas a interface entre eles continua existindo.
-
-1. Localizar os sinais **Z-C** e **Dim** na placa (pads ou trilha entre os estágios).
-2. Deixar o controlador DimmerLink em 0% (ou sem alimentação).
-3. Ligar **Z-C → GPIO de interrupção** e **Dim → GPIO de saída** no ESP32.
-4. Usar `banoz/PSM.Library`, como o Gaggiuino.
 
 ### ✅ O mod do diodo **não é necessário** — verificado no código (30/07/2026)
 
@@ -549,6 +395,12 @@ de pulsos, não do instante do disparo.
 travar em cache miss de flash. Sem isso, o handler pode atrasar milissegundos
 quando o cache estiver ocupado — e milissegundos, aí sim, custam semiciclo.
 
+> 🗄️ **Nota histórica.** A primeira compra foi a variante **8A UART-I²C V2**, que
+> traz o **DimmerLink** integrado — um controlador dedicado que faz zero-cross e
+> ângulo de fase sozinho, falando por UART/I²C. Ela foi descartada por dois motivos:
+> só faz ângulo de fase, e chegar aos sinais `Z-C`/`PSM` nela exigiria dessoldagem
+> em placa energizada por rede AC. O `8A-Standard` custa ~R$ 32 e já expõe os dois
+> em header. O V2 fica de reserva; nada neste projeto depende dele.
 ## ⚠️ Toda a análise de display abaixo ficou obsoleta em 01/08/2026
 
 O que vem a seguir — a contagem de GPIOs da RGB, a comparação MIPI-DSI × SPI, a
@@ -602,7 +454,7 @@ São **2 pinos reais** e só existe 1. O segundo exigiria canibalizar:
 | Candidato | Custo |
 |---|---|
 | GPIO15/16 (RS485) | dessoldar do SP3485 — cirurgia na placa nova |
-| GPIO19/20 (USB nativa / CAN) | perde a USB nativa — e é a porta que **grava**, ver [05](05-firmware-arquitetura.md#-o-dtr-da-usb-jtag-é-o-gpio0) |
+| GPIO19/20 (USB nativa / CAN) | perde a USB nativa — e é a porta que **grava**, ver [05](05-firmware-arquitetura.md#️-o-dtr-da-usb-jtag-é-o-gpio0) |
 | GPIO43/44 (console) | perde log serial numa placa que controla rede AC |
 
 Agravante independente: poria a ISR de zero-cross num chip cujo periférico RGB varre
@@ -697,7 +549,7 @@ disputar com MAX31865 + microSD.
                         │          │           │
                   ┌─────▼────┐ ┌───▼────┐ ┌────▼──────────┐  ┌──────────┐
                   │HLK-5M05  │ │SSR-40DA│ │ Dimmer 8A     │  │ (chassi) │
-                  │  AC→5V   │ │+dissip.│ │ +DimmerLink   │  │  ATERRAR │
+                  │  AC→5V   │ │+dissip.│ │  Standard     │  │  ATERRAR │
                   └─────┬────┘ └───┬────┘ └────┬──────────┘  └──────────┘
                         │5V        │AC         │AC
                         │    ┌─────▼──────┐    │
@@ -712,7 +564,7 @@ disputar com MAX31865 + microSD.
        │  I²C(8/9)──[shifter]──ADS1115 0x48──[Pressão]      │
        │  SPI(11/12/13)──MAX31865──[PT100 boiler 3 fios]    │
        │              └──microSD (logging)                  │
-       │  GPIO6──►SSR      UART(4/5)──►DimmerLink──►bomba   │
+       │  GPIO6──►SSR      Z-C(4)/PSM(5)──►dimmer──►bomba   │
        │  Wi-Fi (NTP + web UI + telemetria)                 │
        └────────────────────────────────────────────────────┘
 ```
@@ -727,8 +579,9 @@ e do dimmer e pela fonte isolada Hi-Link. Chassi metálico **aterrado**.
    suspeito nº1 é pull-up/alimentação no lado HV do shifter.
 2. **Rref do MAX31865 = 430 Ω** e **jumper de 3 fios** configurado.
 3. **PGA do ADS1115 em ±6,144 V** antes de ligar o sensor de pressão.
-4. **DimmerLink respondendo na UART** antes de ligar qualquer carga AC — testar com
-   lâmpada e varrer 0→100%.
+4. **Pulso de `Z-C` no GPIO4** antes de ligar qualquer carga AC. Sem ele o PSM não
+   tem em que sincronizar, e o sintoma é bomba muda ou disparando fora de hora.
+   Depois disso, testar com **lâmpada** e varrer 0→100% — nunca com a bomba.
 5. **Nenhum sinal em GPIO33–37.** Se o boot travar ou a PSRAM falhar, é o primeiro
    lugar a olhar.
 6. **Brownout no boot** → falta o bulk de 470–1000 µF no 5 V.
