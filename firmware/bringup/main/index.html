@@ -554,7 +554,7 @@ function env(s){ if(ws&&ws.readyState===1) ws.send(s); }
    Sem isso, trocar de idioma exigiria regravar firmware. */
 var L={
 en:{
- idle:'idle',heat:'heating',ready:'ready',pre:'pre-infusion',ramp:'ramp',
+ idle:'idle',heat:'heating',cooling:'cooling after steam',ready:'ready',pre:'pre-infusion',ramp:'ramp',
  plateau:'plateau',decline:'decline',done:'done',fault:'FAULT',
  connecting:'connecting',reconnecting:'reconnecting',
  temp_aberta:'temperature probe open or shorted',temp_alta:'temperature over limit',
@@ -600,7 +600,7 @@ en:{
  s_valid:'valid',s_free:'free',s_writes:'no card'
 },
 pt:{
- idle:'ocioso',heat:'aquecendo',ready:'pronta',pre:'pré-infusão',ramp:'rampa',
+ idle:'ocioso',heat:'aquecendo',cooling:'esfriando após vapor',ready:'pronta',pre:'pré-infusão',ramp:'rampa',
  plateau:'platô',decline:'declínio',done:'fim',fault:'FALHA',
  connecting:'conectando',reconnecting:'reconectando',
  temp_aberta:'sonda de temperatura aberta ou em curto',temp_alta:'temperatura acima do limite',
@@ -1278,7 +1278,15 @@ function pinta(d){
  var falhou=m.est==='fault';
  topo.classList.toggle('falha',falhou);
  estado.classList.toggle('falha',falhou);
- txtEstado.textContent=falhou?t(m.falha||'fault'):t(m.est);
+ // Existe uma via, e só uma, para o boiler passar do setpoint: a chave de vapor,
+ // que curto-circuita o SSR e entrega rede cheia à resistência até o termostato
+ // de 135 °C cortar ([docs/02]). O firmware não participa disso e não precisa —
+ // vapor é malha aberta de fábrica e continua sendo. Mas o painel anunciar
+ // "aquecendo" com a caldeira a 135 °C descendo seria número plausível e errado,
+ // que é o defeito que esta bancada mais persegue. Rótulo DERIVADO: nenhum estado
+ // novo no firmware, nenhum comando, só a palavra certa para o que está na tela.
+ var esfriando = m.est==='heat' && m.tb > m.sp + 3.0;
+ txtEstado.textContent=falhou?t(m.falha||'fault'):t(esfriando?'cooling':m.est);
 
  btPwr.classList.toggle('on',!!m.on);
 

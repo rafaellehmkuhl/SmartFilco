@@ -45,8 +45,49 @@ Fase ──► SSR-40DA ──► TERMOSTATO DE VAPOR original (~135–145 °C, 
 - O **termostato de vapor** (~135–145 °C) passa a ficar **permanentemente em série**
   com a resistência. Ele nunca abre durante extração (setpoint 90–100 °C), mas
   limita a caldeira **antes** do fusível térmico se o controle falhar.
-- Bônus: no modo vapor ele vira o limitador natural — o firmware sobe o setpoint e
-  o termostato define o teto, exatamente como na máquina original.
+### O vapor continua funcionando — e sem passar pelo firmware
+
+**Decisão: vapor é hardware puro.** A chave de vapor original fica **em paralelo
+com o SSR**:
+
+```
+                 ┌──────── SSR-40DA ─────────┐
+Fase ────────────┤                           ├──► TERMOSTATO DE VAPOR ──► Resist. ──► Neutro
+                 └──── CHAVE DE VAPOR ───────┘         (135 °C, superior)
+                        (original)
+```
+
+Apertada, ela curto-circuita o SSR: a resistência recebe rede cheia até o
+termostato de 135 °C abrir. É o comportamento de fábrica, intacto. Solta, o SSR
+volta a mandar. **Custo: um par de fios. Zero GPIO, zero linha de firmware.**
+
+O mesmo termostato faz então os dois trabalhos — backstop do SSR na extração e
+limitador do vapor na vaporização. Não é economia, é o motivo de ele estar ali.
+
+Por que não controlar vapor pelo PID:
+
+- **Vapor não pede precisão.** Extração vive de ±1 °C porque o sabor depende
+  disso; vapor é liga-desliga em 135 °C e leite não sabe a diferença. Máquina
+  nenhuma da categoria faz melhor.
+- **Malha aberta não trava.** Firmware pendurado, Wi-Fi caído, OTA no meio —
+  o vapor sai igual, porque nada disso está no caminho. Ninguém fica sem
+  cappuccino por causa de um bug meu.
+- **Não precisa de sensor.** O PT100 mede 135 °C sem esforço (o MAX31865 vai
+  muito além), mas ninguém está pedindo nada a ele aqui.
+
+**O PID não se confunde com isso, e não por sorte.** Durante o vapor a caldeira
+vai a 135 °C com setpoint em 93: erro de −42 °C, saída já no fundo. É exatamente
+a condição que a **integração condicional** de `maquina.c` recusa a integrar —
+então não há dívida acumulada para despejar quando esfriar. Fosse o clamp antigo
+de integral, o vapor viraria overshoot no shot seguinte. Vale registrar que a
+correção feita por outro motivo é a que torna esta topologia segura.
+
+⚠️ **Vaporizar consome a água da caldeira e a bomba está parada.** Vaporizar
+longo demais seca a resistência — o modo de falha que o fórum documenta como
+"caldeira nova". Depois de vaporizar, tire água pelo chuveiro: repõe a caldeira
+e derruba a temperatura para a faixa de extração de uma vez só. O painel ajuda:
+enquanto estiver acima do setpoint ele mostra **"esfriando após vapor"** em vez
+de "aquecendo", e o botão de shot fica desabilitado até voltar a `pronta`.
 
 Essa é a mesma topologia que a comunidade de mods da Philco convergiu (instalação
 que mantém o termostato de vaporização em vez de desativar tudo).

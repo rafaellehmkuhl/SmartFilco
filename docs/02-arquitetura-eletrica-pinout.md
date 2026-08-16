@@ -552,9 +552,14 @@ disputar com MAX31865 + microSD.
                   │  AC→5V   │ │+dissip.│ │  Standard     │  │  ATERRAR │
                   └─────┬────┘ └───┬────┘ └────┬──────────┘  └──────────┘
                         │5V        │AC         │AC
+                        │      ┌───┴───┐       │
+                        │   ┌──┤ CHAVE ├──┐    │  ← vapor: em PARALELO com o SSR
+                        │   │  │ VAPOR │  │    │    (original, sem firmware)
+                        │   │  └───────┘  │    │
                         │    ┌─────▼──────┐    │
-                        │    │ TERMOSTATO │    │  ← backstop de hardware
-                        │    │ VAPOR ~140°│    │    (ver docs/07)
+                        │    │ TERMOSTATO │    │  ← backstop de hardware E
+                        │    │ VAPOR 135° │    │    limitador do vapor
+                        │    │ (superior) │    │    (ver docs/07)
                         │    └─────┬──────┘    │
                         │      ┌───▼────┐ ┌────▼─────┐
                         │      │Resist. │ │  Bomba   │
