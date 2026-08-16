@@ -54,7 +54,17 @@ que mantém o termostato de vaporização em vez de desativar tudo).
 ⚠️ **Confirmar ao abrir a máquina** ([06](06-engenharia-reversa-checklist.md)):
 na fiação original os dois termostatos são **selecionados pela chave de vapor**, não
 estão os dois em série. Colocar o de vapor permanentemente em série exige rewiring —
-mapear antes de cortar.
+mapear antes de cortar. **Qual é qual já está resolvido**: o **superior** é o de
+vapor, o **lateral** é o de extração ([06](06-engenharia-reversa-checklist.md#a-elétrico)).
+
+**Na 15 bar o teto do backstop é 135 °C, não 145.** O fórum atribui os 145 °C à
+20 bar; caldeira e fiação são idênticas, muda o termostato (e a bomba, de 63 W).
+Isso não afeta a extração, mas **define o teto do modo vapor**: o firmware pode
+pedir 130 °C, não mais — acima disso quem manda é o termostato, e o shot vira
+espera. Referência de quem usa: 140 °C na 20 bar, com o alerta de que *"não pode ir
+muito além pois você vai encostar no limite do fusível térmico que é 165 e que pode
+ativar uns 10 graus antes"* — ou seja, o fusível é um teto **efetivo de ~155 °C**,
+e queimá-lo custa caldeira nova.
 
 > **Corrente de fuga:** SSRs deixam passar alguns mA mesmo desligados. A resistência
 > **nunca fica 100% desenergizada** com a máquina na tomada. O SSR não é dispositivo

@@ -43,6 +43,34 @@ sozinho custa mais que boa parte da BOM deste projeto.
       Desenhar o circuito antes de cortar qualquer fio.
 - [ ] Anotar a **temperatura de abertura** marcada em cada termostato (extração ~95 °C,
       vapor ~135–145 °C conforme o modelo) e a do fusível térmico (~165 °C).
+- [x] ~~Descobrir qual termostato é qual~~ — **a posição identifica**, e o fórum
+      Clube do Café confirma duas vezes, por caminhos independentes:
+
+      | Posição | Função | Abertura |
+      |---|---|---|
+      | **Superior** (topo da caldeira) | **vapor** | 135 °C na 15 bar · 145 °C na 20 bar |
+      | **Lateral** (parede da caldeira) | **extração** | ~95 °C (religa ~85 °C) |
+
+      1. *"tem dois né, um na parte superior e outro na lateral, li aqui que e
+         superior é do vapor, e o lateral da caldeira"* — José Augusto, 03/01/2023
+         ([pág. 3](https://forum.clubedocafe.net/topic/8492-philco-coffee-express-15-bar-troca-de-informações/page/3/)).
+      2. Descrevendo a mod que preserva a vaporização: *"Este continua a funcionar
+         e com termostato original, **o superior**"* — 01/2024
+         ([pág. 8](https://forum.clubedocafe.net/topic/8492-philco-coffee-express-15-bar-troca-de-informações/page/8/)).
+         Esta é a confirmação forte: quem descreve **o circuito** também aponta o de cima.
+
+      Faz sentido físico — vapor sobe, e o ponto mais quente da caldeira é o topo.
+      É lá que se põe o termostato que precisa enxergar 135 °C. E é coerente com
+      escolher a **posição do de extração** para a PT100 (seção C): é o ponto que o
+      próprio fabricante elegeu para representar a temperatura de extração.
+
+- [ ] **Confirmar com isqueiro antes de cortar** — a posição é forte, a marcação é
+      definitiva, mas o teste elétrico fecha: multímetro em continuidade nos dois
+      (ambos ~0 Ω a frio) e aproximar a chama. O de **95 °C abre primeiro**, com
+      folga; o de vapor precisa de bem mais calor. Receita do próprio fórum:
+      *"Mede a resistência (deve estar em zero TB), aproxime a um isqueiro e ele vai
+      desarmar e começar dar resistência infinita no multímetro"* (pág. 7).
+      ⚠️ Fora da tomada. Chama rápida, sem cozinhar o disco.
 - [ ] Confirmar que o **dimmer atual controla a bomba** (e não a resistência).
 - [x] ~~Anotar tensão de trabalho~~ — **220 V**, confirmado 30/07/2026. Resistência
       de ~1000–1200 W → **4,5–5,5 A** no SSR ([07](07-seguranca-e-calibracao.md)).
