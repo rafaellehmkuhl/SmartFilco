@@ -14,6 +14,7 @@
 
 #include "hal.h"
 
+#include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "esp_log.h"
 #include "ads.h"
@@ -90,15 +91,52 @@ static void real_ler(hal_ent_t *e)
     e->nivel_mm = ult_bom;
 }
 
+// Pinos dos atuadores. Ainda sem driver, mas JÁ COM ESTADO DEFINIDO.
+#define PIN_ZC 4     // entrada: pulso de cruzamento por zero, vindo do dimmer
+#define PIN_PSM 5    // saída: gate do TRIAC
+#define PIN_SSR 6    // saída: resistência do boiler
+
+// ⚠️ Chamada o mais cedo possível, ANTES de Wi-Fi, tasks e qualquer sensor.
+//
+// O comentário anterior deste arquivo afirmava que "estado seguro é o que já
+// está: saída desenergizada". **Isso nunca foi verificado, e a premissa é falsa
+// em geral.** Sem configuração, GPIO4/5/6 ficam em ENTRADA FLUTUANTE — e o que
+// o dimmer faz com isso depende do circuito de entrada DELE, não do ESP32. Se a
+// entrada `PSM` do módulo tiver pull-up (vários têm), flutuante é lido como
+// nível alto: TRIAC disparando todo semiciclo, bomba no talo assim que a máquina
+// for para a tomada.
+//
+// Aqui os dois viram SAÍDA EM NÍVEL BAIXO explícito, que é o desligado dos dois
+// módulos (o opto só conduz com corrente).
+//
+// 🔴 O QUE ISTO **NÃO** COBRE: a janela entre o power-on e esta função rodar —
+// bootloader mais init do IDF, algumas centenas de ms — em que os pinos seguem
+// flutuando. Software não alcança esse intervalo. O conserto é HARDWARE:
+// **resistor de pull-down de 10 k em cada linha**, no lado do dimmer e do SSR.
+// Ele também cobre reset, travamento e o ESP32 fora do soquete, que são
+// justamente os casos em que não há firmware para garantir nada.
+void hal_atuadores_seguros(void)
+{
+    gpio_config_t saidas = {
+        .pin_bit_mask = (1ULL << PIN_PSM) | (1ULL << PIN_SSR),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_down_en = GPIO_PULLDOWN_ENABLE,   // reforça o nível durante o deinit
+    };
+    ESP_ERROR_CHECK(gpio_config(&saidas));
+    gpio_set_level(PIN_PSM, 0);
+    gpio_set_level(PIN_SSR, 0);
+    ESP_LOGW(TAG, "atuadores em nível baixo (GPIO%d e GPIO%d)", PIN_PSM, PIN_SSR);
+}
+
 static void real_escrever(const hal_sai_t *s)
 {
     (void)s;
     // PENDENTE — SSR no GPIO6 por janela lenta de PWM, e o PSM: ISR de zero-cross
     // no GPIO4 (em IRAM) decidindo passar ou pular cada semiciclo no GPIO5.
     //
-    // ⚠️ Enquanto isto for vazio, ligar em HAL_REAL com a máquina na tomada
-    // significa que os atuadores NÃO respondem. Estado seguro é o que já está:
-    // saída desenergizada.
+    // ⚠️ Enquanto isto for vazio, os atuadores NÃO respondem — mas agora ficam
+    // desligados por CONSTRUÇÃO, não por sorte: `atuadores_seguros()` põe os dois
+    // pinos em nível baixo no boot.
 }
 
 // ---------------------------------------------------------------- despacho

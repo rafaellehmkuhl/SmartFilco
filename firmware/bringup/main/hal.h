@@ -45,6 +45,10 @@ typedef struct {
 // mesmos pinos. Chamar ANTES de hal_iniciar.
 void hal_set_bus(void *bus);
 
+// Põe os pinos dos atuadores em nível baixo. Chamar como PRIMEIRA coisa do
+// app_main — ver o comentário em hal_real.c sobre a janela que ela não cobre.
+void hal_atuadores_seguros(void);
+
 void hal_iniciar(void);
 void hal_ler(hal_ent_t *e);
 void hal_escrever(const hal_sai_t *s);

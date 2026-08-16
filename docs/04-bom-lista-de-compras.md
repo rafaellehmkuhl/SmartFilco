@@ -53,6 +53,7 @@ pressão vier com defeito, são +2 semanas de espera.
 | **Termopar K + medidor** (ou multímetro com entrada K) | só para caracterizar o offset uma vez ([07](07-seguranca-e-calibracao.md)). ~R$ 40 num TM-902C |
 | Bornes **WAGO**, tubo termo-retrátil | junções e distribuição |
 | Parafusos **M3**, inserts de latão, espaçadores | fixação dos módulos na peça 3D |
+| **2× resistor 10 kΩ** (pull-down de `PSM` e `SSR`) | 🔴 **segurança, não opcional** — mantém os atuadores desligados na janela de boot, em reset e com o ESP32 fora do soquete. Ver [07](07-seguranca-e-calibracao.md#proteções-por-software-safetymodule-independentes-da-ui) |
 | **Pasta térmica** | contato da PT100 com o boiler |
 | Filamento **PETG** | suporte impresso (PETG pela temperatura interna) |
 

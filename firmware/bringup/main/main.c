@@ -1216,6 +1216,11 @@ static void http_iniciar(void)
 
 void app_main(void)
 {
+    // ANTES de tudo: os pinos dos atuadores em nível definido. Qualquer coisa que
+    // rode antes disto (NVS, LED, Wi-Fi) é tempo com gate de TRIAC flutuando ao
+    // lado de rede AC.
+    hal_atuadores_seguros();
+
     autoteste();
     t0 = esp_timer_get_time();
 

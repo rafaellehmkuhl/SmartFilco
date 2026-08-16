@@ -71,6 +71,22 @@ mapear antes de cortar.
 - **Watchdog** reiniciando o loop de controle se travar.
 - Estado seguro no boot e em falha: **SSR e bomba desligados**.
 
+> 🔴 **Software não cobre o boot inteiro — pull-down é obrigatório.**
+>
+> O firmware põe `GPIO5` (PSM) e `GPIO6` (SSR) em nível baixo como primeira
+> instrução do `app_main`. Mas entre a energização e esse instante correm o
+> bootloader e o init do IDF — algumas centenas de ms com os pinos em **entrada
+> flutuante**. O que o dimmer e o SSR fazem com um gate flutuante depende do
+> circuito de entrada DELES: se houver pull-up, flutuante é lido como ligado.
+>
+> **Resistor de 10 kΩ de pull-down em cada linha de comando**, no lado do módulo.
+> Ele cobre o que o firmware não alcança: a janela de boot, um reset, um
+> travamento, e o ESP32 fora do soquete — que são exatamente os momentos em que
+> não há software garantindo nada.
+>
+> Custa dois resistores e é a diferença entre "desligado porque o código mandou" e
+> "desligado porque o circuito não tem como ligar".
+
 ## Calibração dos sensores
 
 ### Temperatura (PT100 3 fios + MAX31865)
