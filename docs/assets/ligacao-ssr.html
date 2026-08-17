@@ -1,0 +1,345 @@
+<title>Ligação do SSR</title>
+<style>
+:root{
+  --ground:#EDF0F3; --card:#FFFFFF; --ink:#16202B; --muted:#5F6E7D; --linha:#C3CCD5;
+  --fase:#A9683B; --neutro:#2E6FB7; --terra:#7A9A2E;
+  --perigo:#C6303A; --perigo-bg:#FBEAEB;
+  --sinal:#6B4E9B; --morto:#A7B2BD;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#121920; --card:#1A232C; --ink:#E3EAF0; --muted:#8493A2; --linha:#2E3A46;
+    --fase:#CE8B57; --neutro:#6BA6E0; --terra:#A3C44A;
+    --perigo:#F2606A; --perigo-bg:#2C1619;
+    --sinal:#A98BD6; --morto:#57646F;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#121920; --card:#1A232C; --ink:#E3EAF0; --muted:#8493A2; --linha:#2E3A46;
+  --fase:#CE8B57; --neutro:#6BA6E0; --terra:#A3C44A;
+  --perigo:#F2606A; --perigo-bg:#2C1619;
+  --sinal:#A98BD6; --morto:#57646F;
+}
+:root[data-theme="light"]{
+  --ground:#EDF0F3; --card:#FFFFFF; --ink:#16202B; --muted:#5F6E7D; --linha:#C3CCD5;
+  --fase:#A9683B; --neutro:#2E6FB7; --terra:#7A9A2E;
+  --perigo:#C6303A; --perigo-bg:#FBEAEB;
+  --sinal:#6B4E9B; --morto:#A7B2BD;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; padding:clamp(20px,4vw,48px) clamp(16px,4vw,40px) 80px;
+  background:var(--ground); color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:16px; line-height:1.6;
+}
+.wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:34px}
+
+.mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+      font-variant-numeric:tabular-nums}
+
+header{display:flex;flex-direction:column;gap:10px}
+.eyebrow{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+h1{margin:0;font-size:clamp(28px,5vw,42px);line-height:1.1;letter-spacing:-.02em;
+   font-weight:650;text-wrap:balance}
+.sub{margin:0;color:var(--muted);max-width:64ch}
+
+h2{margin:0 0 4px;font-size:clamp(19px,2.6vw,23px);letter-spacing:-.01em;font-weight:640}
+h3{margin:0 0 6px;font-size:15px;font-weight:640;letter-spacing:.01em}
+p{margin:0 0 12px;max-width:70ch}
+p:last-child{margin-bottom:0}
+
+.card{background:var(--card);border:1px solid var(--linha);border-radius:10px;
+      padding:clamp(18px,3vw,28px)}
+.esquema{padding:clamp(12px,2vw,20px);overflow-x:auto}
+.esquema svg{display:block;min-width:880px;width:100%;height:auto}
+
+.legenda{display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:14px;
+  padding-top:14px;border-top:1px solid var(--linha);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px}
+.legenda span{display:inline-flex;align-items:center;gap:7px;color:var(--muted)}
+.sw{width:22px;height:3px;border-radius:2px;flex:none}
+
+table{border-collapse:collapse;width:100%;font-size:14.5px}
+th,td{text-align:left;padding:9px 12px 9px 0;border-bottom:1px solid var(--linha);
+      vertical-align:top}
+th{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+   font-weight:600}
+td:first-child{white-space:nowrap;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-weight:600}
+.tw{position:relative;padding-left:16px}
+.tw::before{content:"";position:absolute;left:0;top:.62em;width:9px;height:9px;
+  border-radius:50%;background:currentColor}
+.f{color:var(--fase)} .n{color:var(--neutro)} .t{color:var(--terra)} .s{color:var(--sinal)}
+
+.perigo{border-color:var(--perigo);background:var(--perigo-bg)}
+.perigo h2{color:var(--perigo)}
+.perigo ul{margin:0;padding-left:19px}
+.perigo li{margin-bottom:11px}
+.perigo li:last-child{margin-bottom:0}
+.perigo strong{color:var(--perigo)}
+
+ol.passos{margin:0;padding-left:0;list-style:none;counter-reset:p;
+  display:flex;flex-direction:column;gap:15px}
+ol.passos li{counter-increment:p;padding-left:40px;position:relative}
+ol.passos li::before{content:counter(p);position:absolute;left:0;top:1px;
+  width:26px;height:26px;border-radius:50%;border:1px solid var(--linha);
+  display:grid;place-items:center;font-size:12.5px;font-weight:650;color:var(--muted);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+.duas{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:20px}
+.medida{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:13.5px;color:var(--muted);background:var(--ground);
+  border:1px solid var(--linha);border-radius:6px;padding:8px 11px;margin-top:9px;
+  display:inline-block}
+.nota{font-size:14px;color:var(--muted);border-left:2px solid var(--linha);
+  padding-left:14px;margin-top:14px}
+footer{color:var(--muted);font-size:13.5px;border-top:1px solid var(--linha);padding-top:18px}
+a{color:inherit}
+</style>
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Philco 15 bar · mod PID · lado AC</div>
+  <h1>Ligação do SSR</h1>
+  <p class="sub">A resistência passa a ser comandada pelo ESP32, com o termostato de vapor
+  como limite físico e a chave de vapor em paralelo com o SSR. Fusível térmico intocado.</p>
+</header>
+
+<section class="card esquema">
+  <svg viewBox="0 0 980 560" role="img"
+       aria-label="Esquema: fase da rede passa pelo fusível térmico, depois por SSR e chave de vapor em paralelo, depois pelo termostato de vapor de 135 graus, depois pela resistência e volta ao neutro. O ESP32 comanda a entrada DC do SSR pelo GPIO6.">
+    <defs>
+      <marker id="setaF" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6"
+              markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--fase)"/></marker>
+      <marker id="setaN" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6"
+              markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--neutro)"/></marker>
+      <marker id="setaS" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6"
+              markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--sinal)"/></marker>
+    </defs>
+
+    <style>
+      .wF{stroke:var(--fase);stroke-width:3.5;fill:none;stroke-linecap:round}
+      .wN{stroke:var(--neutro);stroke-width:3.5;fill:none;stroke-linecap:round}
+      .wT{stroke:var(--terra);stroke-width:3.5;fill:none;stroke-linecap:round}
+      .wS{stroke:var(--sinal);stroke-width:2.5;fill:none;stroke-linecap:round}
+      .bx{fill:var(--card);stroke:var(--ink);stroke-width:2}
+      .bxm{fill:none;stroke:var(--morto);stroke-width:2;stroke-dasharray:6 5}
+      .lb{fill:var(--ink);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+          font-size:13px;font-weight:600}
+      .lbs{fill:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+           font-size:11px}
+      .lbm{fill:var(--morto);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+           font-size:12px;font-weight:600}
+      .nd{fill:var(--fase)}
+    </style>
+
+    <!-- ============ REDE ============ -->
+    <text x="14" y="86" class="lbs">REDE 220 V</text>
+    <circle cx="34" cy="120" r="5" class="nd"/>
+    <text x="14" y="112" class="lb" fill="var(--fase)">L</text>
+    <circle cx="34" cy="400" r="5" fill="var(--neutro)"/>
+    <text x="14" y="394" class="lb" fill="var(--neutro)">N</text>
+
+    <!-- fase: rede -> fusivel -->
+    <path class="wF" d="M34,120 H96"/>
+    <rect x="96" y="100" width="122" height="40" rx="5" class="bx"/>
+    <text x="157" y="118" class="lb" text-anchor="middle">FUSÍVEL</text>
+    <text x="157" y="132" class="lbs" text-anchor="middle">165 °C · NÃO MEXER</text>
+
+    <!-- fusivel -> nó A -->
+    <path class="wF" d="M218,120 H300"/>
+    <circle cx="300" cy="120" r="5" class="nd"/>
+    <text x="300" y="103" class="lbs" text-anchor="middle">nó A</text>
+
+    <!-- ramo A: sobe pro SSR -->
+    <path class="wF" d="M300,120 V60 H372"/>
+    <rect x="372" y="30" width="168" height="60" rx="5" class="bx"/>
+    <text x="456" y="53" class="lb" text-anchor="middle">SSR-40DA</text>
+    <text x="456" y="70" class="lbs" text-anchor="middle">term. 1 e 2 = carga</text>
+    <text x="456" y="83" class="lbs" text-anchor="middle">sem polaridade</text>
+    <text x="382" y="24" class="lbs">1</text>
+    <text x="527" y="24" class="lbs">2</text>
+    <path class="wF" d="M540,60 H612 V120"/>
+
+    <!-- ramo B: desce pra chave de vapor -->
+    <path class="wF" d="M300,120 V186 H372"/>
+    <rect x="372" y="156" width="168" height="60" rx="5" class="bx"/>
+    <text x="456" y="179" class="lb" text-anchor="middle">CHAVE DE VAPOR</text>
+    <text x="456" y="196" class="lbs" text-anchor="middle">a original, do painel</text>
+    <text x="456" y="209" class="lbs" text-anchor="middle">agora só faz bypass</text>
+    <path class="wF" d="M540,186 H612 V120"/>
+
+    <text x="612" y="151" class="lbs" text-anchor="middle" font-style="italic">paralelo</text>
+
+    <!-- nó B -->
+    <circle cx="612" cy="120" r="5" class="nd"/>
+    <text x="612" y="103" class="lbs" text-anchor="middle">nó B</text>
+
+    <!-- nó B -> termostato de vapor -->
+    <path class="wF" d="M612,120 H676"/>
+    <rect x="676" y="94" width="150" height="52" rx="5" class="bx"/>
+    <text x="751" y="114" class="lb" text-anchor="middle">TERMOST. VAPOR</text>
+    <text x="751" y="130" class="lbs" text-anchor="middle">135 °C · o SUPERIOR</text>
+    <text x="751" y="141" class="lbs" text-anchor="middle">NF · fica em série</text>
+
+    <!-- termostato -> resistência -->
+    <path class="wF" d="M826,120 H900 V236"/>
+    <rect x="826" y="236" width="148" height="56" rx="5" class="bx"/>
+    <text x="900" y="259" class="lb" text-anchor="middle">RESISTÊNCIA</text>
+    <text x="900" y="276" class="lbs" text-anchor="middle">~1100 W · ~44 Ω</text>
+
+    <!-- resistência -> neutro -->
+    <path class="wN" d="M900,292 V400 H34" marker-end="url(#setaN)"/>
+    <text x="470" y="392" class="lbs" text-anchor="middle">neutro segue DIRETO, não passa por nada</text>
+
+    <!-- ============ TERRA ============ -->
+    <path class="wT" d="M34,452 H186"/>
+    <circle cx="34" cy="452" r="5" fill="var(--terra)"/>
+    <text x="14" y="446" class="lb" fill="var(--terra)">⏚</text>
+    <path class="wT" d="M186,452 V430"/>
+    <text x="196" y="449" class="lbs">carcaça do boiler — o fio AMARELO fica onde está</text>
+
+    <!-- ============ LADO DC ============ -->
+    <rect x="300" y="452" width="176" height="72" rx="5" class="bx"/>
+    <text x="388" y="478" class="lb" text-anchor="middle">ESP32-S3</text>
+    <text x="388" y="495" class="lbs" text-anchor="middle">GPIO6 = comando</text>
+    <text x="388" y="509" class="lbs" text-anchor="middle">GND = referência</text>
+
+    <path class="wS" d="M476,472 H556 V102 H540" marker-end="url(#setaS)"/>
+    <path class="wS" d="M476,506 H586 V116 H540" marker-end="url(#setaS)"/>
+    <text x="600" y="466" class="lbs">GPIO6 → term. 3 (+)</text>
+    <text x="600" y="482" class="lbs">GND → term. 4 (−)</text>
+    <text x="600" y="498" class="lbs" fill="var(--perigo)">10 kΩ entre 3 e 4</text>
+
+    <text x="382" y="106" class="lbs">3</text>
+    <text x="382" y="120" class="lbs">4</text>
+
+    <!-- ============ O QUE SAI ============ -->
+    <rect x="676" y="430" width="298" height="96" rx="5" class="bxm"/>
+    <text x="825" y="456" class="lbm" text-anchor="middle">TERMOSTATO DE EXTRAÇÃO — SAI</text>
+    <text x="825" y="476" class="lbs" text-anchor="middle">~95 °C · o LATERAL</text>
+    <text x="825" y="492" class="lbs" text-anchor="middle">quem controla extração agora é o PID</text>
+    <text x="825" y="512" class="lbs" text-anchor="middle">a PT100 vai no lugar dele</text>
+  </svg>
+
+  <div class="legenda">
+    <span><i class="sw" style="background:var(--fase)"></i>fase · marrom</span>
+    <span><i class="sw" style="background:var(--neutro)"></i>neutro · azul</span>
+    <span><i class="sw" style="background:var(--terra)"></i>terra · amarelo</span>
+    <span><i class="sw" style="background:var(--sinal)"></i>sinal 3,3 V · isolado do AC</span>
+    <span><i class="sw" style="background:var(--morto)"></i>removido</span>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Terminal por terminal</h2>
+  <p class="sub">O SSR-40DA tem quatro parafusos. Os dois grandes são a carga, os dois
+  pequenos são o comando.</p>
+  <table>
+    <thead><tr><th>Terminal</th><th>Recebe</th><th>Observação</th></tr></thead>
+    <tbody>
+      <tr><td class="tw f">1</td><td>Fase que vem do fusível térmico (nó A)</td>
+          <td>Lado AC. <strong>Não tem polaridade</strong> — 1 e 2 podem inverter.</td></tr>
+      <tr><td class="tw f">2</td><td>Fase que segue para o termostato de vapor (nó B)</td>
+          <td>Daí vai à resistência.</td></tr>
+      <tr><td class="tw s">3 (+)</td><td><span class="mono">GPIO6</span> do ESP32</td>
+          <td>Entrada DC, 3–32 V. Ver o alerta de 3,3 V abaixo.</td></tr>
+      <tr><td class="tw s">4 (−)</td><td><span class="mono">GND</span> do ESP32</td>
+          <td>Com o resistor de 10 kΩ ligado entre 3 e 4.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="duas" style="margin-top:26px">
+    <div>
+      <h3>A chave de vapor</h3>
+      <p>Hoje ela <em>seleciona</em> qual termostato entra no circuito. Passa a fazer
+      outra coisa: ligar o nó A no nó B, curto-circuitando o SSR. Dois fios, um em
+      cada nó.</p>
+      <p class="nota">Se ela for iluminada, a lâmpada de neon dentro dela tem um fio
+      próprio para o neutro. Identifique os três terminais antes de reaproveitar — o
+      par que fecha continuidade ao apertar é o que interessa.</p>
+    </div>
+    <div>
+      <h3>O termostato de vapor</h3>
+      <p>É o <strong>superior</strong>, o de 135 °C. Ele deixa de ser chaveado e fica
+      permanentemente em série com a resistência: vira o limite físico que segura a
+      caldeira se o SSR entrar em curto ou o firmware travar.</p>
+      <p class="nota">O lateral, de ~95 °C, sai do circuito. É no lugar dele que a
+      PT100 vai, porque é o ponto que o próprio fabricante escolheu para representar
+      a temperatura de extração.</p>
+    </div>
+  </div>
+</section>
+
+<section class="card perigo">
+  <h2>Quatro coisas que não podem acontecer</h2>
+  <ul>
+    <li><strong>O fio amarelo não entra em lugar nenhum do circuito.</strong> Ele é
+    terra e continua sozinho na carcaça do boiler. Terra em neutro põe a carcaça no
+    caminho da corrente de retorno.</li>
+    <li><strong>O fusível térmico não é ponteado nem removido.</strong> Ele é a última
+    linha, em ~165 °C. Se ele abrir algum dia, já houve falha grave antes dele.</li>
+    <li><strong>O neutro não passa pelo SSR.</strong> A interrupção é só na fase. O
+    neutro da resistência vai direto.</li>
+    <li><strong>O SSR precisa do dissipador desde a primeira vez que ligar.</strong>
+    A corrente é folgada (~5 A em 220 V), mas SSR sem dissipador é a falha clássica
+    e ele já está comprado.</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Antes de pôr na tomada</h2>
+  <p class="sub">Tudo com a máquina fora da tomada, multímetro na mão. Cada passo aqui
+  já pegou erro em alguém.</p>
+  <ol class="passos">
+    <li><strong>Confirme qual termostato é qual.</strong> Continuidade nos dois: ambos
+    fecham a frio. Aproxime um isqueiro — o de extração (95 °C) abre bem antes do de
+    vapor. Chama rápida, sem cozinhar o disco.
+    <div class="medida">a frio: ambos ≈ 0 Ω → ao aquecer, abre → ∞</div></li>
+
+    <li><strong>Confirme o fusível térmico.</strong> Continuidade ponta a ponta.
+    <div class="medida">esperado ≈ 0 Ω · se der ∞, já está aberto</div></li>
+
+    <li><strong>Confirme a resistência.</strong> Mede entre os dois terminais dela,
+    com pelo menos um fio solto.
+    <div class="medida">220 V / ~1100 W → ≈ 44 Ω · ∞ = queimada</div></li>
+
+    <li><strong>Confirme que não há curto para a carcaça.</strong> De cada terminal da
+    resistência até a carcaça do boiler.
+    <div class="medida">esperado: ∞ · qualquer leitura baixa é caso de parar</div></li>
+
+    <li><strong>Meça o comando com o ESP desalimentado.</strong> Entre os terminais 3 e
+    4 do SSR. Depois alimente a placa e olhe durante o boot inteiro — é o intervalo em
+    que ainda não há firmware para garantir nada.
+    <div class="medida">tem que ficar firme perto de 0 V, o tempo todo</div></li>
+
+    <li><strong>Primeira energização com a máquina em repouso.</strong> O firmware nasce
+    em repouso com a resistência desligada; não peça nada a ela ainda. Confira no painel
+    que o estado é <span class="mono">ocioso</span> e o duty do SSR está em zero.</li>
+
+    <li><strong>Só então comande.</strong> Suba o duty aos poucos e acompanhe a
+    temperatura subindo no painel. O LED do próprio SSR acende quando ele recebe
+    comando — é o jeito mais rápido de ver se o lado DC está funcionando.</li>
+  </ol>
+
+  <div class="nota" style="margin-top:22px">
+    <strong>Atenção com os 3,3 V.</strong> O SSR-40DA é especificado para 3–32 V na
+    entrada DC, então 3,3 V está dentro — mas na beirada de baixo, e vários clones só
+    chaveiam firme a partir de ~4 V. Se o LED do SSR acender fraco ou a resistência
+    ligar de forma intermitente, não é o firmware: é o nível de comando. O conserto é
+    um transistor pequeno puxando os 5 V do Hi-Link em vez de comandar direto do GPIO.
+  </div>
+</section>
+
+<footer>
+  Topologia e limites conforme <span class="mono">docs/07</span> (backstop de hardware,
+  vapor em paralelo) e <span class="mono">docs/02</span> (lado AC). Identificação dos
+  termostatos conforme <span class="mono">docs/06</span>. O termostato de vapor de
+  135 °C é o da 15 bar — na 20 bar é de 145 °C.
+</footer>
+
+</div>
