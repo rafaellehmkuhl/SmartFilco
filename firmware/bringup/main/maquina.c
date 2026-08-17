@@ -328,9 +328,10 @@ void mq_passo(float dt_s)
     // e bomba desligados", e a versão anterior subia aquecendo sozinha: no boot a
     // máquina ia para AQUECENDO e mandava 100% no SSR sem ninguém ter pedido.
     //
-    // Passava despercebido porque `real_escrever` ainda está vazio e o SSR não
-    // existe no hardware. No dia em que existir, seria uma resistência energizada
-    // durante o boot — que é justamente o intervalo em que não há PID vigiando.
+    // Passava despercebido enquanto `real_escrever` era vazio e o SSR não existia
+    // no hardware. **Desde 16/08/2026 o driver existe e o SSR está ligado**, então
+    // isto deixou de ser precaução teórica: sem esta guarda seria uma resistência
+    // energizada durante o boot, justamente o intervalo em que não há PID vigiando.
     //
     // Zerar o integral junto importa: parado, o erro contra o setpoint continua
     // grande, e sem isto o PID acumularia dívida em repouso e despejaria potência

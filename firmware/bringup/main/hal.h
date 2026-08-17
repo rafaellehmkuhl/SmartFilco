@@ -53,6 +53,18 @@ void hal_iniciar(void);
 void hal_ler(hal_ent_t *e);
 void hal_escrever(const hal_sai_t *s);
 
+// Saúde dos atuadores, para a tela de debug. `zc_hz` é o que separa "bomba
+// desligada porque o duty é zero" de "bomba desligada porque o dimmer não vê a
+// rede" — duas coisas idênticas na tela e opostas na bancada.
+typedef struct {
+    float zc_hz;        // cruzamentos por segundo; ~120 em rede de 60 Hz
+    uint32_t zc_total;
+    float psm_duty;     // o que a ISR está de fato aplicando
+    float ssr_duty;     // duty travado na janela corrente
+} hal_atuador_diag_t;
+
+void hal_atuador_diag(hal_atuador_diag_t *o);
+
 // `dt_s` é passado de fora para a simulação poder rodar acelerada sem que a
 // lógica de controle saiba. Na implementação real ele é ignorado.
 void hal_passo(float dt_s);

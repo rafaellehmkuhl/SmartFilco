@@ -1,9 +1,15 @@
 // HAL real + o despacho entre real e simulado.
 //
-// **Estado dos periféricos (11/08/2026):** temperatura, pressão e nível estão
-// ligados de verdade — MAX31865, ADS1115 e HC-SR04. Faltam a célula de carga
-// (amplificador não decidido) e os dois atuadores, que só entram com a máquina
-// aberta.
+// **Estado dos periféricos (16/08/2026):** temperatura, pressão e nível lêem de
+// verdade — MAX31865, ADS1115 e HC-SR04 — e os dois atuadores agora têm driver:
+// SSR por janela lenta de PWM, bomba por PSM sobre a ISR de zero-cross. Falta só a
+// célula de carga (amplificador não decidido).
+//
+// ⚠️ **O driver dos atuadores nunca rodou contra rede AC.** Compila e a conta do
+// PSM está verificada em `ferramentas/teste_psm.py`, mas o número que decide se a
+// sincronia está certa — `zc_hz`, que tem que dar ~120 — só existe com a máquina
+// na tomada. Até alguém ler esse número, isto é código plausível, não código
+// validado, e a distinção é exatamente a que esta bancada aprendeu a não apagar.
 //
 // Cada leitura ausente devolve `falha_* = true` em vez de zero — porque zero é um
 // número plausível, e número plausível vindo de sensor inexistente é o modo de
@@ -17,6 +23,7 @@
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "ads.h"
 #include "max.h"
 #include "ultra.h"
@@ -128,15 +135,160 @@ void hal_atuadores_seguros(void)
     ESP_LOGW(TAG, "atuadores em nível baixo (GPIO%d e GPIO%d)", PIN_PSM, PIN_SSR);
 }
 
+// ------------------------------------------------------------ PSM (bomba)
+//
+// Bresenham sobre semiciclos: a cada cruzamento por zero, `acc += alvo`; quando
+// transborda a escala, este semiciclo passa. O resto fica no acumulador, então
+// os disparos saem DISTRIBUÍDOS em vez de agrupados — que é a diferença entre
+// bomba pulsando parelho e bomba engasgando ([docs/02]).
+//
+// ⚠️ **Aritmética INTEIRA, e não é preferência de estilo.** No Xtensa os
+// registradores da FPU não são salvos no contexto de interrupção. Um `float` aqui
+// dentro corrompe a conta de quem foi interrompido — e o sintoma é um valor errado
+// aparecendo em outra task, longe daqui, sem nada apontando para esta ISR.
+#define PSM_ESC 1000
+
+static volatile int32_t psm_alvo;     // 0..PSM_ESC, escrito pela task de controle
+static volatile uint32_t zc_cont;
+
+// O gate fica alto pelo SEMICICLO INTEIRO, não em pulso curto. A bomba é um
+// solenoide: a corrente atrasa em relação à tensão, e um pulso de gate estreito
+// solta o TRIAC antes de a corrente firmar — ele comuta cedo, o curso do pistão
+// não completa, e a bomba zumbe sem bombear. Mantendo o gate alto, o semiciclo
+// sai inteiro. O preço é o opto conduzindo o tempo todo em duty alto, que é
+// consumo previsto do módulo, não abuso.
+static void IRAM_ATTR zc_isr(void *arg)
+{
+    static int32_t acc;
+    zc_cont++;
+
+    int32_t a = psm_alvo;
+    if (a <= 0) { acc = 0; gpio_set_level(PIN_PSM, 0); return; }
+
+    acc += a;
+    if (acc >= PSM_ESC) { acc -= PSM_ESC; gpio_set_level(PIN_PSM, 1); }
+    else                { gpio_set_level(PIN_PSM, 0); }
+}
+
+// ------------------------------------------------------------ SSR (boiler)
+//
+// Janela lenta de PWM. 1 s porque o SSR-40DA chaveia no zero da rede — ele só
+// consegue ligar/desligar a cada 8,3 ms, então janela curta viraria quantização
+// grosseira sem ganhar nada numa caldeira que leva minutos para responder.
+#define SSR_JANELA_US 1000000
+
+static int64_t ssr_t0;
+static float ssr_travado;   // duty congelado no início da janela
+
+// ------------------------------------------------- guarda de comando parado
+//
+// Sem isto, "task de controle travada" deixa o SSR no último nível — que pode ser
+// 100%. O backstop de 135 °C ainda pega, mas 40 °C depois e sem ninguém saber por
+// quê. Aqui a saída EXPIRA: se `real_escrever` parar de chegar, os dois pinos caem.
+//
+// Cobre de graça outros dois casos que já existem no projeto: o OTA, que suspende
+// o laço de controle antes de gravar, e a troca para modo SIMULADO, em que
+// `real_escrever` deixa de ser chamado — nos dois a máquina fica quieta sozinha.
+#define GUARDA_US 250000
+
+static volatile int64_t ult_cmd;
+static esp_timer_handle_t s_guarda;
+
+static void guarda_cb(void *arg)
+{
+    if (esp_timer_get_time() - ult_cmd > GUARDA_US) {
+        psm_alvo = 0;
+        ssr_travado = 0.0f;
+        gpio_set_level(PIN_PSM, 0);
+        gpio_set_level(PIN_SSR, 0);
+    }
+}
+
+static float zc_hz;
+
 static void real_escrever(const hal_sai_t *s)
 {
-    (void)s;
-    // PENDENTE — SSR no GPIO6 por janela lenta de PWM, e o PSM: ISR de zero-cross
-    // no GPIO4 (em IRAM) decidindo passar ou pular cada semiciclo no GPIO5.
-    //
-    // ⚠️ Enquanto isto for vazio, os atuadores NÃO respondem — mas agora ficam
-    // desligados por CONSTRUÇÃO, não por sorte: `atuadores_seguros()` põe os dois
-    // pinos em nível baixo no boot.
+    int64_t agora = esp_timer_get_time();
+    ult_cmd = agora;
+
+    float bomba = s->bomba < 0.0f ? 0.0f : (s->bomba > 1.0f ? 1.0f : s->bomba);
+    float ssr   = s->ssr   < 0.0f ? 0.0f : (s->ssr   > 1.0f ? 1.0f : s->ssr);
+
+    // ---- bomba: só publica o alvo; quem comanda o pino é a ISR, no ritmo da rede
+    psm_alvo = (int32_t)(bomba * PSM_ESC + 0.5f);
+    // Sem rede não há ISR, e aí o pino ficaria congelado no último nível alto.
+    // Zerar aqui garante que "duty 0" desliga mesmo com o dimmer sem alimentação.
+    if (psm_alvo == 0) gpio_set_level(PIN_PSM, 0);
+
+    // ---- resistência
+    if (ssr_t0 == 0) ssr_t0 = agora;
+    int64_t dec = agora - ssr_t0;
+    if (dec >= SSR_JANELA_US) {
+        // Ressincroniza se a task ficou parada muito tempo, em vez de correr atrás
+        // de várias janelas perdidas.
+        if (dec > 4 * SSR_JANELA_US) ssr_t0 = agora;
+        else ssr_t0 += SSR_JANELA_US * (dec / SSR_JANELA_US);
+        dec = agora - ssr_t0;
+        ssr_travado = ssr;      // o duty entra em vigor no INÍCIO da janela
+    }
+    // ⚠️ Assimetria de propósito: LIGAR espera a próxima janela, DESLIGAR é
+    // imediato. Falha e repouso mandam 0, e esses não podem ficar até 1 s
+    // esperando a borda da janela para tirar potência da resistência.
+    if (ssr <= 0.0f) ssr_travado = 0.0f;
+
+    gpio_set_level(PIN_SSR, ((float)dec / (float)SSR_JANELA_US) < ssr_travado);
+
+    // ---- saúde da detecção de zero
+    static uint32_t zc_ant;
+    static int64_t zc_t;
+    if (zc_t == 0) zc_t = agora;
+    if (agora - zc_t >= 1000000) {
+        zc_hz = (float)(zc_cont - zc_ant) * 1000000.0f / (float)(agora - zc_t);
+        zc_ant = zc_cont;
+        zc_t = agora;
+    }
+}
+
+// Um pino de zero-cross mudo é bomba que não bombeia com o painel jurando que
+// está mandando duty — o tipo de falha silenciosa que esta bancada persegue.
+// Publicado para a tela de debug julgar: em 60 Hz o esperado é ~120 Hz.
+void hal_atuador_diag(hal_atuador_diag_t *o)
+{
+    o->zc_hz = zc_hz;
+    o->zc_total = zc_cont;
+    o->psm_duty = (float)psm_alvo / (float)PSM_ESC;
+    o->ssr_duty = ssr_travado;
+}
+
+static void atuadores_iniciar(void)
+{
+    gpio_config_t zc = {
+        .pin_bit_mask = 1ULL << PIN_ZC,
+        .mode = GPIO_MODE_INPUT,
+        .intr_type = GPIO_INTR_POSEDGE,
+    };
+    ESP_ERROR_CHECK(gpio_config(&zc));
+
+    // Mesmo serviço que o ultrassônico já instala, com a mesma flag: ISR fora de
+    // IRAM PARA durante escrita em flash, e escrita em flash é o que o OTA faz.
+    esp_err_t r = gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
+    if (r != ESP_OK && r != ESP_ERR_INVALID_STATE) {
+        ESP_LOGE(TAG, "isr service: %s", esp_err_to_name(r));
+        return;
+    }
+    ESP_ERROR_CHECK(gpio_isr_handler_add(PIN_ZC, zc_isr, NULL));
+
+    const esp_timer_create_args_t g = { .callback = guarda_cb, .name = "guarda_at" };
+    ESP_ERROR_CHECK(esp_timer_create(&g, &s_guarda));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(s_guarda, 100000));
+
+    // 🔴 PRIMEIRO TESTE DE BANCADA: este número tem que dar ~120. O módulo pulsa
+    // uma vez por cruzamento, e são dois por ciclo de 60 Hz. Se aparecer ~60, o
+    // pino está dando um pulso por ciclo e o duty sai pela metade; se aparecer
+    // ~240, a borda está sendo contada duas vezes e o duty sai dobrado. Nos dois
+    // casos a bomba "quase funciona", que é o pior jeito de errar.
+    ESP_LOGW(TAG, "atuadores vivos: ZC=GPIO%d (esperado ~120 Hz), PSM=GPIO%d, SSR=GPIO%d",
+             PIN_ZC, PIN_PSM, PIN_SSR);
 }
 
 // ---------------------------------------------------------------- despacho
@@ -148,6 +300,10 @@ void hal_set_bus(void *bus) { hal_bus = (i2c_master_bus_handle_t)bus; }
 void hal_iniciar(void)
 {
     sim_iniciar();
+    // Sobe mesmo em modo simulado: a ISR de zero-cross só CONTA se não houver
+    // duty, e ter a contagem viva permite conferir a rede sem colocar a máquina
+    // em modo real — mesma razão dos sensores logo abaixo.
+    atuadores_iniciar();
     // O ultrassônico sobe mesmo em modo simulado: assim dá para comparar a
     // leitura real com a do modelo lado a lado, que é como se descobre que o
     // modelo está mentindo antes de confiar nele.
