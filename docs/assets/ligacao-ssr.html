@@ -275,6 +275,39 @@ a{color:inherit}
   </div>
 </section>
 
+<section class="card">
+  <h2>“Dá pra pôr o SSR no lugar do termostato de extração?”</h2>
+  <div class="duas" style="margin-top:14px">
+    <div>
+      <h3>No lugar físico — não</h3>
+      <p>O SSR-40DA opera até ~80 °C de ambiente. O boiler vive entre 95 e 135 °C.
+      Parafusado ali ele cozinha, e SSR cozido falha <strong>em curto</strong> — ou
+      seja, resistência ligada para sempre. Seria criar justamente a falha contra a
+      qual todo o resto se protege.</p>
+      <p>Ele quer dissipador jogando calor no ar, longe da caldeira. E aquele ponto já
+      tem dono: é onde a PT100 vai.</p>
+    </div>
+    <div>
+      <h3>Nos terminais dele — em parte</h3>
+      <p>Os fios que chegavam nele já são do calibre da resistência e já têm o Faston
+      certo. Servem de âncora para um lado do SSR e poupam crimpagem.</p>
+      <p>Mas não é troca direta: hoje os dois termostatos estão em ramos
+      <em>paralelos</em> selecionados pela chave. Encaixar o SSR no ramo do de extração
+      e parar por aí deixa o termostato de vapor fora do caminho do SSR — e aí um SSR
+      em curto sobe a caldeira até o fusível de 165 °C, que é caldeira nova.</p>
+    </div>
+  </div>
+  <p style="margin-top:16px">Para o backstop existir, o termostato de vapor tem que ficar
+  <strong>depois da junção dos dois ramos</strong>, comum aos dois — que é o nó B do
+  esquema. Isso é rewire de qualquer maneira.</p>
+  <div class="nota">
+    A topologia original acima é a registrada na <span class="mono">docs/06</span>, mas
+    ainda como item <strong>não confirmado</strong>. Meça a sua antes de cortar: com a
+    máquina fora da tomada, continuidade de cada terminal da chave de vapor até cada
+    termostato diz na hora quem alimenta quem.
+  </div>
+</section>
+
 <section class="card perigo">
   <h2>Quatro coisas que não podem acontecer</h2>
   <ul>
