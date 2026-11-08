@@ -151,19 +151,44 @@ void hal_atuadores_seguros(void)
 static volatile int32_t psm_alvo;     // 0..PSM_ESC, escrito pela task de controle
 static volatile uint32_t zc_cont;
 
+// Borda de ZC mais próxima da anterior que isto é ruído, não cruzamento. A 60 Hz
+// o intervalo real é 8,33 ms; uma borda dupla (pulso largo, ringing do opto)
+// contaria duas vezes, e com a decisão por ciclo abaixo isso desalinharia o par
+// de semiciclos.
+#define ZC_MIN_US 4000
+
 // O gate fica alto pelo SEMICICLO INTEIRO, não em pulso curto. A bomba é um
 // solenoide: a corrente atrasa em relação à tensão, e um pulso de gate estreito
 // solta o TRIAC antes de a corrente firmar — ele comuta cedo, o curso do pistão
 // não completa, e a bomba zumbe sem bombear. Mantendo o gate alto, o semiciclo
 // sai inteiro. O preço é o opto conduzindo o tempo todo em duty alto, que é
 // consumo previsto do módulo, não abuso.
+//
+// 🔴 **Decide por CICLO COMPLETO, não por semiciclo** — é o `divider = 2` da
+// docs/02. As Ulka EP5/EX5 têm diodo em série: só uma polaridade produz curso.
+// Decidindo por semiciclo, Bresenham a 50% sai "passa, pula, passa, pula" — e
+// todo "passa" cai NA MESMA polaridade. Conforme a fase do boot, isso é 100% da
+// vazão ou ZERO, com o painel mostrando 50% nos dois casos. Em 33% os disparos
+// alternam de polaridade e saem pela metade. Mapa duty→vazão sem sentido nenhum.
+// Por ciclo, cada "passa" leva as duas polaridades: funciona igual com diodo e
+// sem diodo, e não depende de saber o modelo da bomba. Custa metade da
+// resolução (60 decisões/s), que a bomba nem enxerga.
 static void IRAM_ATTR zc_isr(void *arg)
 {
     static int32_t acc;
+    static int64_t t_ant;
+    static bool segunda;   // segunda metade do ciclo: mantém a decisão da primeira
+
+    int64_t t = esp_timer_get_time();
+    if (t - t_ant < ZC_MIN_US) return;
+    t_ant = t;
     zc_cont++;
 
     int32_t a = psm_alvo;
-    if (a <= 0) { acc = 0; gpio_set_level(PIN_PSM, 0); return; }
+    if (a <= 0) { acc = 0; segunda = false; gpio_set_level(PIN_PSM, 0); return; }
+
+    segunda = !segunda;
+    if (!segunda) return;
 
     acc += a;
     if (acc >= PSM_ESC) { acc -= PSM_ESC; gpio_set_level(PIN_PSM, 1); }
@@ -196,6 +221,15 @@ static esp_timer_handle_t s_guarda;
 
 static void guarda_cb(void *arg)
 {
+    // 🔴 ZC sumiu com o gate alto = bomba LIGADA DIRETO. A ISR é quem baixa o
+    // pino, e sem borda não há ISR: fio do Z-C solto no meio de um shot deixaria
+    // o TRIAC conduzindo todo semiciclo até o fim do shot, sem controle. Em 100 ms
+    // chegam ~12 bordas; nenhuma é perda de sincronismo, e o pino cai. Quando a
+    // rede volta, a ISR retoma sozinha.
+    static uint32_t zc_visto;
+    if (zc_cont == zc_visto) gpio_set_level(PIN_PSM, 0);
+    zc_visto = zc_cont;
+
     if (esp_timer_get_time() - ult_cmd > GUARDA_US) {
         psm_alvo = 0;
         ssr_travado = 0.0f;
@@ -211,8 +245,11 @@ static void real_escrever(const hal_sai_t *s)
     int64_t agora = esp_timer_get_time();
     ult_cmd = agora;
 
-    float bomba = s->bomba < 0.0f ? 0.0f : (s->bomba > 1.0f ? 1.0f : s->bomba);
-    float ssr   = s->ssr   < 0.0f ? 0.0f : (s->ssr   > 1.0f ? 1.0f : s->ssr);
+    // `!(x > 0)` e não `x < 0`: pega NaN também. NaN falha em toda comparação,
+    // passaria pelos dois testes, e `(int32_t)NaN` é comportamento indefinido —
+    // um duty qualquer, inclusive cheio.
+    float bomba = !(s->bomba > 0.0f) ? 0.0f : (s->bomba > 1.0f ? 1.0f : s->bomba);
+    float ssr   = !(s->ssr   > 0.0f) ? 0.0f : (s->ssr   > 1.0f ? 1.0f : s->ssr);
 
     // ---- bomba: só publica o alvo; quem comanda o pino é a ISR, no ritmo da rede
     psm_alvo = (int32_t)(bomba * PSM_ESC + 0.5f);

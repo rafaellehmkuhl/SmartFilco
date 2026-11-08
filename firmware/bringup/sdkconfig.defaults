@@ -47,3 +47,9 @@ CONFIG_FATFS_MAX_LFN=64
 # anterior no próximo boot. É o que torna seguro atualizar sem o cabo por perto —
 # firmware que quebra a rede se desfaz sozinho. Ver o /ota no main.c.
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
+
+# gpio_set_level/get_level em IRAM. As ISRs de zero-cross e do ultrassônico são
+# registradas com ESP_INTR_FLAG_IRAM e RODAM com o cache desligado (escrita em
+# flash: OTA, NVS). Chamando função que mora na flash nessa hora, a placa entra
+# em pânico — com a rede ligada, toda gravação de NVS ou OTA viraria reset.
+CONFIG_GPIO_CTRL_FUNC_IN_IRAM=y
