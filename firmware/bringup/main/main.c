@@ -1070,8 +1070,16 @@ static void tarefa_ws(void *arg)
 #define OTA_TOKEN ""
 #endif
 
+// Caixa-preta do OTA: sobrevive ao reset (RTC, sem init), então depois de uma
+// queda o GET /ota diz em que etapa ela estava e quantos bytes já tinham sido
+// gravados — sem depender da serial, que derruba a USB junto com a placa e
+// mascara o motivo. etapa: 0 nada, 1 apagando, 2 recebendo, 3 validando, 4 fim.
+RTC_NOINIT_ATTR static uint32_t ota_etapa, ota_bytes, ota_magia;
+#define OTA_MAGIA 0x0DA7A5ED
+
 static esp_err_t h_ota_get(httpd_req_t *req)
 {
+    if (ota_magia != OTA_MAGIA) { ota_magia = OTA_MAGIA; ota_etapa = 0; ota_bytes = 0; }
     const esp_partition_t *rod = esp_ota_get_running_partition();
     const esp_app_desc_t *d = esp_app_get_description();
     esp_ota_img_states_t st = ESP_OTA_IMG_UNDEFINED;
@@ -1080,9 +1088,11 @@ static esp_err_t h_ota_get(httpd_req_t *req)
     char buf[300];
     int n = snprintf(buf, sizeof(buf),
                      "{\"part\":\"%s\",\"ver\":\"%s\",\"build\":\"%s %s\","
-                     "\"estado\":%d,\"token\":%d}",
+                     "\"estado\":%d,\"token\":%d,\"rst\":%d,"
+                     "\"ult_etapa\":%lu,\"ult_bytes\":%lu}",
                      rod->label, d->version, d->date, d->time, (int)st,
-                     OTA_TOKEN[0] ? 1 : 0);
+                     OTA_TOKEN[0] ? 1 : 0, (int)esp_reset_reason(),
+                     (unsigned long)ota_etapa, (unsigned long)ota_bytes);
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
     return httpd_resp_send(req, buf, n);
@@ -1150,8 +1160,10 @@ static esp_err_t h_ota_post(httpd_req_t *req)
     // Passar o tamanho exato em vez de OTA_SIZE_UNKNOWN apaga ~1,1 MB e não os
     // 4 MB da partição inteira.
     esp_ota_handle_t h = 0;
+    ota_magia = OTA_MAGIA; ota_etapa = 1; ota_bytes = 0;
     ota_silenciar(true);
     esp_err_t e = esp_ota_begin(alvo, req->content_len, &h);
+    ota_etapa = 2;
     if (e != ESP_OK) {
         ota_silenciar(false);
         ESP_LOGE(TAG, "esp_ota_begin: %s", esp_err_to_name(e));
@@ -1184,6 +1196,7 @@ static esp_err_t h_ota_post(httpd_req_t *req)
             return ESP_FAIL;
         }
         total += r;
+        ota_bytes = total;
 
         // ⚠️ Sem esta linha a placa REINICIA no meio do upload — medido em
         // 11/08/2026, aos ~140 KB de 1,1 MB.
@@ -1203,8 +1216,10 @@ static esp_err_t h_ota_post(httpd_req_t *req)
 
     // Aqui é onde uma imagem truncada ou de outro chip é reprovada — antes de o
     // ponteiro de boot se mexer.
+    ota_etapa = 3;
     e = esp_ota_end(h);
     if (e == ESP_OK) e = esp_ota_set_boot_partition(alvo);
+    if (e == ESP_OK) ota_etapa = 4;
     if (e != ESP_OK) {
         ESP_LOGE(TAG, "ota reprovado: %s", esp_err_to_name(e));
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, esp_err_to_name(e));
