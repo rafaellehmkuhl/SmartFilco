@@ -141,7 +141,7 @@ table.dbg .saude{text-align:right;white-space:nowrap;font-size:.64rem}
 .canais button i{display:inline-block;width:.45rem;height:.45rem;border-radius:2px;
   background:var(--c);margin-right:.3rem;vertical-align:baseline;opacity:.35}
 .canais button.on i{opacity:1}
-#trilhas{position:relative;touch-action:none}
+#esTrilhas{position:relative;touch-action:none}
 .trilha{display:grid;grid-template-columns:7.2rem 1fr;border-top:1px solid var(--linha)}
 .trilha:first-child{border-top:0}
 .trilha .tr-rot{padding:.25rem .4rem .25rem 0;font-size:.62rem;color:var(--cinza);line-height:1.25}
@@ -585,7 +585,7 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
         <span id="esT">&mdash;</span>
       </div>
       <div class="canais" id="esCanais"></div>
-      <div id="trilhas"><div id="esCursor"></div></div>
+      <div id="esTrilhas"><div id="esCursor"></div></div>
       <p class="dica" data-i18n="scope_tip"></p>
     </div>
   </div>
@@ -1444,7 +1444,7 @@ function esGravar(d){
 
 function esMontar(){
  esCanais.innerHTML='';
- [].slice.call(trilhas.querySelectorAll('.trilha')).forEach(function(e){e.remove();});
+ [].slice.call(esTrilhas.querySelectorAll('.trilha')).forEach(function(e){e.remove();});
  CANAIS.forEach(function(c,i){
   var b=document.createElement('button');
   b.style.setProperty('--c',esCor(c.c));
@@ -1458,7 +1458,7 @@ function esMontar(){
   var tr=document.createElement('div');tr.className='trilha';
   tr.innerHTML='<div class="tr-rot">'+t(c.k)+'<b>&mdash;</b><s></s></div><canvas></canvas>';
   c.el=tr;c.cv=tr.querySelector('canvas');c.lb=tr.querySelector('b');c.mm=tr.querySelector('s');
-  trilhas.appendChild(tr);
+  esTrilhas.appendChild(tr);
  });
  esSujo=true;
 }
@@ -1476,7 +1476,7 @@ function esDesenhar(){
   if(w0){var r0=w0.cv.getBoundingClientRect();
    var tc=tIni+(esCurX-r0.left)/r0.width*(tFim-tIni);
    iCur=i0;while(iCur<esT.length-1&&esT[iCur+1]<=tc)iCur++;
-   esCursor.style.display='block';esCursor.style.left=(esCurX-trilhas.getBoundingClientRect().left)+'px';
+   esCursor.style.display='block';esCursor.style.left=(esCurX-esTrilhas.getBoundingClientRect().left)+'px';
    esT_.textContent='−'+((tFim-esT[iCur])/1000).toFixed(2)+' s';}
  } else { esCursor.style.display='none';
   esT_.textContent=(esPausado?t('pause')+' · ':'')+(esT.length/((tFim-esT[0])/1000||1)).toFixed(1)+' fps'; }
@@ -1514,10 +1514,10 @@ function esDesenhar(){
 var esT_=document.getElementById('esT');
 (function laco(){ if(esSujo||esCurX!==null){esSujo=false;esDesenhar();} requestAnimationFrame(laco); })();
 
-trilhas.addEventListener('pointermove',function(e){esCurX=e.clientX;});
-trilhas.addEventListener('pointerdown',function(e){esCurX=e.clientX;trilhas.setPointerCapture(e.pointerId);});
-trilhas.addEventListener('pointerleave',function(){esCurX=null;esSujo=true;});
-trilhas.addEventListener('pointerup',function(e){if(e.pointerType!=='mouse'){esCurX=null;esSujo=true;}});
+esTrilhas.addEventListener('pointermove',function(e){esCurX=e.clientX;});
+esTrilhas.addEventListener('pointerdown',function(e){esCurX=e.clientX;esTrilhas.setPointerCapture(e.pointerId);});
+esTrilhas.addEventListener('pointerleave',function(){esCurX=null;esSujo=true;});
+esTrilhas.addEventListener('pointerup',function(e){if(e.pointerType!=='mouse'){esCurX=null;esSujo=true;}});
 [].forEach.call(esJan.children,function(b){
  b.onclick=function(){esJanS=+b.dataset.s;
   [].forEach.call(esJan.children,function(x){x.classList.toggle('on',x===b);});esSujo=true;};

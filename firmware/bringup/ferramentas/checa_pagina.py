@@ -84,6 +84,18 @@ if sem_id:
 else:
     print("✓ todo id usado existe no HTML")
 
+# id e nome declarado iguais: o id vira global no window, mas `var`/`function`
+# de mesmo nome o SOBRESCREVE — e o código que achava estar falando com o
+# elemento fala com a função. Foi assim que `trilhas` (função do LED) quebrou a
+# página inteira na inicialização, com WebSocket e tudo, em 08/11/2026.
+nomes = set(re.findall(r"\bfunction\s+([A-Za-z_$][\w$]*)", js))
+nomes |= set(re.findall(r"^\s*var\s+([A-Za-z_$][\w$]*)", js, flags=re.M))
+colide = sorted(nomes & ids)
+if colide:
+    print("✗ id do HTML com o mesmo nome de var/function:", colide); erros += 1
+else:
+    print("✓ nenhum id colide com nome declarado")
+
 if usadas - ken or ken ^ kpt:
     print("✗ tradução: sem chave", sorted(usadas - ken), "| descasadas", sorted(ken ^ kpt))
     erros += 1
