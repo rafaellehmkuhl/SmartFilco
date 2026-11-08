@@ -84,6 +84,29 @@ table.hist tr.sel td{color:var(--crema)}
 table.hist td.q{text-align:right;color:var(--cinza)}
 table.hist td.g{text-align:right;color:var(--osso);font-weight:600}
 .modal.larga{width:min(34rem,94vw)}
+/* ---- LED ---- */
+#mled{width:min(22rem,92vw)}
+.lprev{display:flex;align-items:center;gap:.9rem;margin:.2rem 0 .7rem}
+.lbola{width:3.2rem;height:3.2rem;border-radius:50%;flex:none;background:#000;
+  border:1px solid var(--linha);transition:box-shadow .15s}
+.lprev s{text-decoration:none;color:var(--fosco);font-family:ui-monospace,Menlo,monospace;font-size:.66rem}
+.lprev b{display:block;color:var(--osso);font-weight:600;font-size:.8rem;margin-bottom:.15rem}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;background:var(--linha);
+  border-radius:.4rem;padding:2px;margin-bottom:.6rem}
+.seg button{background:var(--graf);color:var(--cinza);border:0;border-radius:.3rem;
+  padding:.35rem 0;font:inherit;font-size:.66rem;cursor:pointer}
+.seg button.on{background:var(--crema);color:#1a1510;font-weight:600}
+.amostras{display:flex;flex-wrap:wrap;gap:.4rem;margin:.2rem 0 .5rem}
+.amostras button{width:1.45rem;height:1.45rem;border-radius:50%;cursor:pointer;
+  border:2px solid var(--painel);box-shadow:0 0 0 1px var(--linha);padding:0}
+.amostras button:hover,.amostras button.on{box-shadow:0 0 0 2px var(--osso)}
+.sl input.grad{appearance:none;-webkit-appearance:none;height:.55rem;border-radius:1rem;
+  background:var(--g);margin:.35rem 0;outline-offset:3px}
+.sl input.grad::-webkit-slider-thumb{-webkit-appearance:none;width:1.05rem;height:1.05rem;
+  border-radius:50%;background:var(--osso);border:2px solid var(--graf);cursor:pointer}
+.sl input.grad::-moz-range-thumb{width:1rem;height:1rem;border-radius:50%;
+  background:var(--osso);border:2px solid var(--graf);cursor:pointer}
+.sl.off{opacity:.35;pointer-events:none}
 table.dbg{width:100%;border-collapse:collapse}
 table.dbg td{padding:.4rem .3rem;border-bottom:1px solid var(--linha);
   font-size:.7rem;vertical-align:top}
@@ -315,6 +338,13 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
       <path d="M2 14h2M20 14h2M6.5 5.5 8 7M17.5 5.5 16 7"/>
     </svg>
   </button>
+  <button class="ico" id="btLed" aria-haspopup="dialog" data-i18n-t="tt_led">
+    <!-- sol do conjunto Feather -->
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="4"/>
+      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
+    </svg>
+  </button>
   <button class="ico" id="btHist" aria-haspopup="dialog" data-i18n-t="tt_hist">
     <!-- relógio com seta anti-horária: o ícone convencional de histórico -->
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -500,6 +530,40 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
   </div>
 </div>
 
+<!-- LED da placa: modo, cor e brilho. Os limites valem no servidor; a página só
+     propõe. A bola mostra a cor que o firmware diz estar mandando, não a do slider. -->
+<div class="modal" id="mled" role="dialog" aria-labelledby="mlTit">
+  <div class="mcab" id="mlcab">
+    <span class="rot" id="mlTit" data-i18n="led_t">Board LED</span>
+    <button class="fechar" id="btLFechar" aria-label="close">&times;</button>
+  </div>
+  <div class="mcorpo">
+    <div class="lprev">
+      <div class="lbola" id="lBola"></div>
+      <div><b id="lModoTxt">&mdash;</b><s id="lRgb">rgb &mdash;</s></div>
+      <div class="chips" style="margin-left:auto"><button id="lApaga" class="neutro" data-i18n="l_off">turn off</button></div>
+    </div>
+    <div class="seg" id="lSeg" role="radiogroup">
+      <button data-m="0" role="radio" data-i18n="l_walk">wander</button>
+      <button data-m="1" role="radio" data-i18n="l_fixed">solid</button>
+      <button data-m="2" role="radio" data-i18n="l_breathe">breathe</button>
+      <button data-m="3" role="radio" data-i18n="l_rainbow">rainbow</button>
+    </div>
+    <div class="amostras" id="lAmostras"></div>
+    <div class="sl" id="lsH"><label for="sLH"><span data-i18n="l_hue">Hue</span><b id="lH">30°</b></label>
+      <input type="range" class="grad" id="sLH" min="0" max="359" step="1" value="30"
+        style="--g:linear-gradient(90deg,#f00,#ff0 17%,#0f0 33%,#0ff 50%,#00f 67%,#f0f 83%,#f00)"></div>
+    <div class="sl" id="lsS"><label for="sLS"><span data-i18n="l_sat">Saturation</span><b id="lS">100%</b></label>
+      <input type="range" class="grad" id="sLS" min="0" max="255" step="1" value="255"></div>
+    <div class="sl"><label for="sLB"><span data-i18n="l_bright">Brightness</span><b id="lB">31%</b></label>
+      <input type="range" class="grad" id="sLB" min="0" max="255" step="1" value="80"></div>
+    <div class="sl" id="lsV"><label for="sLV"><span data-i18n="l_speed">Speed</span><b id="lV">1,0×</b></label>
+      <input type="range" class="grad" id="sLV" min="0.1" max="5" step="0.1" value="1"
+        style="--g:linear-gradient(90deg,var(--linha),var(--crema))"></div>
+    <p class="dica" data-i18n="l_tip"></p>
+  </div>
+</div>
+
 <div class="modal" id="modal" role="dialog">
   <div class="mcab" id="mcab">
     <span class="rot"><span data-i18n="simulation">Simulation</span> <s data-i18n="bench">bench</s></span>
@@ -580,6 +644,10 @@ en:{
  f_probe:'probe open',f_press:'pressure out of range',f_water:'empty reservoir',
  f_puck:'no portafilter',resetmodel:'reset model',clearfault:'clear fault',
  tt_hist:'Shots recorded on the card',tt_cfg:'Settings and simulation',
+ tt_led:'Board LED: color and brightness',led_t:'Board LED',l_off:'turn off',l_on:'turn on',
+ l_walk:'wander',l_fixed:'solid',l_breathe:'breathe',l_rainbow:'rainbow',
+ l_hue:'Hue',l_sat:'Saturation',l_bright:'Brightness',l_speed:'Speed',
+ l_tip:'Above ~30% the LED gets glaring and draws up to 60 mA. Settings last until the board restarts.',
  tip_speed:'Time speed accelerates only the physical model — the PID keeps '+
            'running on real dt, otherwise the test becomes fiction.',
  tip_sim:'Physical model running on the board. Switching to real hardware will '+
@@ -626,6 +694,10 @@ pt:{
  f_probe:'sonda aberta',f_press:'pressão fora de faixa',f_water:'reservatório vazio',
  f_puck:'sem porta-filtro',resetmodel:'reiniciar modelo',clearfault:'limpar falha',
  tt_hist:'Shots gravados no cartão',tt_cfg:'Configurações e simulação',
+ tt_led:'LED da placa: cor e brilho',led_t:'LED da placa',l_off:'apagar',l_on:'acender',
+ l_walk:'passeio',l_fixed:'fixa',l_breathe:'respirar',l_rainbow:'arco-íris',
+ l_hue:'Matiz',l_sat:'Saturação',l_bright:'Brilho',l_speed:'Velocidade',
+ l_tip:'Acima de ~30% o LED ofusca e puxa até 60 mA. As escolhas valem até a placa reiniciar.',
  tip_speed:'Velocidade do tempo acelera só o modelo físico — o PID continua '+
            'rodando no dt real, senão o teste vira ficção.',
  tip_sim:'Modelo físico rodando na placa. Trocar para hardware real vai mostrar '+
@@ -993,6 +1065,79 @@ arrastavel(modal,mcab,btFechar);
 arrastavel(mhist,mhcab,btHFechar);
 btCfg.onclick=function(){abrir(modal);};
 
+/* ------------------------------------------------------------------ LED
+   O servidor manda o estado 30×/s; sem guarda, cada frame sobrescreveria o slider
+   debaixo do dedo. Mesmo truque do brilho antigo: 800 ms depois do último toque a
+   página volta a seguir a placa — e com isso dois clientes ficam em sincronia. */
+var lToque=0, lUlt=null, lBrilhoAntes=80;
+var AMOSTRAS=[[33,150],[20,255],[9,220],[0,255],[120,255],[160,200],[207,170],[240,255],[280,220],[320,200],[0,0]];
+function hsl(h,s){return 'hsl('+h+','+Math.round(s/2.55)+'%,50%)';}
+AMOSTRAS.forEach(function(a){
+ var b=document.createElement('button');
+ b.style.background=a[1]?hsl(a[0],a[1]):'#f4f1ea';
+ b.title=a[1]?a[0]+'°':'white';
+ b.onclick=function(){
+  lToque=performance.now();
+  env('led matiz '+a[0]);env('led sat '+a[1]);
+  // amostra é cor: em passeio/arco-íris ela não apareceria, então vira fixa
+  if(lUlt&&(lUlt[0]===0||lUlt[0]===3))env('led modo 1');
+ };
+ lAmostras.appendChild(b);
+});
+function pct(v){return Math.round(v/2.55)+'%';}
+function ligaLed(el,cmd,fmt,alvo){
+ el.oninput=function(){lToque=performance.now();env(cmd+' '+el.value);alvo.textContent=fmt(el.value);trilhas();};
+}
+ligaLed(sLH,'led matiz',function(v){return v+'°';},lH);
+ligaLed(sLS,'led sat',pct,lS);
+ligaLed(sLB,'brilho',pct,lB);
+ligaLed(sLV,'led vel',function(v){return (+v).toFixed(1).replace('.',',')+'×';},lV);
+[].forEach.call(lSeg.children,function(b){
+ b.onclick=function(){lToque=0;env('led modo '+b.dataset.m);};
+});
+lApaga.onclick=function(){
+ lToque=0;
+ if(+sLB.value>0){lBrilhoAntes=+sLB.value;env('brilho 0');}
+ else env('brilho '+(lBrilhoAntes||80));
+};
+// As trilhas de saturação e brilho mostram a cor que está sendo escolhida
+function trilhas(){
+ var h=+sLH.value;
+ sLS.style.setProperty('--g','linear-gradient(90deg,#f4f1ea,'+hsl(h,255)+')');
+ sLB.style.setProperty('--g','linear-gradient(90deg,#000,'+hsl(h,+sLS.value)+')');
+}
+function pintaLed(d){
+ if(!mled.classList.contains('aberto')||!d.led)return;
+ var l=d.led, c=d.rgb, mx=Math.max(c[0],c[1],c[2]);
+ lUlt=l;
+ // a bola mostra o MATIZ com a cor normalizada, e o brilho pelo halo — um LED a
+ // 10% visto em rgb cru seria um preto indistinguível de apagado
+ var n=mx?c.map(function(x){return Math.round(x*255/mx);}):[0,0,0];
+ var cs='rgb('+n.join(',')+')';
+ lBola.style.background=mx?cs:'#000';
+ lBola.style.boxShadow=mx?'0 0 '+(0.3+1.6*mx/255).toFixed(2)+'rem '+cs:'none';
+ lRgb.textContent='rgb '+c.join(', ');
+ lModoTxt.textContent=t(['l_walk','l_fixed','l_breathe','l_rainbow'][l[0]]);
+ lApaga.textContent=t(d.brilho?'l_off':'l_on');
+ [].forEach.call(lSeg.children,function(b){
+  var on=+b.dataset.m===l[0];b.classList.toggle('on',on);b.setAttribute('aria-checked',on);
+ });
+ lsH.classList.toggle('off',l[0]===0||l[0]===3);
+ lsS.classList.toggle('off',l[0]===0);
+ lsV.classList.toggle('off',l[0]===1);
+ [].forEach.call(lAmostras.children,function(b,i){
+  var a=AMOSTRAS[i];b.classList.toggle('on',l[0]!==0&&l[0]!==3&&a[1]===l[2]&&(a[0]===l[1]||!a[1]));
+ });
+ if(performance.now()-lToque<800)return;
+ sLH.value=l[1];lH.textContent=l[1]+'°';
+ sLS.value=l[2];lS.textContent=pct(l[2]);
+ sLB.max=d.max;sLB.value=d.brilho;lB.textContent=pct(d.brilho);
+ sLV.value=l[3];lV.textContent=(+l[3]).toFixed(1).replace('.',',')+'×';
+ trilhas();
+}
+arrastavel(mled,mlcab,btLFechar);
+btLed.onclick=function(){abrir(mled);};
+
 /* ------------------------------------------------------------ histórico */
 function resumo(csv){
  var l=csv.trim().split('\n').filter(function(x){return x&&x[0]!=='#';});
@@ -1272,6 +1417,7 @@ var extAnt=false;
 
 function pinta(d){
  var tm=performance.now();
+ pintaLed(d);
  led.classList.add('viva');
  var m=d.m;
 

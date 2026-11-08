@@ -5,6 +5,7 @@
 // LED, que depois vira o laço de controle), core 0 = Wi-Fi/HTTP.
 
 #include <assert.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -45,7 +46,8 @@ static const char *TAG = "bringup";
 #define PIN_A 48
 #define PIN_B 38
 
-#define MAXV 80          // teto de brilho (V). WS2812 no máximo ofusca e puxa ~60 mA
+#define MAXV 255         // teto de brilho (V), limitado no servidor. No máximo puxa ~60 mA
+#define BRILHO_INICIAL 80 // WS2812 a 255 ofusca: nasce a ~30%, a página sobe se quiser
 #define SAT 255          // saturação cheia — é o que impede o cinza
 #define FRAME_MS 20      // 50 fps
 #define TRANSICAO_MS 3000
@@ -82,7 +84,15 @@ static httpd_handle_t servidor;
 // Brilho corrente, 0..MAXV. Ajustável pela página via WebSocket; 0 = apagado.
 // O passeio de matiz continua rodando com brilho 0 — ao reacender, a cor está no
 // ponto em que estaria, em vez de saltar.
-static volatile uint8_t brilho = MAXV;
+static volatile uint8_t brilho = BRILHO_INICIAL;
+// Modo do LED, escolhido na página: 0 passeio aleatório, 1 cor fixa, 2 respirar
+// (cor fixa pulsando), 3 arco-íris (volta contínua no círculo de matiz).
+// led_vel multiplica a velocidade dos modos animados. Sem lock: mesmo argumento
+// do `cor` abaixo — uma leitura rasgada dura um quadro.
+enum { LED_PASSEIO, LED_FIXA, LED_RESPIRAR, LED_ARCO, LED_N };
+static volatile uint8_t led_modo = LED_PASSEIO, led_sat = SAT;
+static volatile uint16_t led_matiz = 30;
+static volatile float led_vel = 1.0f;
 static i2c_master_bus_handle_t i2c_bus;
 
 // ponytail: escrita sem lock, lida pelo handler HTTP. A ordem importa — o array é
@@ -215,20 +225,42 @@ static void tarefa_led(void *arg)
 {
     uint16_t de = sortear_matiz();
     uint16_t para = sortear_matiz();
-    int64_t t_ini = esp_timer_get_time() / 1000;
+    float prog = 0;   // ms de transição andados; float para a velocidade escalar
+    float fase = 0;   // 0..1 dos modos periódicos (respirar, arco-íris)
     int quadros = 0;
     uint16_t matiz = de;
 
     while (1) {
-        int prog = (int)(esp_timer_get_time() / 1000 - t_ini);
-        if (prog >= TRANSICAO_MS) {
-            de = para;
-            para = sortear_matiz();
-            t_ini = esp_timer_get_time() / 1000;
-            prog = 0;
+        float v = led_vel, passo = FRAME_MS * v;
+        uint8_t s = led_sat, b = brilho;
+
+        switch (led_modo) {
+        case LED_FIXA:
+            matiz = led_matiz;
+            break;
+        case LED_RESPIRAR:
+            // 4 s por respiração a 1×; nunca apaga de todo (piso de 8%), senão
+            // parece que travou no vale
+            fase += passo / 4000.0f;
+            matiz = led_matiz;
+            b = (uint8_t)(b * (0.08f + 0.92f * (0.5f - 0.5f * cosf(2 * (float)M_PI * fase))));
+            break;
+        case LED_ARCO:
+            fase += passo / 10000.0f;   // uma volta em 10 s a 1×
+            matiz = (uint16_t)(fase * 360) % 360;
+            break;
+        default:
+            prog += passo;
+            if (prog >= TRANSICAO_MS) {
+                de = para;
+                para = sortear_matiz();
+                prog = 0;
+            }
+            matiz = interp_matiz(de, para, (int)prog, TRANSICAO_MS);
+            s = SAT;
         }
-        matiz = interp_matiz(de, para, prog, TRANSICAO_MS);
-        hsv_para_rgb(matiz, SAT, brilho, cor);
+        if (fase >= 1) fase -= 1;
+        hsv_para_rgb(matiz, s, b, cor);
 
         for (int t = 0; t < 2; t++) {
             ESP_ERROR_CHECK(led_strip_set_pixel(tiras[t], 0, cor[0], cor[1], cor[2]));
@@ -584,9 +616,10 @@ static int montar_json(char *buf, size_t tam)
     }
 
     int p = avanca(0, snprintf(buf, tam,
-                     "{\"rgb\":[%u,%u,%u],\"max\":%d,\"brilho\":%u,\"ip\":\"" IPSTR "\",\"rssi\":%d,"
+                     "{\"rgb\":[%u,%u,%u],\"max\":%d,\"brilho\":%u,\"led\":[%u,%u,%u,%.1f],\"ip\":\"" IPSTR "\",\"rssi\":%d,"
                      "\"up\":%lld,\"ws\":%d,\"wserr\":%d,\"wstx\":%lu,\"i2c\":[",
-                     cor[0], cor[1], cor[2], MAXV, brilho, IP2STR(&ip.ip), rssi,
+                     cor[0], cor[1], cor[2], MAXV, brilho,
+                     led_modo, led_matiz, led_sat, (double)led_vel, IP2STR(&ip.ip), rssi,
                      (esp_timer_get_time() - t0) / 1000000,
                      assinantes, ws_falhas, (unsigned long)ws_enviados), tam);
 
@@ -885,6 +918,13 @@ static void ws_comando(char *s)
 
     if (sscanf(s, "brilho %f", &val) == 1) {
         brilho = (uint8_t)lim(val, 0, MAXV);
+        return;
+    }
+    if (sscanf(s, "led %19s %f", chave, &val) == 2) {
+        if (!strcmp(chave, "modo")) led_modo = (uint8_t)lim(val, 0, LED_N - 1);
+        else if (!strcmp(chave, "matiz")) led_matiz = (uint16_t)lim(val, 0, 359);
+        else if (!strcmp(chave, "sat")) led_sat = (uint8_t)lim(val, 0, 255);
+        else if (!strcmp(chave, "vel")) led_vel = lim(val, 0.1f, 10);
         return;
     }
     if (strncmp(s, "maq on", 6) == 0) { mq_ligar(true); return; }
