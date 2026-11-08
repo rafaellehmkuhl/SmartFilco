@@ -12,7 +12,7 @@ import sys
 import time
 import urllib.request
 
-HOST = "192.168.0.44"
+HOST = "smartfilco.local"
 REAL_CM = float(sys.argv[1]) if len(sys.argv) > 1 else 10.0
 MTS = [8, 12, 16, 24, 32, 48, 64, 80, 100, 128, 160, 200, 255]
 N = 12          # amostras por ponto

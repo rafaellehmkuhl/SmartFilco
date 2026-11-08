@@ -201,14 +201,14 @@ Depois da primeira gravação por cabo, o cabo sai de cena:
 ```bash
 idf.py -C firmware/bringup build
 curl --data-binary @firmware/bringup/build/smartfilco_bringup.bin \
-  "http://IP-DA-PLACA/ota?k=SEU_TOKEN"
+  "http://smartfilco.local/ota?k=SEU_TOKEN"
 ```
 
 A placa responde com os bytes gravados e reinicia sozinha. Para ver o que está
 rodando agora — partição, versão e data de build:
 
 ```bash
-curl http://IP-DA-PLACA/ota
+curl http://smartfilco.local/ota
 ```
 
 **O `OTA_TOKEN` mora no `wifi_cfg.h`**, junto da senha do Wi-Fi. Sem ele definido

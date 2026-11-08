@@ -16,7 +16,7 @@ import sys
 import time
 import urllib.request
 
-HOST = sys.argv[1] if len(sys.argv) > 1 else "192.168.0.44"
+HOST = sys.argv[1] if len(sys.argv) > 1 else "smartfilco.local"
 
 
 def http(cam):

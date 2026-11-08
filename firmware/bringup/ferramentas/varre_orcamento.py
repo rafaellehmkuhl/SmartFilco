@@ -18,7 +18,7 @@ import sys
 import time
 import urllib.request
 
-HOST = "192.168.0.44"
+HOST = "smartfilco.local"
 REAL_CM = float(sys.argv[1]) if len(sys.argv) > 1 else 0.0
 # valores que a ULD aceita; 500 fica de fora, taxa cairia a ~2 Hz
 ORCAMENTOS = [15, 20, 33, 50, 100, 200]

@@ -32,6 +32,7 @@
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
 #include "led_strip.h"
+#include "mdns.h"
 #include "lwip/sockets.h"
 #include "nvs_flash.h"
 
@@ -524,6 +525,12 @@ static void wifi_iniciar(void)
     // o rádio dorme entre beacons por padrão; para telemetria ao vivo isso vira
     // latência visível na página
     ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));
+
+    // O DHCP troca o IP a cada reconexão (.44 → .55); o nome não muda.
+    // http://smartfilco.local
+    ESP_ERROR_CHECK(mdns_init());
+    ESP_ERROR_CHECK(mdns_hostname_set("smartfilco"));
+    ESP_ERROR_CHECK(mdns_service_add("SmartFilco", "_http", "_tcp", 80, NULL, 0));
 }
 
 // ---------------------------------------------------------------- http
