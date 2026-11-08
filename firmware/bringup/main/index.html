@@ -120,6 +120,40 @@ table.dbg .saude{text-align:right;white-space:nowrap;font-size:.64rem}
   margin-right:.45rem;vertical-align:.05rem}
 .pto.ok{background:#7a9a5b} .pto.mau{background:var(--brasa)}
 .pto.duvida{background:var(--crema)} .pto.n{background:var(--fosco)}
+/* ---- modo avançado do debug: osciloscópio de canais empilhados ---- */
+.btav{background:none;border:1px solid var(--linha);color:var(--cinza);border-radius:1rem;
+  padding:.12rem .55rem;font:inherit;font-size:.62rem;cursor:pointer;
+  font-family:ui-sans-serif,system-ui,sans-serif}
+.btav[aria-pressed="true"]{background:var(--crema);border-color:var(--crema);color:#1a1510;font-weight:600}
+#mdbg.av{width:min(62rem,96vw)}
+#mdbg.av .mcorpo{display:grid;grid-template-columns:minmax(15rem,34%) 1fr;gap:.9rem;align-items:start}
+#escopo{display:none;min-width:0}
+#mdbg.av #escopo{display:block}
+.esbar{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem;margin-bottom:.45rem}
+.esbar .seg{display:inline-grid;grid-template-columns:repeat(3,auto);margin:0}
+.esbar .seg button{padding:.2rem .5rem}
+.esbar .chips{margin:0}
+.esbar .chips button.on{background:var(--painel);border-color:var(--fosco);color:var(--osso)}
+.canais{display:flex;flex-wrap:wrap;gap:.25rem;margin-bottom:.5rem}
+.canais button{background:var(--graf);border:1px solid var(--linha);color:var(--fosco);
+  border-radius:.3rem;padding:.12rem .4rem;font:inherit;font-size:.6rem;cursor:pointer}
+.canais button.on{color:var(--osso);border-color:var(--c)}
+.canais button i{display:inline-block;width:.45rem;height:.45rem;border-radius:2px;
+  background:var(--c);margin-right:.3rem;vertical-align:baseline;opacity:.35}
+.canais button.on i{opacity:1}
+#trilhas{position:relative;touch-action:none}
+.trilha{display:grid;grid-template-columns:7.2rem 1fr;border-top:1px solid var(--linha)}
+.trilha:first-child{border-top:0}
+.trilha .tr-rot{padding:.25rem .4rem .25rem 0;font-size:.62rem;color:var(--cinza);line-height:1.25}
+.trilha .tr-rot b{display:block;color:var(--osso);font-weight:600;font-size:.78rem;
+  font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+.trilha .tr-rot s{text-decoration:none;color:var(--fosco);font-size:.56rem;
+  font-family:ui-monospace,Menlo,monospace}
+.trilha canvas{display:block;width:100%;height:3.1rem}
+#esCursor{position:absolute;top:0;bottom:0;width:1px;background:var(--osso);opacity:.5;
+  pointer-events:none;display:none}
+#esT{font-family:ui-monospace,Menlo,monospace;font-size:.6rem;color:var(--fosco);margin-left:auto}
+
 /* O botão de energia é o único que muda de cor pelo estado da MÁQUINA, não pelo
    ponteiro: aceso = resistência sob controle do PID. Num painel de máquina, saber
    se ela está energizada não pode depender de ler texto. */
@@ -502,11 +536,31 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
 <div class="modal larga" id="mdbg" role="dialog">
   <div class="mcab" id="mdcab">
     <span class="rot"><span data-i18n="sensors">Sensors</span> <s id="dSub"></s></span>
+    <button class="btav" id="btAv" aria-pressed="false" data-i18n="advanced">advanced</button>
     <button class="fechar" id="btDFechar" aria-label="close">&times;</button>
   </div>
   <div class="mcorpo">
-    <table class="dbg"><tbody id="dLista"></tbody></table>
-    <p class="dica" id="dScan"></p>
+    <div>
+      <table class="dbg"><tbody id="dLista"></tbody></table>
+      <p class="dica" id="dScan"></p>
+    </div>
+    <!-- Osciloscópio: o que chega pelo WebSocket, guardado só no navegador. A placa
+         não paga nada a mais por isto, e o histórico some ao recarregar. -->
+    <div id="escopo">
+      <div class="esbar">
+        <div class="seg" id="esJan" role="radiogroup">
+          <button data-s="10">10 s</button><button data-s="30">30 s</button><button data-s="120">2 min</button>
+        </div>
+        <div class="chips">
+          <button id="esPausa" class="neutro" data-i18n="pause">pause</button>
+          <button id="esCsv" class="neutro">CSV</button>
+        </div>
+        <span id="esT">&mdash;</span>
+      </div>
+      <div class="canais" id="esCanais"></div>
+      <div id="trilhas"><div id="esCursor"></div></div>
+      <p class="dica" data-i18n="scope_tip"></p>
+    </div>
   </div>
 </div>
 
@@ -662,6 +716,10 @@ en:{
  sensors:'Sensors',tt_dbg:'Connected sensors and live values',
  tt_power:'Turn the machine on or off',standby:'at rest',
  s_absent:'absent',s_nodrv:'no driver',s_ok:'ok',s_susp:'suspect',
+ advanced:'advanced',pause:'pause',resume:'resume',
+ scope_tip:'Telemetry at ~30 frames/s, kept only in this browser. Hover or drag across the traces to read every channel at the same instant. Gaps mean no valid reading.',
+ c_pr:'Pressure',c_pv:'ADS A0 raw',c_tc:'PT100',c_to:'PT100 raw',c_ssr:'SSR duty',c_bmb:'Pump command',
+ c_psm:'PSM applied',c_zc:'Zero-cross',c_um:'Reservoir',c_uh:'Echo rate',c_bme:'BME680',c_rssi:'Wi-Fi',c_dt:'Frame gap',
  s_zc:'Pump dimmer (zero-cross)',s_nomains:'no mains on the dimmer',
  s_notbought:'not purchased',s_scan:'I²C scan',s_mode:'source',
  s_ambient:'Ambient',s_clock:'Clock',s_press:'Group pressure',
@@ -713,6 +771,10 @@ pt:{
  sensors:'Sensores',tt_dbg:'Sensores ligados e valores ao vivo',
  tt_power:'Liga ou desliga a máquina',standby:'em repouso',
  s_absent:'ausente',s_nodrv:'sem driver',s_ok:'ok',s_susp:'suspeito',
+ advanced:'avançado',pause:'pausar',resume:'continuar',
+ scope_tip:'Telemetria a ~30 quadros/s, guardada só neste navegador. Passe ou arraste o cursor sobre os traços para ler todos os canais no mesmo instante. Buraco é leitura inválida.',
+ c_pr:'Pressão',c_pv:'ADS A0 cru',c_tc:'PT100',c_to:'PT100 cru',c_ssr:'SSR (duty)',c_bmb:'Bomba (comando)',
+ c_psm:'PSM aplicado',c_zc:'Zero-cross',c_um:'Reservatório',c_uh:'Taxa de ecos',c_bme:'BME680',c_rssi:'Wi-Fi',c_dt:'Intervalo de quadro',
  s_zc:'Dimmer da bomba (zero-cross)',s_nomains:'sem rede no dimmer',
  s_notbought:'não comprada',s_scan:'varredura I²C',s_mode:'fonte',
  s_ambient:'Ambiente',s_clock:'Relógio',s_press:'Pressão do grupo',
@@ -722,6 +784,7 @@ pt:{
 var idi = (localStorage.getItem('lang')==='pt') ? 'pt' : 'en';
 function t(k){ return (L[idi][k]!==undefined) ? L[idi][k] : (L.en[k]!==undefined?L.en[k]:k); }
 function traduzir(){
+ if(typeof CANAIS!=='undefined'&&CANAIS&&mdbg.classList.contains('av'))esMontar();
  lang.textContent = idi==='en' ? 'EN' : 'PT';
  [].forEach.call(document.querySelectorAll('[data-i18n]'),function(e){
   e.textContent=t(e.dataset.i18n);
@@ -1308,7 +1371,142 @@ function linhaDbg(nome,onde,cls,estado,val){
         '<td class="val">'+(val||'—')+'</td>'+
         '<td class="saude">'+estado+'</td></tr>';
 }
+/* ------------------------------------------- debug avançado: osciloscópio
+   Cada canal é uma função do frame; NaN vira buraco no traço, nunca zero — zero
+   seria uma leitura plausível e falsa. `pc` é a cor (token do painel). Os canais
+   "cru" estão aqui de propósito: são os que se conferem com multímetro. */
+var CANAIS=[
+ {k:'c_pr', u:'bar',f:2,c:'--serP',on:1,v:function(d){return d.m.pok?d.m.pr:NaN;}},
+ {k:'c_pv', u:'V',  f:4,c:'--serP',on:0,v:function(d){return d.m.pvc;}},
+ {k:'c_tc', u:'°C', f:2,c:'--serT',on:1,v:function(d){return d.m.tok?d.m.tc:NaN;}},
+ {k:'c_to', u:'Ω',  f:1,c:'--serT',on:0,v:function(d){return d.m.tpr?d.m.tohm:NaN;}},
+ {k:'c_ssr',u:'%',  f:0,c:'--brasa',on:1,v:function(d){return d.m.ssr*100;},lo:0,hi:100},
+ {k:'c_bmb',u:'%',  f:0,c:'--crema',on:1,v:function(d){return d.m.bmb*100;},lo:0,hi:100},
+ {k:'c_psm',u:'%',  f:0,c:'--crema',on:1,v:function(d){return d.m.psm*100;},lo:0,hi:100},
+ {k:'c_zc', u:'Hz', f:1,c:'--massa',on:1,v:function(d){return d.m.zhz;},lo:0,hi:130},
+ {k:'c_um', u:'cm', f:1,c:'--agua',on:0,v:function(d){return d.uok?d.umm/10:NaN;}},
+ {k:'c_uh', u:'Hz', f:1,c:'--agua',on:0,v:function(d){return d.uhz;}},
+ {k:'c_bme',u:'°C', f:2,c:'--cinza',on:0,v:function(d){return d.bme===680?d.t/100:NaN;}},
+ {k:'c_rssi',u:'dBm',f:0,c:'--cinza',on:0,v:function(d){return d.rssi||NaN;}},
+ {k:'c_dt', u:'ms', f:0,c:'--fosco',on:1,v:function(d,dt){return dt;},lo:0}
+];
+var ES_MAX=120*35, esT=[], esV=CANAIS.map(function(){return [];});
+var esJanS=30, esPausado=false, esCurX=null, esUltT=0, esSujo=false;
+try{ var _c=JSON.parse(localStorage.getItem('esCanais')||'null');
+ if(_c)CANAIS.forEach(function(c,i){c.on=_c[i]?1:0;}); }catch(e){}
+function esCor(c){return getComputedStyle(document.documentElement).getPropertyValue(c).trim()||'#888';}
+
+function esGravar(d){
+ var agora=performance.now(), dt=esUltT?agora-esUltT:NaN; esUltT=agora;
+ if(esPausado)return;
+ esT.push(agora);
+ CANAIS.forEach(function(c,i){var v=+c.v(d,dt);esV[i].push(isFinite(v)?v:NaN);});
+ if(esT.length>ES_MAX){esT.shift();esV.forEach(function(a){a.shift();});}
+ esSujo=true;
+}
+
+function esMontar(){
+ esCanais.innerHTML='';
+ [].slice.call(trilhas.querySelectorAll('.trilha')).forEach(function(e){e.remove();});
+ CANAIS.forEach(function(c,i){
+  var b=document.createElement('button');
+  b.style.setProperty('--c',esCor(c.c));
+  b.innerHTML='<i></i>'+t(c.k);
+  b.classList.toggle('on',!!c.on);
+  b.onclick=function(){c.on=c.on?0:1;
+   try{localStorage.setItem('esCanais',JSON.stringify(CANAIS.map(function(x){return x.on;})));}catch(e){}
+   esMontar();};
+  esCanais.appendChild(b);
+  if(!c.on)return;
+  var tr=document.createElement('div');tr.className='trilha';
+  tr.innerHTML='<div class="tr-rot">'+t(c.k)+'<b>&mdash;</b><s></s></div><canvas></canvas>';
+  c.el=tr;c.cv=tr.querySelector('canvas');c.lb=tr.querySelector('b');c.mm=tr.querySelector('s');
+  trilhas.appendChild(tr);
+ });
+ esSujo=true;
+}
+
+function esFmt(c,v){return isFinite(v)?v.toFixed(c.f).replace('.',idi==='pt'?',':'.')+' '+c.u:'—';}
+
+function esDesenhar(){
+ if(!mdbg.classList.contains('aberto')||!mdbg.classList.contains('av')||!esT.length)return;
+ var tFim=esT[esT.length-1], tIni=tFim-esJanS*1000;
+ var i0=0; while(i0<esT.length-1&&esT[i0]<tIni)i0++;
+ // instante sob o cursor: índice mais próximo, comum a todos os canais
+ var iCur=-1;
+ if(esCurX!==null){
+  var w0=CANAIS.filter(function(c){return c.on;})[0];
+  if(w0){var r0=w0.cv.getBoundingClientRect();
+   var tc=tIni+(esCurX-r0.left)/r0.width*(tFim-tIni);
+   iCur=i0;while(iCur<esT.length-1&&esT[iCur+1]<=tc)iCur++;
+   esCursor.style.display='block';esCursor.style.left=(esCurX-trilhas.getBoundingClientRect().left)+'px';
+   esT_.textContent='−'+((tFim-esT[iCur])/1000).toFixed(2)+' s';}
+ } else { esCursor.style.display='none';
+  esT_.textContent=(esPausado?t('pause')+' · ':'')+(esT.length/((tFim-esT[0])/1000||1)).toFixed(1)+' fps'; }
+
+ CANAIS.forEach(function(c,ci){
+  if(!c.on||!c.cv)return;
+  var cv=c.cv, dpr=devicePixelRatio||1, W=cv.clientWidth, H=cv.clientHeight;
+  if(cv.width!==Math.round(W*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);}
+  var g=cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,W,H);
+  var a=esV[ci], lo=Infinity, hi=-Infinity;
+  for(var i=i0;i<a.length;i++){if(a[i]===a[i]){if(a[i]<lo)lo=a[i];if(a[i]>hi)hi=a[i];}}
+  var mn=lo, mx=hi;
+  if(c.lo!==undefined)lo=Math.min(lo,c.lo); if(c.hi!==undefined)hi=Math.max(hi,c.hi);
+  if(!isFinite(lo)){lo=0;hi=1;} if(hi-lo<1e-9){hi+=.5;lo-=.5;}
+  var pad=(hi-lo)*.12; lo-=pad; hi+=pad;
+  g.strokeStyle=esCor('--linha'); g.lineWidth=1; g.beginPath();
+  g.moveTo(0,H/2+.5); g.lineTo(W,H/2+.5); g.stroke();
+  g.strokeStyle=esCor(c.c); g.lineWidth=1.4; g.lineJoin='round'; g.beginPath();
+  var pen=false;
+  for(var j=i0;j<a.length;j++){
+   var v=a[j]; if(v!==v){pen=false;continue;}
+   var x=(esT[j]-tIni)/(tFim-tIni)*W, y=H-(v-lo)/(hi-lo)*H;
+   if(pen)g.lineTo(x,y);else{g.moveTo(x,y);pen=true;}
+  }
+  g.stroke();
+  var iv=iCur>=0?iCur:a.length-1;
+  c.lb.textContent=esFmt(c,a[iv]);
+  c.mm.textContent=isFinite(mn)?mn.toFixed(c.f)+' … '+mx.toFixed(c.f):'';
+  if(iCur>=0&&a[iCur]===a[iCur]){
+   var xc=(esT[iCur]-tIni)/(tFim-tIni)*W, yc=H-(a[iCur]-lo)/(hi-lo)*H;
+   g.fillStyle=esCor(c.c); g.beginPath(); g.arc(xc,yc,2.6,0,7); g.fill();
+  }
+ });
+}
+var esT_=document.getElementById('esT');
+(function laco(){ if(esSujo||esCurX!==null){esSujo=false;esDesenhar();} requestAnimationFrame(laco); })();
+
+trilhas.addEventListener('pointermove',function(e){esCurX=e.clientX;});
+trilhas.addEventListener('pointerdown',function(e){esCurX=e.clientX;trilhas.setPointerCapture(e.pointerId);});
+trilhas.addEventListener('pointerleave',function(){esCurX=null;esSujo=true;});
+trilhas.addEventListener('pointerup',function(e){if(e.pointerType!=='mouse'){esCurX=null;esSujo=true;}});
+[].forEach.call(esJan.children,function(b){
+ b.onclick=function(){esJanS=+b.dataset.s;
+  [].forEach.call(esJan.children,function(x){x.classList.toggle('on',x===b);});esSujo=true;};
+ b.classList.toggle('on',+b.dataset.s===esJanS);
+});
+esPausa.onclick=function(){esPausado=!esPausado;esPausa.classList.toggle('on',esPausado);
+ esPausa.textContent=t(esPausado?'resume':'pause');esSujo=true;};
+esCsv.onclick=function(){
+ var L=['t_s,'+CANAIS.map(function(c){return t(c.k).replace(/,/g,'')+' ('+c.u+')';}).join(',')];
+ for(var i=0;i<esT.length;i++)
+  L.push(((esT[i]-esT[0])/1000).toFixed(3)+','+esV.map(function(a){return a[i]===a[i]?a[i]:'';}).join(','));
+ var a=document.createElement('a');
+ a.href=URL.createObjectURL(new Blob([L.join('\n')],{type:'text/csv'}));
+ a.download='smartfilco-sinais-'+new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')+'.csv';
+ a.click(); setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
+};
+function esAtivar(on){
+ mdbg.classList.toggle('av',on); btAv.setAttribute('aria-pressed',on);
+ try{localStorage.setItem('dbgAv',on?'1':'0');}catch(e){}
+ if(on)esMontar();
+}
+btAv.onclick=function(){esAtivar(!mdbg.classList.contains('av'));};
+try{ if(localStorage.getItem('dbgAv')==='1')esAtivar(true); }catch(e){}
+
 function pintaDbg(d){
+ esGravar(d);
  if(!mdbg.classList.contains('aberto'))return;
  var m=d.m, L=[];
  dSub.textContent=t('s_mode')+': '+(m.sim?t('simulated'):t('realhw'));

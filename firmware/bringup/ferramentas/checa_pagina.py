@@ -51,7 +51,7 @@ for p in re.findall(r"function\s*[A-Za-z_$\w]*\s*\(([^)]*)\)", js):
 ids = set(re.findall(r'id="([A-Za-z0-9_]+)"', html))
 GLOBAIS = set("""window document console localStorage location fetch JSON Math Date
 String Number Array Object parseFloat parseInt isNaN isFinite setTimeout WebSocket
-performance devicePixelRatio innerWidth innerHeight addEventListener Promise
+performance Blob requestAnimationFrame getComputedStyle devicePixelRatio innerWidth innerHeight addEventListener Promise
 encodeURIComponent getComputedStyle Event true false null undefined NaN this
 Float32Array Float64Array Int16Array Uint8Array Uint16Array Int32Array Uint32Array
 typeof new return if else for while var function break continue in of try catch
