@@ -661,6 +661,10 @@ static int montar_json(char *buf, size_t tam)
     max_ler(&tmed);
     mq_perfil_t pf;
     mq_perfil_get(&pf);
+    // Zero-cross do dimmer: o primeiro número a conferir com a máquina na tomada.
+    // ~120 Hz em 60 Hz; ~60 é pulso por ciclo (duty sai pela metade), 0 é fio solto.
+    hal_atuador_diag_t ad;
+    hal_atuador_diag(&ad);
 
     p = avanca(p, snprintf(buf + p, tam - p,
                   ",\"m\":{\"est\":\"%s\",\"tb\":%.1f,\"pr\":%.2f,\"g\":%.1f,"
@@ -675,7 +679,7 @@ static int montar_json(char *buf, size_t tam)
                   // perguntas diferentes e a tela precisa das duas: "falta driver"
                   // manda escrever código, "não respondeu" manda conferir fio, e
                   // trocar uma pela outra manda procurar no lugar errado.
-                  "\"drv_t\":1,\"drv_g\":0}}",
+                  "\"drv_t\":1,\"drv_g\":0,\"zhz\":%.1f,\"zn\":%lu,\"psm\":%.3f}}",
                   NOMES[m.estado], m.t_boiler, m.pressao, m.massa, m.vazao,
                   m.nivel_pct, m.alvo_pressao, m.ssr, m.bomba, m.shot_s,
                   m.falha ? m.falha : "", m.motivo ? m.motivo : "", mq_ligada() ? 1 : 0,
@@ -685,7 +689,8 @@ static int montar_json(char *buf, size_t tam)
                   esp.vazao_g_s, esp.t_agua_grupo, esp.energia_w,
                   pmed.volts, pmed.volts_cru, pmed.cru, pmed.valida ? 1 : 0,
                   tmed.celsius, tmed.ohms, tmed.valida ? 1 : 0, tmed.falha_txt,
-                  max_pronto() ? 1 : 0), tam);
+                  max_pronto() ? 1 : 0,
+                  ad.zc_hz, (unsigned long)ad.zc_total, ad.psm_duty), tam);
     return p;
 }
 

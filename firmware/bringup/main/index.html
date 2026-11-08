@@ -662,6 +662,7 @@ en:{
  sensors:'Sensors',tt_dbg:'Connected sensors and live values',
  tt_power:'Turn the machine on or off',standby:'at rest',
  s_absent:'absent',s_nodrv:'no driver',s_ok:'ok',s_susp:'suspect',
+ s_zc:'Pump dimmer (zero-cross)',s_nomains:'no mains on the dimmer',
  s_notbought:'not purchased',s_scan:'I²C scan',s_mode:'source',
  s_ambient:'Ambient',s_clock:'Clock',s_press:'Group pressure',
  s_level:'Reservoir',s_card:'Card',s_boiler:'Boiler probe',s_scale:'Load cell',
@@ -712,6 +713,7 @@ pt:{
  sensors:'Sensores',tt_dbg:'Sensores ligados e valores ao vivo',
  tt_power:'Liga ou desliga a máquina',standby:'em repouso',
  s_absent:'ausente',s_nodrv:'sem driver',s_ok:'ok',s_susp:'suspeito',
+ s_zc:'Dimmer da bomba (zero-cross)',s_nomains:'sem rede no dimmer',
  s_notbought:'não comprada',s_scan:'varredura I²C',s_mode:'fonte',
  s_ambient:'Ambiente',s_clock:'Relógio',s_press:'Pressão do grupo',
  s_level:'Reservatório',s_card:'Cartão',s_boiler:'Sonda do boiler',s_scale:'Célula de carga',
@@ -1361,6 +1363,13 @@ function pintaDbg(d){
    tLendo?(m.tc.toFixed(2)+' °C<br>'+m.tohm.toFixed(1)+' Ω '+t('s_raw')):''));
  L.push(linhaDbg(t('s_scale'),'NAU7802 / HX711',m.drv_g?'ok':'n',
    m.drv_g?t('s_ok'):t('s_notbought'),''));
+ // ~120 Hz é rede de 60 Hz com um pulso por semiciclo. ~60 = um por ciclo (duty
+ // pela metade), ~240 = borda contada duas vezes, 0 = sem rede no dimmer ou Z-C solto.
+ var zok=m.zhz>110&&m.zhz<130;
+ L.push(linhaDbg(t('s_zc'),'RobotDyn · Z-C GPIO 4 · PSM GPIO 5',
+   zok?'ok':(m.zhz>0?'mau':'n'),
+   zok?t('s_ok'):(m.zhz>0?t('s_susp'):t('s_nomains')),
+   m.zhz.toFixed(1)+' Hz · '+m.zn+'<br>PSM '+(m.psm*100).toFixed(0)+'%'));
 
  dLista.innerHTML=L.join('');
  dScan.textContent=t('s_scan')+': '+
