@@ -24,7 +24,7 @@ def http(cam):
 
 
 def estado():
-    return json.loads(http("/rgb"))
+    return json.loads(http("/estado"))
 
 
 class WS:

@@ -698,7 +698,7 @@ static int montar_json(char *buf, size_t tam)
 
 // Mantido de propósito: é o teste de fumaça curl-ável. O caminho ao vivo é o
 // WebSocket; este aqui é para checar a placa de um terminal sem cliente WS.
-static esp_err_t h_rgb(httpd_req_t *req)
+static esp_err_t h_estado(httpd_req_t *req)
 {
     char buf[1100];  // folga: truncar aqui vira JSON inválido, e a página quebra calada
     int n = montar_json(buf, sizeof(buf));
@@ -1261,7 +1261,7 @@ static void http_iniciar(void)
     ESP_ERROR_CHECK(httpd_start(&servidor, &cfg));
 
     httpd_uri_t u_pag = { .uri = "/", .method = HTTP_GET, .handler = h_pagina };
-    httpd_uri_t u_rgb = { .uri = "/rgb", .method = HTTP_GET, .handler = h_rgb };
+    httpd_uri_t u_estado = { .uri = "/estado", .method = HTTP_GET, .handler = h_estado };
     httpd_uri_t u_p = { .uri = "/p", .method = HTTP_GET, .handler = h_p };
     httpd_uri_t u_t = { .uri = "/t", .method = HTTP_GET, .handler = h_t };
     httpd_uri_t u_sd = { .uri = "/sd", .method = HTTP_GET, .handler = h_sd };
@@ -1272,7 +1272,7 @@ static void http_iniciar(void)
         .uri = "/ws", .method = HTTP_GET, .handler = h_ws, .is_websocket = true
     };
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_pag));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_rgb));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_estado));
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_p));
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_t));
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_sd));

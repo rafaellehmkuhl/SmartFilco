@@ -10,7 +10,7 @@ O que faz:
 - **Wi-Fi STA** + **`esp_http_server`** no **core 0**
 - Página em `/` alimentada por **WebSocket** (`/ws`), push a 30 Hz
 - **Controle de brilho** na página, de 0 (apagado) ao teto — pelo mesmo WebSocket
-- `/rgb` devolve o mesmo JSON por HTTP — teste de fumaça curl-ável
+- `/estado` devolve o mesmo JSON por HTTP — teste de fumaça curl-ável
 - **Varredura I²C** a cada 2 s em GPIO 8/9, reportada na página e na serial
 - **BME680** (temperatura, umidade, pressão, gás) e **VL53L1X** (distância), ao vivo
 - **Nível de reservatório** desenhado a partir do ToF — 4 cm cheio, 25 cm vazio
@@ -159,7 +159,7 @@ precisava drenar frames de entrada para não travar o socket. Sem endpoint novo.
 
 ```bash
 # o estado vive na placa, não no navegador — recarregar a página não muda nada
-curl -s http://<ip>/rgb | grep -o '"brilho":[0-9]*'
+curl -s http://smartfilco.local/estado | grep -o '"brilho":[0-9]*'
 ```
 
 Três decisões que valem saber:
