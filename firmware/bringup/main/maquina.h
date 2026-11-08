@@ -48,6 +48,8 @@ typedef struct {
     // Por que o shot acabou. Painel de máquina que só diz "fim" obriga a
     // adivinhar se bateu o alvo ou estourou o tempo — e são coisas opostas.
     const char *motivo;
+    float teste_s;         // segundos restantes do teste de bomba; 0 = parado
+    const char *teste_fim; // por que o último teste acabou: "tempo", "manual", ...
 } mq_estado_pub_t;
 
 void mq_iniciar(void);
@@ -64,3 +66,11 @@ void mq_shot_parar(void);
 void mq_perfil_get(mq_perfil_t *p);
 void mq_perfil_set(const mq_perfil_t *p);
 void mq_limpar_falha(void);
+
+// Teste de bancada da bomba: duty fixo por tempo limitado, FORA de shot.
+// Ignora temperatura e nível de água de propósito (debug com máquina fria ou
+// seca). Continua valendo: teto de MQ_TESTE_MAX_S, corte por sobrepressão e
+// qualquer FALHA. Recusado durante shot e em falha.
+#define MQ_TESTE_MAX_S 10.0f
+void mq_teste_bomba(float duty, float s);
+void mq_teste_parar(void);

@@ -679,7 +679,8 @@ static int montar_json(char *buf, size_t tam)
                   // perguntas diferentes e a tela precisa das duas: "falta driver"
                   // manda escrever código, "não respondeu" manda conferir fio, e
                   // trocar uma pela outra manda procurar no lugar errado.
-                  "\"drv_t\":1,\"drv_g\":0,\"zhz\":%.1f,\"zn\":%lu,\"psm\":%.3f}}",
+                  "\"drv_t\":1,\"drv_g\":0,\"zhz\":%.1f,\"zn\":%lu,\"psm\":%.3f,"
+                  "\"bt\":%.1f,\"btf\":\"%s\"}}",
                   NOMES[m.estado], m.t_boiler, m.pressao, m.massa, m.vazao,
                   m.nivel_pct, m.alvo_pressao, m.ssr, m.bomba, m.shot_s,
                   m.falha ? m.falha : "", m.motivo ? m.motivo : "", mq_ligada() ? 1 : 0,
@@ -690,7 +691,8 @@ static int montar_json(char *buf, size_t tam)
                   pmed.volts, pmed.volts_cru, pmed.cru, pmed.valida ? 1 : 0,
                   tmed.celsius, tmed.ohms, tmed.valida ? 1 : 0, tmed.falha_txt,
                   max_pronto() ? 1 : 0,
-                  ad.zc_hz, (unsigned long)ad.zc_total, ad.psm_duty), tam);
+                  ad.zc_hz, (unsigned long)ad.zc_total, ad.psm_duty,
+                  m.teste_s, m.teste_fim ? m.teste_fim : ""), tam);
     return p;
 }
 
@@ -937,6 +939,11 @@ static void ws_comando(char *s)
     if (strncmp(s, "shot start", 10) == 0) { mq_shot_iniciar(); return; }
     if (strncmp(s, "shot stop", 9) == 0) { mq_shot_parar(); return; }
     if (strncmp(s, "falha limpar", 12) == 0) { mq_limpar_falha(); return; }
+    {
+        float duty, seg;
+        if (sscanf(s, "bomba teste %f %f", &duty, &seg) == 2) { mq_teste_bomba(duty, seg); return; }
+    }
+    if (strncmp(s, "bomba parar", 11) == 0) { mq_teste_parar(); return; }
     if (strncmp(s, "sim on", 6) == 0) { hal_set_modo(HAL_SIM); return; }
     if (strncmp(s, "sim off", 7) == 0) { hal_set_modo(HAL_REAL); return; }
     if (strncmp(s, "reset", 5) == 0) { sim_reset(); return; }

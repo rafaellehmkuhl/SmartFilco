@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "hal.h"
 #include "sd.h"
 
@@ -241,6 +242,42 @@ static bool extraindo(void)
     return estado >= MQ_PRE_INFUSAO && estado <= MQ_DECLINIO;
 }
 
+// ---------------------------------------------------- teste de bomba (bancada)
+//
+// Prazo em RELÓGIO ABSOLUTO, não somando dt: o laço limita dt a 0,2 s por passo,
+// então um engasgo de 2 s contaria só 0,2 — e o teste duraria mais do que o
+// teto prometido. Com o prazo absoluto, o teto vale mesmo com a task atrasada.
+//
+// ponytail: escrito pelo handler de WS (core 0) e lido pelo laço (core 1) sem
+// lock. O par é publicado com o prazo POR ÚLTIMO, então o laço nunca vê prazo
+// válido com duty velho. int64 rasgado no pior caso dá um prazo absurdo por um
+// passo — e o teto abaixo corta pelo relógio do PRÓPRIO laço também.
+static volatile float teste_duty;
+static volatile int64_t teste_ate_us;   // 0 = sem teste
+static int64_t teste_ini_us;
+static const char *teste_fim = "";
+
+void mq_teste_bomba(float duty, float s)
+{
+    if (estado == MQ_FALHA || extraindo()) return;
+    if (!(duty > 0.0f)) duty = 0.0f;     // pega NaN
+    if (duty > 1.0f) duty = 1.0f;
+    if (!(s > 0.0f)) return;
+    if (s > MQ_TESTE_MAX_S) s = MQ_TESTE_MAX_S;
+    teste_duty = duty;
+    teste_fim = "";
+    int64_t agora = esp_timer_get_time();
+    teste_ini_us = agora;
+    teste_ate_us = agora + (int64_t)(s * 1e6f);
+    ESP_LOGW(TAG, "teste de bomba: %.0f%% por %.1f s", duty * 100.0f, s);
+}
+
+void mq_teste_parar(void)
+{
+    if (teste_ate_us) teste_fim = "manual";
+    teste_ate_us = 0;
+}
+
 // --------------------------------------------------------- perfil de pressão
 //
 // A pré-infusão é um **teto**, não um alvo: a bomba empurra até 3 bar e a
@@ -313,7 +350,16 @@ void mq_passo(float dt_s)
 
     proteger(&e);
 
+    // Sobrepressão no teste vira FALHA de verdade, igual a no shot. Só com o sensor
+    // válido: sem ele não há leitura para julgar, e o teste segue com o teto de
+    // tempo e a válvula de alívio da máquina — o mesmo que a máquina de fábrica.
+    if (teste_ate_us && !e.falha_press && pressao > P_MAX && estado != MQ_FALHA) {
+        falha = "press_alta";
+        estado = MQ_FALHA;
+    }
+
     if (estado == MQ_FALHA) {
+        if (teste_ate_us) { teste_ate_us = 0; teste_fim = falha; }
         saida.ssr = 0.0f;
         saida.bomba = 0.0f;
         hal_escrever(&saida);
@@ -454,6 +500,21 @@ void mq_passo(float dt_s)
         pid_zerar(&pid_press);
     }
 
+    // ---- teste de bomba: sobrepõe a saída da bomba, e só ela. Shot que começar
+    //      vence o teste — dois donos para o mesmo atuador não pode.
+    if (teste_ate_us) {
+        int64_t agora = esp_timer_get_time();
+        if (extraindo()) {
+            teste_ate_us = 0; teste_fim = "shot";
+        } else if (agora >= teste_ate_us ||
+                   agora - teste_ini_us > (int64_t)(MQ_TESTE_MAX_S * 1e6f)) {
+            teste_ate_us = 0; teste_fim = "tempo";
+            saida.bomba = 0.0f;
+        } else {
+            saida.bomba = teste_duty;
+        }
+    }
+
     // ---- log em cartão, a 20 Hz. Grava DEPOIS do controle para a linha refletir
     //      a saída que de fato foi aplicada neste passo, não a do passo anterior.
     if (extraindo()) {
@@ -490,4 +551,7 @@ void mq_publicar(mq_estado_pub_t *o)
     o->motivo = motivo;
     o->ult_g = ult_g;
     o->ult_t = ult_t;
+    int64_t resta = teste_ate_us ? teste_ate_us - esp_timer_get_time() : 0;
+    o->teste_s = resta > 0 ? (float)resta / 1e6f : 0.0f;
+    o->teste_fim = teste_fim;
 }
