@@ -683,7 +683,7 @@ static int montar_json(char *buf, size_t tam)
                   // manda escrever código, "não respondeu" manda conferir fio, e
                   // trocar uma pela outra manda procurar no lugar errado.
                   "\"drv_t\":1,\"drv_g\":0,\"zhz\":%.1f,\"zn\":%lu,\"psm\":%.3f,"
-                  "\"bt\":%.1f,\"btf\":\"%s\",\"bta\":%d,"
+                  "\"bt\":%.1f,\"btf\":\"%s\",\"bta\":%d,\"ign\":%d,"
                   // autoajuste: [rodando, malha, subidas, subidas necessárias, fim]
                   // e ganhos por malha: [kp, ki, kd, Ku, Tu, origem]. Não é "g": "g" já
                   // é a massa, e chave repetida em JSON apaga a anterior em silêncio
@@ -701,6 +701,7 @@ static int montar_json(char *buf, size_t tam)
                   max_pronto() ? 1 : 0,
                   ad.zc_hz, (unsigned long)ad.zc_total, ad.psm_duty,
                   m.teste_s, m.teste_fim ? m.teste_fim : "", m.teste_ssr ? 1 : 0,
+                  mq_ignorando_nivel() ? 1 : 0,
                   m.cal_on ? 1 : 0, m.cal_malha, m.cal_passo, m.cal_total,
                   m.cal_fim ? m.cal_fim : "",
                   gt.kp, gt.ki, gt.kd, gt.ku, gt.tu, gt.origem,
@@ -921,6 +922,7 @@ static esp_err_t h_p(httpd_req_t *req)
 //   sim on | off      set <chave> <valor>         reset
 //   bomba teste <duty 0..1> <s> | ssr teste <duty 0..1> <s>    bomba parar | ssr parar
 //   cal temp | cal press | cal parar     pid temp|press <kp> <ki> <kd> | pid temp|press padrao
+//   nivel ignorar 1|0
 //
 // ⚠️ Todo valor é limitado NO SERVIDOR. O cliente não define teto — vale para o
 // brilho desde o começo e agora vale para setpoint, alvo de peso e pressão, que
@@ -966,6 +968,8 @@ static void ws_comando(char *s)
         char malha[8];
         float kp, ki, kd;
         if (strncmp(s, "cal parar", 9) == 0) { mq_cal_parar(); return; }
+        int on;
+        if (sscanf(s, "nivel ignorar %d", &on) == 1) { mq_ignora_nivel(on != 0); return; }
         if (sscanf(s, "cal %7s", malha) == 1) {
             if (!strcmp(malha, "temp")) mq_cal_iniciar(MQ_MALHA_TEMP);
             else if (!strcmp(malha, "press")) mq_cal_iniciar(MQ_MALHA_PRESS);

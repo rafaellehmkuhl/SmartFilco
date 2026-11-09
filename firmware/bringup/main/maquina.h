@@ -102,4 +102,7 @@ void mq_ganhos_padrao(mq_malha_t m);
 // Temperatura: relé em torno do setpoint, 10 a 20 min. Pressão: relé em 6 bar,
 // ~20 s, com porta-filtro e café (cesta cega não escoa — não oscila).
 void mq_cal_iniciar(mq_malha_t m);
+// Ignora o sensor do reservatório (nível não barra shot nem calibração). Salvo.
+void mq_ignora_nivel(bool on);
+bool mq_ignorando_nivel(void);
 void mq_cal_parar(void);

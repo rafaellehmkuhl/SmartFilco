@@ -741,6 +741,10 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
     </div>
     <p class="dica" id="dicaModo"></p>
 
+    <div class="rot sec" data-i18n="sensors_sec">Sensors</div>
+    <label class="cedit" style="margin-top:0"><input type="checkbox" id="swIgnNivel"> <span data-i18n="ign_lvl">Ignore the reservoir sensor</span></label>
+    <p class="dica" data-i18n="ign_lvl_tip"></p>
+
     <div class="rot sec" data-i18n="world">World</div>
     <div class="sl"><label><span data-i18n="grind">Grind</span><b id="lMoagem">1,00</b></label>
       <input type="range" id="sMoagem" min="0.4" max="3" step="0.05" value="1"></div>
@@ -807,6 +811,8 @@ en:{
  f_puck:'no portafilter',resetmodel:'reset model',clearfault:'clear fault',
  tt_hist:'Shots recorded on the card',tt_cfg:'Settings and simulation',
  tt_led:'Board LED: color and brightness',tt_cal:'Calibration: tune the temperature and pressure loops',
+ sensors_sec:'Sensors',ign_lvl:'Ignore the reservoir sensor',lvl_ignored:'ignored',
+ ign_lvl_tip:'While the level sensor is unreliable. On, the reservoir no longer blocks shots or calibration, so the pump can run dry: check the water yourself. Saved on the board.',
  cal_t:'Calibration',cal_intro:'Auto-tune runs a relay test: the board switches the heater or the pump on and off around the target, measures how the machine oscillates, and computes the PID gains. Results are saved on the board and survive reboots and updates.',
  cal_temp_t:'Boiler temperature (SSR)',cal_press_t:'Pump pressure (dimmer)',
  cal_temp_tip:'Machine off, boiler full of water. It heats to the setpoint and oscillates around it for 2–3 cycles: 10 to 20 minutes. The gains are measured at the current setpoint.',
@@ -884,6 +890,8 @@ pt:{
  f_puck:'sem porta-filtro',resetmodel:'reiniciar modelo',clearfault:'limpar falha',
  tt_hist:'Shots gravados no cartão',tt_cfg:'Configurações e simulação',
  tt_led:'LED da placa: cor e brilho',tt_cal:'Calibração: ajuste das malhas de temperatura e pressão',
+ sensors_sec:'Sensores',ign_lvl:'Ignorar o sensor do reservatório',lvl_ignored:'ignorado',
+ ign_lvl_tip:'Enquanto o sensor de nível não for confiável. Ligado, o reservatório não barra mais shot nem calibração, e a bomba pode rodar a seco: confira a água você mesmo. Fica salvo na placa.',
  cal_t:'Calibração',cal_intro:'O autoajuste faz um teste de relé: a placa liga e desliga a resistência ou a bomba em torno do alvo, mede como a máquina oscila e calcula os ganhos do PID. O resultado fica salvo na placa e sobrevive a reinício e atualização.',
  cal_temp_t:'Temperatura da caldeira (SSR)',cal_press_t:'Pressão da bomba (dimmer)',
  cal_temp_tip:'Máquina desligada e caldeira cheia de água. Aquece até o setpoint e oscila em torno dele por 2 a 3 ciclos: 10 a 20 minutos. Os ganhos são medidos no setpoint atual.',
@@ -1829,6 +1837,7 @@ liga(sMoagem,'moagem',function(v){return (+v).toFixed(2).replace('.',',');},lMoa
 liga(sTamb,'tamb',function(v){return v+' °C';},lTamb);
 liga(sPot,'pot',function(v){return v+' W';},lPot);
 liga(sVel,'vel',function(v){return (+v).toFixed(1).replace('.',',')+'×';},lVel);
+swIgnNivel.onchange=function(){ env('nivel ignorar '+(swIgnNivel.checked?1:0)); };
 swSim.onchange=function(){ env(swSim.value==='1'?'sim on':'sim off'); };
 btReset.onclick=function(){env('reset');};
 btLimpar.onclick=function(){env('falha limpar');};
@@ -1914,9 +1923,10 @@ function pinta(d){
  rodapeNota.textContent=m.sim?t('nota_sim'):t('nota_real');
 
  agua.style.height=m.niv.toFixed(0)+'%';
- nivel.textContent=Math.round(m.niv)+'%';
+ nivel.textContent=m.ign?t('lvl_ignored'):Math.round(m.niv)+'%';
  nDist.textContent=d.uok?(d.umm/10).toFixed(0)+' cm':'';
- trilho.classList.toggle('ruim',m.niv<=2);
+ trilho.classList.toggle('ruim',!m.ign&&m.niv<=2);
+ swIgnNivel.checked=m.ign===1;
 
  if(tm-tAmostra>PASSO){tAmostra=tm;amostra(m.tb,m.pr,m.sp,m.ap);}
 

@@ -172,11 +172,13 @@ static float massa_ant, vazao_filt;
 static float t_boiler, t_boiler_cru, pressao, massa, nivel_mm, alvo_p;
 static hal_sai_t saida;
 static void ganhos_carregar(void);
+static void ignora_nivel_carregar(void);
 
 void mq_iniciar(void)
 {
     hal_iniciar();
     ganhos_carregar();
+    ignora_nivel_carregar();
     estado = MQ_OCIOSO;
     falha = NULL;
 }
@@ -398,6 +400,32 @@ void mq_ganhos_padrao(mq_malha_t m)
     ganhos_salvar();
 }
 
+// Sensor do reservatório ainda não é confiável na bancada. Ligado, o nível deixa
+// de barrar shot e calibração — a bomba pode rodar a seco, e quem liga assume.
+// Fica na NVS: vale até alguém desligar, não só até o próximo reinício.
+static bool ignora_nivel;
+
+static void ignora_nivel_carregar(void)
+{
+    nvs_handle_t h;
+    uint8_t v = 0;
+    if (nvs_open("cal", NVS_READONLY, &h) == ESP_OK) { nvs_get_u8(h, "ignnivel", &v); nvs_close(h); }
+    ignora_nivel = v;
+}
+
+void mq_ignora_nivel(bool on)
+{
+    ignora_nivel = on;
+    nvs_handle_t h;
+    if (nvs_open("cal", NVS_READWRITE, &h) != ESP_OK) return;
+    nvs_set_u8(h, "ignnivel", on);
+    nvs_commit(h);
+    nvs_close(h);
+    ESP_LOGW(TAG, "sensor do reservatório %s", on ? "IGNORADO" : "de volta");
+}
+
+bool mq_ignorando_nivel(void) { return ignora_nivel; }
+
 // Autoajuste. Pedido pelo WS, executado pelo laço: quem inicializa o relé é quem
 // tem a medida na mão, e o estado do relé fica todo de um core só.
 #define CAL_T_ALTO 0.5f          // relé da caldeira: 0/50%. Com 100% passa ~6 °C do
@@ -464,7 +492,7 @@ static void cal_passo(const hal_ent_t *e, float dt_s)
         if (cal_s > CAL_T_MAX_S) { cal_acabar("tempo"); return; }
     } else {
         if (e->falha_press) { cal_acabar("press_faixa"); return; }
-        if (nivel_mm > NIVEL_SECO_MM) { cal_acabar("sem_agua"); return; }
+        if (!ignora_nivel && nivel_mm > NIVEL_SECO_MM) { cal_acabar("sem_agua"); return; }
         if (cal_s > CAL_P_MAX_S) { cal_acabar("tempo"); return; }
         if (cal_at.subidas == 0 && cal_at.ligado && cal_s > CAL_P_SUBIR_S) {
             cal_acabar("sem_pressao"); return;
@@ -523,7 +551,7 @@ static void proteger(const hal_ent_t *e, float dt_s)
     else if (extraindo() && e->falha_press) { falha = "press_faixa"; }
     else if (extraindo() && pressao > P_MAX) { falha = "press_alta"; }
     else if (extraindo() && shot_s > SHOT_TETO_S) { falha = "bomba_timeout"; }
-    else if (extraindo() && nivel_mm > NIVEL_SECO_MM) { falha = "sem_agua"; }
+    else if (extraindo() && !ignora_nivel && nivel_mm > NIVEL_SECO_MM) { falha = "sem_agua"; }
 
     if (falha) estado = MQ_FALHA;
 }
