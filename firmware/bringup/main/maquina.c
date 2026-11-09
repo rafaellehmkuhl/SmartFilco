@@ -310,9 +310,20 @@ static float alvo_do_perfil(void)
 // Devolvem CÓDIGO, não frase. A palavra que o operador lê é decisão da interface,
 // que é quem sabe o idioma — mesmo princípio que já vale para as unidades: o
 // firmware manda inteiro, a página escolhe como apresentar.
-static void proteger(const hal_ent_t *e)
+// Uma leitura ruim isolada não é sonda aberta. Tirar a máquina da tomada gera um
+// pico que o MAX31865 acusa como sub/sobretensão num ciclo só (visto em
+// 08/11/2026, com o PT100 lendo certo antes e depois) — e uma falha falsa dessas
+// desliga a resistência no meio do shot. Só vira falha depois de TEMP_FALHA_S
+// seguidos. Nesse meio tempo o hal entrega a última leitura boa: são no máximo
+// ~0,4 °C de caldeira subindo sem ser vista, e o termostato de vapor segue em série.
+#define TEMP_FALHA_S 0.5f
+
+static void proteger(const hal_ent_t *e, float dt_s)
 {
-    if (e->falha_temp) { falha = "temp_aberta"; }
+    static float temp_ruim_s;
+    temp_ruim_s = e->falha_temp ? temp_ruim_s + dt_s : 0.0f;
+
+    if (temp_ruim_s >= TEMP_FALHA_S) { falha = "temp_aberta"; }
     else if (t_boiler_cru > T_MAX) { falha = "temp_alta"; }
     else if (extraindo() && e->falha_press) { falha = "press_faixa"; }
     else if (extraindo() && pressao > P_MAX) { falha = "press_alta"; }
@@ -348,7 +359,7 @@ void mq_passo(float dt_s)
         massa_ant = massa;
     }
 
-    proteger(&e);
+    proteger(&e, dt_s);
 
     // Sobrepressão no teste vira FALHA de verdade, igual a no shot. Só com o sensor
     // válido: sem ele não há leitura para julgar, e o teste segue com o teto de
