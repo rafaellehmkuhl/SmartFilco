@@ -162,6 +162,22 @@ table.dbg .saude{text-align:right;white-space:nowrap;font-size:.64rem}
 .bteste .acoes .acao{flex:1}
 .bteste .aviso{color:var(--brasa)}
 .bteste .seg{grid-template-columns:1fr 1fr;margin-bottom:.45rem}
+.ccal .cest{display:flex;align-items:baseline;gap:.5rem;color:var(--osso)}
+.ccal .cest s{text-decoration:none;margin-left:auto;color:var(--cinza);font-variant-numeric:tabular-nums}
+.ccal .barra{height:.3rem;border-radius:1rem;background:var(--linha);overflow:hidden;margin:.4rem 0}
+.ccal .barra i{display:block;height:100%;width:0;background:var(--crema);transition:width .4s}
+.ccal .ganhos{display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem;margin:.45rem 0 .2rem}
+.ccal .ganhos label{display:flex;flex-direction:column;gap:.15rem;color:var(--cinza);font-size:.66rem}
+.ccal .ganhos input{width:100%;box-sizing:border-box;background:var(--graf);color:var(--osso);
+ border:1px solid var(--linha);border-radius:.3rem;padding:.3rem .35rem;font:inherit;
+ font-variant-numeric:tabular-nums}
+.ccal .ganhos input:disabled{background:transparent;border-color:transparent;color:var(--osso);opacity:1}
+.ccal .acoes{display:flex;gap:.4rem;margin-top:.5rem}
+.ccal .acoes .acao{flex:1}
+.ccal .edicao{display:none}
+#mcal.editar .ccal .edicao{display:flex}
+.ccal .aviso{color:var(--brasa)}
+.cedit{display:flex;align-items:center;gap:.4rem;margin-top:.8rem;color:var(--cinza)}
 .bteste .barra{height:.3rem;border-radius:1rem;background:var(--linha);overflow:hidden;margin-top:.45rem}
 .bteste .barra i{display:block;height:100%;width:0;background:var(--crema)}
 #esT{font-family:ui-monospace,Menlo,monospace;font-size:.6rem;color:var(--fosco);margin-left:auto}
@@ -391,6 +407,12 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
       <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
     </svg>
   </button>
+  <button class="ico" id="btCal" aria-haspopup="dialog" data-i18n-t="tt_cal">
+    <!-- sliders do conjunto Feather: ajuste fino -->
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>
+    </svg>
+  </button>
   <button class="ico" id="btHist" aria-haspopup="dialog" data-i18n-t="tt_hist">
     <!-- relógio com seta anti-horária: o ícone convencional de histórico -->
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -618,6 +640,60 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
 
 <!-- LED da placa: modo, cor e brilho. Os limites valem no servidor; a página só
      propõe. A bola mostra a cor que o firmware diz estar mandando, não a do slider. -->
+<!-- Calibração: autoajuste por relé das duas malhas, e os ganhos que valem agora.
+     Quem calcula e guarda é a placa; a página pede, mostra e, no modo de edição,
+     manda ganhos digitados. -->
+<div class="modal" id="mcal" role="dialog" aria-labelledby="mcTit">
+  <div class="mcab" id="mccab">
+    <span class="rot" id="mcTit" data-i18n="cal_t">Calibration</span>
+    <button class="fechar" id="btCFechar" aria-label="close">&times;</button>
+  </div>
+  <div class="mcorpo">
+    <p class="dica" data-i18n="cal_intro"></p>
+    <div class="rot sec" data-i18n="cal_temp_t"></div>
+    <div class="ccal" id="cT">
+      <div class="cest"><b id="cTEst">&mdash;</b><s id="cTVivo"></s></div>
+      <div class="barra"><i id="cTBarra"></i></div>
+      <div class="ganhos">
+        <label>Kp<input type="text" inputmode="decimal" autocomplete="off" id="cTKp" disabled></label>
+        <label>Ki<input type="text" inputmode="decimal" autocomplete="off" id="cTKi" disabled></label>
+        <label>Kd<input type="text" inputmode="decimal" autocomplete="off" id="cTKd" disabled></label>
+      </div>
+      <p class="dica" id="cTMed"></p>
+      <div class="acoes">
+        <button class="acao" id="cTGo" data-i18n="cal_run">Calibrate</button>
+      </div>
+      <div class="acoes edicao">
+        <button class="acao neutro" id="cTSalvar" data-i18n="cal_save">Save gains</button>
+        <button class="acao neutro" id="cTPadrao" data-i18n="cal_default">Defaults</button>
+      </div>
+      <p class="dica" id="cTAviso"></p>
+      <p class="dica" data-i18n="cal_temp_tip"></p>
+    </div>
+    <div class="rot sec" data-i18n="cal_press_t"></div>
+    <div class="ccal" id="cP">
+      <div class="cest"><b id="cPEst">&mdash;</b><s id="cPVivo"></s></div>
+      <div class="barra"><i id="cPBarra"></i></div>
+      <div class="ganhos">
+        <label>Kp<input type="text" inputmode="decimal" autocomplete="off" id="cPKp" disabled></label>
+        <label>Ki<input type="text" inputmode="decimal" autocomplete="off" id="cPKi" disabled></label>
+        <label>Kd<input type="text" inputmode="decimal" autocomplete="off" id="cPKd" disabled></label>
+      </div>
+      <p class="dica" id="cPMed"></p>
+      <div class="acoes">
+        <button class="acao" id="cPGo" data-i18n="cal_run">Calibrate</button>
+      </div>
+      <div class="acoes edicao">
+        <button class="acao neutro" id="cPSalvar" data-i18n="cal_save">Save gains</button>
+        <button class="acao neutro" id="cPPadrao" data-i18n="cal_default">Defaults</button>
+      </div>
+      <p class="dica" id="cPAviso"></p>
+      <p class="dica" data-i18n="cal_press_tip"></p>
+    </div>
+    <label class="cedit"><input type="checkbox" id="cEditar"> <span data-i18n="cal_edit">Edit gains by hand</span></label>
+  </div>
+</div>
+
 <div class="modal" id="mled" role="dialog" aria-labelledby="mlTit">
   <div class="mcab" id="mlcab">
     <span class="rot" id="mlTit" data-i18n="led_t">Board LED</span>
@@ -730,7 +806,21 @@ en:{
  f_probe:'probe open',f_press:'pressure out of range',f_water:'empty reservoir',
  f_puck:'no portafilter',resetmodel:'reset model',clearfault:'clear fault',
  tt_hist:'Shots recorded on the card',tt_cfg:'Settings and simulation',
- tt_led:'Board LED: color and brightness',led_t:'Board LED',l_off:'turn off',l_on:'turn on',
+ tt_led:'Board LED: color and brightness',tt_cal:'Calibration: tune the temperature and pressure loops',
+ cal_t:'Calibration',cal_intro:'Auto-tune runs a relay test: the board switches the heater or the pump on and off around the target, measures how the machine oscillates, and computes the PID gains. Results are saved on the board and survive reboots and updates.',
+ cal_temp_t:'Boiler temperature (SSR)',cal_press_t:'Pump pressure (dimmer)',
+ cal_temp_tip:'Machine off, boiler full of water. It heats to the setpoint and oscillates around it for 2–3 cycles: 10 to 20 minutes. The gains are measured at the current setpoint.',
+ cal_press_tip:'Machine off, water in the tank, portafilter with ground, tamped coffee (a used puck works). The pump oscillates around 6 bar for about 20 s. A blind basket does not work: with no flow the pressure never drops.',
+ cal_run:'Calibrate',cal_stop:'Stop',cal_save:'Save gains',cal_default:'Defaults',cal_edit:'Edit gains by hand',
+ cal_idle:'idle',cal_heat:'heating to',cal_rise:'rising to',cal_osc:'oscillating · cycle',cal_of:'of',
+ cal_measured:'Measured',cal_src0:'default gains (from the simulator)',cal_src1:'calibrated on this machine',cal_src2:'set by hand',
+ cal_blocked:'Turn the machine off first. While it is on, the PID owns the heater and the pump.',
+ cal_busy:'Another calibration is running.',
+ cal_end_ok:'done: new gains in use',cal_end_manual:'stopped',cal_end_maq:'cancelled: machine turned on',
+ cal_end_tempo:'cancelled: took too long',cal_end_passou:'cancelled: temperature overshot by more than 10 °C',
+ cal_end_sem_pressao:'cancelled: no pressure — is there coffee in the portafilter?',
+ cal_end_sem_agua:'cancelled: reservoir almost empty',cal_end_invalido:'cancelled: result out of range, gains unchanged',
+ cal_end_falha:'cancelled by fault',cal_end_sim:'not available in simulation: the result would overwrite the real machine gains',led_t:'Board LED',l_off:'turn off',l_on:'turn on',
  l_walk:'wander',l_fixed:'solid',l_breathe:'breathe',l_rainbow:'rainbow',
  l_hue:'Hue',l_sat:'Saturation',l_bright:'Brightness',l_speed:'Speed',
  l_tip:'Above ~30% the LED gets glaring and draws up to 60 mA. Settings last until the board restarts.',
@@ -793,7 +883,21 @@ pt:{
  f_probe:'sonda aberta',f_press:'pressão fora de faixa',f_water:'reservatório vazio',
  f_puck:'sem porta-filtro',resetmodel:'reiniciar modelo',clearfault:'limpar falha',
  tt_hist:'Shots gravados no cartão',tt_cfg:'Configurações e simulação',
- tt_led:'LED da placa: cor e brilho',led_t:'LED da placa',l_off:'apagar',l_on:'acender',
+ tt_led:'LED da placa: cor e brilho',tt_cal:'Calibração: ajuste das malhas de temperatura e pressão',
+ cal_t:'Calibração',cal_intro:'O autoajuste faz um teste de relé: a placa liga e desliga a resistência ou a bomba em torno do alvo, mede como a máquina oscila e calcula os ganhos do PID. O resultado fica salvo na placa e sobrevive a reinício e atualização.',
+ cal_temp_t:'Temperatura da caldeira (SSR)',cal_press_t:'Pressão da bomba (dimmer)',
+ cal_temp_tip:'Máquina desligada e caldeira cheia de água. Aquece até o setpoint e oscila em torno dele por 2 a 3 ciclos: 10 a 20 minutos. Os ganhos são medidos no setpoint atual.',
+ cal_press_tip:'Máquina desligada, água no reservatório e porta-filtro com café moído e compactado (um puck usado serve). A bomba oscila em torno de 6 bar por uns 20 s. Cesta cega não funciona: sem vazão a pressão nunca cai.',
+ cal_run:'Calibrar',cal_stop:'Parar',cal_save:'Salvar ganhos',cal_default:'Padrão',cal_edit:'Editar ganhos à mão',
+ cal_idle:'parada',cal_heat:'aquecendo até',cal_rise:'subindo até',cal_osc:'oscilando · ciclo',cal_of:'de',
+ cal_measured:'Medido',cal_src0:'ganhos padrão (do simulador)',cal_src1:'calibrados nesta máquina',cal_src2:'digitados à mão',
+ cal_blocked:'Desligue a máquina antes. Ligada, quem manda na resistência e na bomba é o PID.',
+ cal_busy:'Outra calibração está rodando.',
+ cal_end_ok:'pronto: ganhos novos em uso',cal_end_manual:'parada',cal_end_maq:'cancelada: máquina ligada',
+ cal_end_tempo:'cancelada: demorou demais',cal_end_passou:'cancelada: passou mais de 10 °C do alvo',
+ cal_end_sem_pressao:'cancelada: sem pressão — tem café no porta-filtro?',
+ cal_end_sem_agua:'cancelada: reservatório quase vazio',cal_end_invalido:'cancelada: resultado fora da faixa, ganhos mantidos',
+ cal_end_falha:'cancelada por falha',cal_end_sim:'indisponível no simulado: o resultado gravaria por cima dos ganhos da máquina real',led_t:'LED da placa',l_off:'apagar',l_on:'acender',
  l_walk:'passeio',l_fixed:'fixa',l_breathe:'respirar',l_rainbow:'arco-íris',
  l_hue:'Matiz',l_sat:'Saturação',l_bright:'Brilho',l_speed:'Velocidade',
  l_tip:'Acima de ~30% o LED ofusca e puxa até 60 mA. As escolhas valem até a placa reiniciar.',
@@ -1251,6 +1355,64 @@ function pintaLed(d){
 arrastavel(mled,mlcab,btLFechar);
 btLed.onclick=function(){abrir(mled);};
 
+/* ------------------------------------------------------------- calibração
+   Duas malhas, mesma tela: T = caldeira (índice 0 no firmware), P = pressão (1).
+   Enquanto o modo de edição está ligado os campos não são sobrescritos pelos
+   frames — senão o que se digita some 30 vezes por segundo. */
+arrastavel(mcal,mccab,btCFechar);
+btCal.onclick=function(){abrir(mcal);};
+var CAL=[{k:'T',m:'temp'},{k:'P',m:'press'}], calOn=false, calMalha=-1;
+function cEl(k,s){return document.getElementById('c'+k+s);}
+function cNum(v,n){return (+v).toFixed(n).replace('.',idi==='pt'?',':'.');}
+function cFim(f){
+ return ['ok','manual','maq','tempo','passou','sem_pressao','sem_agua','invalido','sim'].indexOf(f)>=0
+   ?t('cal_end_'+f):t('cal_end_falha')+' — '+t(f);
+}
+cEditar.onchange=function(){
+ mcal.classList.toggle('editar',cEditar.checked);
+ CAL.forEach(function(o){['Kp','Ki','Kd'].forEach(function(s){cEl(o.k,s).disabled=!cEditar.checked;});});
+};
+CAL.forEach(function(o,i){
+ cEl(o.k,'Go').onclick=function(){env(calOn&&calMalha===i?'cal parar':'cal '+o.m);};
+ cEl(o.k,'Padrao').onclick=function(){env('pid '+o.m+' padrao');};
+ cEl(o.k,'Salvar').onclick=function(){
+  var v=['Kp','Ki','Kd'].map(function(s){return parseFloat(cEl(o.k,s).value.replace(',','.'));});
+  var ok=v.every(function(x){return isFinite(x)&&x>=0;});
+  ['Kp','Ki','Kd'].forEach(function(s,j){cEl(o.k,s).style.borderColor=isFinite(v[j])&&v[j]>=0?'':'var(--brasa)';});
+  if(ok)env('pid '+o.m+' '+v.join(' '));
+ };
+});
+function pintaCal(d){
+ var m=d.m, c=m.cal;
+ calOn=c[0]===1; calMalha=c[1];
+ CAL.forEach(function(o,i){
+  var k=o.k, g=m.pid[i], meu=calOn&&c[1]===i, outro=calOn&&c[1]!==i,
+      bloq=!meu&&(m.on===1||m.est==='fault');
+  cEl(k,'Est').textContent=meu
+    ?(c[2]===0?t(i?'cal_rise':'cal_heat')+' '+(i?'6 bar':cNum(m.sp,0)+' °C')
+              :t('cal_osc')+' '+c[2]+' '+t('cal_of')+' '+(c[3]-1))
+    :(c[1]===i&&c[4]?cFim(c[4]):t('cal_idle'));
+  cEl(k,'Est').style.color=meu?'var(--crema)':(c[1]===i&&c[4]&&c[4]!=='ok'&&c[4]!=='manual'?'var(--brasa)':'');
+  cEl(k,'Vivo').textContent=(i?cNum(m.pr,1)+' bar':cNum(m.tc,1)+' °C')
+    +(meu?' · '+(i?t('c_bmb'):'SSR')+' '+Math.round(100*(i?m.bmb:m.ssr))+'%':'');
+  cEl(k,'Barra').style.width=(meu?Math.min(100,100*c[2]/c[3]):(c[1]===i&&c[4]==='ok'?100:0))+'%';
+  var go=cEl(k,'Go');
+  go.textContent=t(meu?'cal_stop':'cal_run');
+  go.classList.toggle('parar',meu);
+  go.disabled=!meu&&(bloq||outro);
+  var av=cEl(k,'Aviso');
+  av.textContent=outro?t('cal_busy'):(bloq?t('cal_blocked'):'');
+  av.className='dica'+(av.textContent?' aviso':'');
+  if(!cEditar.checked){
+   cEl(k,'Kp').value=+(+g[0]).toPrecision(4);
+   cEl(k,'Ki').value=+(+g[1]).toPrecision(4);
+   cEl(k,'Kd').value=+(+g[2]).toPrecision(4);
+  }
+  cEl(k,'Med').textContent=(g[3]>0?t('cal_measured')+': Ku '+cNum(g[3],3)+' · Tu '+cNum(g[4],g[4]<10?2:0)+' s · ':'')
+    +t('cal_src'+g[5]);
+ });
+}
+
 /* ------------------------------------------------------------ histórico */
 function resumo(csv){
  var l=csv.trim().split('\n').filter(function(x){return x&&x[0]!=='#';});
@@ -1572,7 +1734,7 @@ sBtS.oninput=function(){lBtS.textContent=fmtS(sBtS.value);};
 btGo.onclick=function(){btTot=+sBtS.value;env(btA+' teste '+(sBtD.value/100)+' '+sBtS.value);};
 btStop.onclick=function(){env('bomba parar');};   // para qualquer teste, bomba ou SSR
 // Esc para o teste de qualquer lugar da página, com ou sem o diálogo aberto
-addEventListener('keydown',function(e){if(e.key==='Escape')env('bomba parar');});
+addEventListener('keydown',function(e){if(e.key==='Escape'){env('bomba parar');env('cal parar');}});
 function pintaTeste(m){
  var on=m.bt>0, ssr=btA==='ssr',
      bloq=m.est==='fault'||(ssr?m.on===1:['pre','ramp','plateau','decline'].indexOf(m.est)>=0);
@@ -1710,6 +1872,7 @@ var extAnt=false;
 function pinta(d){
  var tm=performance.now();
  pintaLed(d);
+ if(mcal.classList.contains('aberto'))pintaCal(d);
  led.classList.add('viva');
  var m=d.m;
 

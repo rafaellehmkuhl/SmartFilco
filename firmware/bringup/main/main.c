@@ -665,6 +665,9 @@ static int montar_json(char *buf, size_t tam)
     // ~120 Hz em 60 Hz; ~60 é pulso por ciclo (duty sai pela metade), 0 é fio solto.
     hal_atuador_diag_t ad;
     hal_atuador_diag(&ad);
+    mq_ganhos_t gt, gp;
+    mq_ganhos_get(MQ_MALHA_TEMP, &gt);
+    mq_ganhos_get(MQ_MALHA_PRESS, &gp);
 
     p = avanca(p, snprintf(buf + p, tam - p,
                   ",\"m\":{\"est\":\"%s\",\"tb\":%.1f,\"pr\":%.2f,\"g\":%.1f,"
@@ -680,7 +683,12 @@ static int montar_json(char *buf, size_t tam)
                   // manda escrever código, "não respondeu" manda conferir fio, e
                   // trocar uma pela outra manda procurar no lugar errado.
                   "\"drv_t\":1,\"drv_g\":0,\"zhz\":%.1f,\"zn\":%lu,\"psm\":%.3f,"
-                  "\"bt\":%.1f,\"btf\":\"%s\",\"bta\":%d}}",
+                  "\"bt\":%.1f,\"btf\":\"%s\",\"bta\":%d,"
+                  // autoajuste: [rodando, malha, subidas, subidas necessárias, fim]
+                  // e ganhos por malha: [kp, ki, kd, Ku, Tu, origem]. Não é "g": "g" já
+                  // é a massa, e chave repetida em JSON apaga a anterior em silêncio
+                  "\"cal\":[%d,%d,%d,%d,\"%s\"],"
+                  "\"pid\":[[%.5g,%.5g,%.5g,%.5g,%.4g,%d],[%.5g,%.5g,%.5g,%.5g,%.4g,%d]]}}",
                   NOMES[m.estado], m.t_boiler, m.pressao, m.massa, m.vazao,
                   m.nivel_pct, m.alvo_pressao, m.ssr, m.bomba, m.shot_s,
                   m.falha ? m.falha : "", m.motivo ? m.motivo : "", mq_ligada() ? 1 : 0,
@@ -692,7 +700,11 @@ static int montar_json(char *buf, size_t tam)
                   tmed.celsius, tmed.ohms, tmed.valida ? 1 : 0, tmed.falha_txt,
                   max_pronto() ? 1 : 0,
                   ad.zc_hz, (unsigned long)ad.zc_total, ad.psm_duty,
-                  m.teste_s, m.teste_fim ? m.teste_fim : "", m.teste_ssr ? 1 : 0), tam);
+                  m.teste_s, m.teste_fim ? m.teste_fim : "", m.teste_ssr ? 1 : 0,
+                  m.cal_on ? 1 : 0, m.cal_malha, m.cal_passo, m.cal_total,
+                  m.cal_fim ? m.cal_fim : "",
+                  gt.kp, gt.ki, gt.kd, gt.ku, gt.tu, gt.origem,
+                  gp.kp, gp.ki, gp.kd, gp.ku, gp.tu, gp.origem), tam);
     return p;
 }
 
@@ -700,7 +712,7 @@ static int montar_json(char *buf, size_t tam)
 // WebSocket; este aqui é para checar a placa de um terminal sem cliente WS.
 static esp_err_t h_estado(httpd_req_t *req)
 {
-    char buf[1100];  // folga: truncar aqui vira JSON inválido, e a página quebra calada
+    char buf[1400];  // folga: truncar aqui vira JSON inválido, e a página quebra calada
     int n = montar_json(buf, sizeof(buf));
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
@@ -908,6 +920,7 @@ static esp_err_t h_p(httpd_req_t *req)
 //   brilho 80         shot start | shot stop      falha limpar
 //   sim on | off      set <chave> <valor>         reset
 //   bomba teste <duty 0..1> <s> | ssr teste <duty 0..1> <s>    bomba parar | ssr parar
+//   cal temp | cal press | cal parar     pid temp|press <kp> <ki> <kd> | pid temp|press padrao
 //
 // ⚠️ Todo valor é limitado NO SERVIDOR. O cliente não define teto — vale para o
 // brilho desde o começo e agora vale para setpoint, alvo de peso e pressão, que
@@ -947,6 +960,26 @@ static void ws_comando(char *s)
     }
     // um teste por vez: qualquer um dos dois para o que estiver rodando
     if (strncmp(s, "bomba parar", 11) == 0 || strncmp(s, "ssr parar", 9) == 0) { mq_teste_parar(); return; }
+
+    // autoajuste e ganhos. `temp` e `press` nomeiam a malha.
+    {
+        char malha[8];
+        float kp, ki, kd;
+        if (strncmp(s, "cal parar", 9) == 0) { mq_cal_parar(); return; }
+        if (sscanf(s, "cal %7s", malha) == 1) {
+            if (!strcmp(malha, "temp")) mq_cal_iniciar(MQ_MALHA_TEMP);
+            else if (!strcmp(malha, "press")) mq_cal_iniciar(MQ_MALHA_PRESS);
+            return;
+        }
+        if (sscanf(s, "pid %7s", malha) == 1) {
+            mq_malha_t m = !strcmp(malha, "temp") ? MQ_MALHA_TEMP
+                         : !strcmp(malha, "press") ? MQ_MALHA_PRESS : MQ_MALHAS;
+            if (m == MQ_MALHAS) return;
+            if (strstr(s, "padrao")) mq_ganhos_padrao(m);
+            else if (sscanf(s, "pid %*s %f %f %f", &kp, &ki, &kd) == 3) mq_ganhos_set(m, kp, ki, kd);
+            return;
+        }
+    }
     if (strncmp(s, "sim on", 6) == 0) { hal_set_modo(HAL_SIM); return; }
     if (strncmp(s, "sim off", 7) == 0) { hal_set_modo(HAL_REAL); return; }
     if (strncmp(s, "reset", 5) == 0) { sim_reset(); return; }
@@ -1005,7 +1038,7 @@ static esp_err_t h_ws(httpd_req_t *req)
 // morto — e nunca fica dessincronizado.
 static void tarefa_ws(void *arg)
 {
-    char buf[1100];  // folga: truncar aqui vira JSON inválido, e a página quebra calada
+    char buf[1400];  // folga: truncar aqui vira JSON inválido, e a página quebra calada
     int fds[MAX_SOCKS];
 
     while (1) {
@@ -1285,7 +1318,7 @@ static void http_iniciar(void)
     ESP_ERROR_CHECK(httpd_register_uri_handler(servidor, &u_ws));
 
     // push fica no core da rede: mandar frame do core 1 furaria a separação
-    xTaskCreatePinnedToCore(tarefa_ws, "ws", 4096, NULL, 4, NULL, CORE_NET);
+    xTaskCreatePinnedToCore(tarefa_ws, "ws", 5120, NULL, 4, NULL, CORE_NET);
     ESP_LOGI(TAG, "http + ws no ar");
 }
 

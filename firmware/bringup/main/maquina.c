@@ -5,6 +5,8 @@
 
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "nvs.h"
+#include "autotune.h"
 #include "hal.h"
 #include "sd.h"
 
@@ -169,10 +171,12 @@ static float decl_s;         // tempo dentro do declínio
 static float massa_ant, vazao_filt;
 static float t_boiler, t_boiler_cru, pressao, massa, nivel_mm, alvo_p;
 static hal_sai_t saida;
+static void ganhos_carregar(void);
 
 void mq_iniciar(void)
 {
     hal_iniciar();
+    ganhos_carregar();
     estado = MQ_OCIOSO;
     falha = NULL;
 }
@@ -265,9 +269,11 @@ static volatile int64_t teste_ate_us;   // 0 = sem teste
 static int64_t teste_ini_us;
 static const char *teste_fim = "";
 
+static bool cal_on;
+
 void mq_teste(bool ssr, float duty, float s)
 {
-    if (estado == MQ_FALHA || extraindo()) return;
+    if (estado == MQ_FALHA || extraindo() || cal_on) return;
     if (ssr && estado != MQ_OCIOSO) return;
     if (!(duty > 0.0f)) duty = 0.0f;     // pega NaN
     if (duty > 1.0f) duty = 1.0f;
@@ -313,6 +319,183 @@ static float alvo_do_perfil(void)
         case MQ_DECLINIO: return perfil.declinio_bar;
         default: return 0.0f;
     }
+}
+
+// ------------------------------------------------- ganhos e autoajuste
+//
+// `ganhos[]` é a fonte da verdade; os pid_ctrl_t recebem cópia em ganhos_aplicar.
+// ponytail: escrito pelo WS (core 0) e lido pelo laço (core 1) sem lock. Um passo
+// com kp novo e ki velho é um degrau de 10 ms numa caldeira que leva minutos.
+static const mq_ganhos_t GANHOS_PADRAO[MQ_MALHAS] = {
+    { .kp = 0.08f, .ki = 0.004f, .kd = 0.6f },     // do simulador, não desta caldeira
+    { .kp = 0.09f, .ki = 0.05f,  .kd = 0.004f },
+};
+static mq_ganhos_t ganhos[MQ_MALHAS];
+static pid_ctrl_t *const PIDS[MQ_MALHAS] = { &pid_ctrl_temp, &pid_press };
+
+static void ganhos_aplicar(mq_malha_t m)
+{
+    pid_ctrl_t *p = PIDS[m];
+    const mq_ganhos_t *g = &ganhos[m];
+    // Reescala o integral para o TERMO integral (ki·i) não pular com o ki novo,
+    // e o teto do integral sai do ki: o integral sozinho alcança 100%, não mais.
+    if (g->ki > 0.0f) { p->i *= p->ki / g->ki; p->i_max = 1.0f / g->ki; }
+    p->kp = g->kp; p->ki = g->ki; p->kd = g->kd;
+}
+
+static void ganhos_salvar(void)
+{
+    nvs_handle_t h;
+    if (nvs_open("cal", NVS_READWRITE, &h) != ESP_OK) return;
+    nvs_set_blob(h, "pid", ganhos, sizeof(ganhos));
+    nvs_commit(h);
+    nvs_close(h);
+}
+
+static void ganhos_carregar(void)
+{
+    memcpy(ganhos, GANHOS_PADRAO, sizeof(ganhos));
+    nvs_handle_t h;
+    if (nvs_open("cal", NVS_READONLY, &h) == ESP_OK) {
+        size_t n = sizeof(ganhos);
+        // Tamanho diferente = struct mudou de versão. Melhor o padrão do que ler
+        // campos deslocados como se fossem ganhos.
+        if (nvs_get_blob(h, "pid", ganhos, &n) != ESP_OK || n != sizeof(ganhos))
+            memcpy(ganhos, GANHOS_PADRAO, sizeof(ganhos));
+        nvs_close(h);
+    }
+    for (int m = 0; m < MQ_MALHAS; m++) {
+        ganhos_aplicar(m);
+        ESP_LOGI(TAG, "pid %s: kp=%.4f ki=%.5f kd=%.4f (%s)", m ? "pressão" : "temp",
+                 ganhos[m].kp, ganhos[m].ki, ganhos[m].kd,
+                 ganhos[m].origem == MQ_GANHO_CALIBRADO ? "calibrado" :
+                 ganhos[m].origem == MQ_GANHO_MANUAL ? "manual" : "padrão");
+    }
+}
+
+static float lim_f(float v, float lo, float hi) { return !(v > lo) ? lo : v > hi ? hi : v; }
+
+void mq_ganhos_get(mq_malha_t m, mq_ganhos_t *g) { if (m < MQ_MALHAS) *g = ganhos[m]; }
+
+void mq_ganhos_set(mq_malha_t m, float kp, float ki, float kd)
+{
+    if (m >= MQ_MALHAS) return;
+    // Tetos largos, só contra dedo escorregado e NaN — o kd da caldeira já passa
+    // de 1 com ganhos sensatos.
+    ganhos[m].kp = lim_f(kp, 0.0f, 10.0f);
+    ganhos[m].ki = lim_f(ki, 0.0f, 10.0f);
+    ganhos[m].kd = lim_f(kd, 0.0f, 100.0f);
+    ganhos[m].origem = MQ_GANHO_MANUAL;
+    ganhos_aplicar(m);
+    ganhos_salvar();
+}
+
+void mq_ganhos_padrao(mq_malha_t m)
+{
+    if (m >= MQ_MALHAS) return;
+    ganhos[m] = GANHOS_PADRAO[m];
+    ganhos_aplicar(m);
+    ganhos_salvar();
+}
+
+// Autoajuste. Pedido pelo WS, executado pelo laço: quem inicializa o relé é quem
+// tem a medida na mão, e o estado do relé fica todo de um core só.
+#define CAL_T_ALTO 0.5f          // relé da caldeira: 0/50%. Com 100% passa ~6 °C do
+                                 // alvo a cada ciclo; com 50% fica em ~2 °C
+#define CAL_T_HIST 0.2f
+#define CAL_T_MAX_S (45 * 60)
+#define CAL_T_FOLGA 10.0f        // passou disto acima do alvo, algo está errado
+#define CAL_P_ALVO 6.0f          // longe do teto de 13 bar mesmo com o relé passando
+#define CAL_P_ALTO 0.8f
+#define CAL_P_HIST 0.3f          // a ondulação da bomba fica abaixo disto
+#define CAL_P_MAX_S 40.0f
+#define CAL_P_SUBIR_S 12.0f      // sem chegar no alvo até aqui: não há puck
+// Período crítico abaixo disto não é a planta, é ruído cruzando a histerese.
+// A caldeira real leva minutos por ciclo; o simulador, sem atraso térmico,
+// dava 0,4 s e "ok" — foi assim que este piso apareceu.
+#define CAL_T_TU_MIN 10.0f
+#define CAL_P_TU_MIN 0.1f
+
+static volatile int cal_pedido;           // 0 nada, 1+m iniciar malha m, -1 parar
+static int cal_malha;
+static at_t cal_at;
+static float cal_s;
+static const char *cal_fim = "";
+
+void mq_cal_iniciar(mq_malha_t m) { if (m < MQ_MALHAS) cal_pedido = 1 + m; }
+void mq_cal_parar(void) { cal_pedido = -1; }
+
+static void cal_acabar(const char *fim)
+{
+    cal_on = false;
+    cal_fim = fim;
+    ESP_LOGW(TAG, "autoajuste de %s acabou: %s", cal_malha ? "pressão" : "temperatura", fim);
+}
+
+static void cal_passo(const hal_ent_t *e, float dt_s)
+{
+    int ped = cal_pedido;
+    cal_pedido = 0;
+    if (ped == -1 && cal_on) cal_acabar("manual");
+    if (ped > 0 && !cal_on) {
+        if (estado != MQ_OCIOSO) { cal_fim = "maq"; return; }
+        // No simulado o resultado seria do modelo, e gravaria por cima dos ganhos
+        // da máquina real — a NVS é uma só.
+        if (hal_modo() == HAL_SIM) { cal_fim = "sim"; return; }
+        teste_ate_us = 0;                    // um dono por atuador
+        cal_malha = ped - 1;
+        cal_s = 0.0f;
+        cal_fim = "";
+        cal_on = true;
+        if (cal_malha == MQ_MALHA_TEMP)
+            at_iniciar(&cal_at, perfil.setpoint_c, CAL_T_ALTO, 0.0f, CAL_T_HIST, 1, 2, t_boiler);
+        else
+            at_iniciar(&cal_at, CAL_P_ALVO, CAL_P_ALTO, 0.0f, CAL_P_HIST, 1, 3, pressao);
+        ESP_LOGW(TAG, "autoajuste de %s começou", cal_malha ? "pressão" : "temperatura");
+    }
+    if (!cal_on) return;
+
+    cal_s += dt_s;
+    if (hal_modo() == HAL_SIM) { cal_acabar("sim"); return; }
+    bool temp = cal_malha == MQ_MALHA_TEMP;
+    if (estado != MQ_OCIOSO) { cal_acabar("maq"); return; }
+    if (temp) {
+        if (t_boiler > cal_at.alvo + CAL_T_FOLGA) { cal_acabar("passou"); return; }
+        if (cal_s > CAL_T_MAX_S) { cal_acabar("tempo"); return; }
+    } else {
+        if (e->falha_press) { cal_acabar("press_faixa"); return; }
+        if (nivel_mm > NIVEL_SECO_MM) { cal_acabar("sem_agua"); return; }
+        if (cal_s > CAL_P_MAX_S) { cal_acabar("tempo"); return; }
+        if (cal_at.subidas == 0 && cal_at.ligado && cal_s > CAL_P_SUBIR_S) {
+            cal_acabar("sem_pressao"); return;
+        }
+    }
+
+    float u = at_passo(&cal_at, temp ? t_boiler : pressao, dt_s);
+    // Caldeira fria até o alvo a 100%: o relé de 50% levaria o dobro do tempo, e o
+    // primeiro ciclo é descartado de qualquer jeito.
+    if (temp && cal_at.subidas == 0 && cal_at.ligado) u = 1.0f;
+    if (temp) saida.ssr = u; else saida.bomba = u;
+
+    if (!at_pronto(&cal_at)) return;
+
+    float ku, tu, kp, ki, kd;
+    at_resultado(&cal_at, &ku, &tu);
+    // Caldeira com PID (a derivada filtrada a 2 s segura o sobressinal); pressão
+    // com PI — a ondulação de 60 Hz da bomba faria a derivada trabalhar contra.
+    (temp ? at_ganhos_pid : at_ganhos_pi)(ku, tu, &kp, &ki, &kd);
+    if (tu < (temp ? CAL_T_TU_MIN : CAL_P_TU_MIN) ||
+        !(kp > 0.0f && kp < 10.0f && ki >= 0.0f && ki < 10.0f && kd >= 0.0f && kd < 100.0f)) {
+        cal_acabar("invalido");
+        return;
+    }
+    if (temp) saida.ssr = 0.0f; else saida.bomba = 0.0f;
+    ganhos[cal_malha] = (mq_ganhos_t){ .kp = kp, .ki = ki, .kd = kd, .ku = ku, .tu = tu,
+                                       .origem = MQ_GANHO_CALIBRADO };
+    ganhos_aplicar(cal_malha);
+    ganhos_salvar();
+    ESP_LOGW(TAG, "autoajuste: Ku=%.4f Tu=%.2f s → kp=%.4f ki=%.5f kd=%.4f", ku, tu, kp, ki, kd);
+    cal_acabar("ok");
 }
 
 // ---------------------------------------------------------------- proteções
@@ -376,13 +559,15 @@ void mq_passo(float dt_s)
     // Sobrepressão no teste vira FALHA de verdade, igual a no shot. Só com o sensor
     // válido: sem ele não há leitura para julgar, e o teste segue com o teto de
     // tempo e a válvula de alívio da máquina — o mesmo que a máquina de fábrica.
-    if (teste_ate_us && !e.falha_press && pressao > P_MAX && estado != MQ_FALHA) {
+    if ((teste_ate_us || (cal_on && cal_malha == MQ_MALHA_PRESS)) &&
+        !e.falha_press && pressao > P_MAX && estado != MQ_FALHA) {
         falha = "press_alta";
         estado = MQ_FALHA;
     }
 
     if (estado == MQ_FALHA) {
         if (teste_ate_us) { teste_ate_us = 0; teste_fim = falha; }
+        if (cal_on) { cal_on = false; cal_fim = falha; }
         saida.ssr = 0.0f;
         saida.bomba = 0.0f;
         hal_escrever(&saida);
@@ -540,6 +725,8 @@ void mq_passo(float dt_s)
         else saida.bomba = teste_duty;
     }
 
+    cal_passo(&e, dt_s);
+
     // ---- log em cartão, a 20 Hz. Grava DEPOIS do controle para a linha refletir
     //      a saída que de fato foi aplicada neste passo, não a do passo anterior.
     if (extraindo()) {
@@ -580,4 +767,9 @@ void mq_publicar(mq_estado_pub_t *o)
     o->teste_s = resta > 0 ? (float)resta / 1e6f : 0.0f;
     o->teste_fim = teste_fim;
     o->teste_ssr = teste_ssr;
+    o->cal_on = cal_on;
+    o->cal_malha = cal_malha;
+    o->cal_passo = cal_on ? cal_at.subidas : 0;
+    o->cal_total = cal_at.descartar + cal_at.medir + 1;
+    o->cal_fim = cal_fim;
 }

@@ -50,6 +50,12 @@ typedef struct {
     const char *motivo;
     float teste_s;         // segundos restantes do teste de bancada; 0 = parado
     bool  teste_ssr;       // o teste é (ou foi) do SSR; false = da bomba
+    // autoajuste: rodando, de qual malha, subidas do relé até agora / necessárias,
+    // e por que o último acabou ("ok", "manual", "maq", "tempo", código de falha...)
+    bool  cal_on;
+    int   cal_malha;
+    int   cal_passo, cal_total;
+    const char *cal_fim;
     const char *teste_fim; // por que o último teste acabou: "tempo", "manual", ...
 } mq_estado_pub_t;
 
@@ -77,3 +83,23 @@ void mq_limpar_falha(void);
 #define MQ_TESTE_SSR_MAX_S 60.0f
 void mq_teste(bool ssr, float duty, float s);
 void mq_teste_parar(void);
+
+// ---- ganhos dos PIDs e autoajuste por relé (autotune.c)
+//
+// Os ganhos vivem na NVS: sobrevivem a reboot e a OTA. `origem` diz de onde vieram
+// — quem olha um kp precisa saber se foi medido nesta caldeira ou digitado.
+typedef enum { MQ_MALHA_TEMP = 0, MQ_MALHA_PRESS, MQ_MALHAS } mq_malha_t;
+typedef enum { MQ_GANHO_PADRAO = 0, MQ_GANHO_CALIBRADO, MQ_GANHO_MANUAL } mq_origem_t;
+typedef struct {
+    float kp, ki, kd;
+    float ku, tu;          // da última calibração; 0 = nunca calibrado
+    uint8_t origem;        // mq_origem_t
+} mq_ganhos_t;
+void mq_ganhos_get(mq_malha_t m, mq_ganhos_t *g);
+void mq_ganhos_set(mq_malha_t m, float kp, float ki, float kd);   // limita e salva
+void mq_ganhos_padrao(mq_malha_t m);
+// Só com a máquina DESLIGADA: a calibração é dona do atuador enquanto roda.
+// Temperatura: relé em torno do setpoint, 10 a 20 min. Pressão: relé em 6 bar,
+// ~20 s, com porta-filtro e café (cesta cega não escoa — não oscila).
+void mq_cal_iniciar(mq_malha_t m);
+void mq_cal_parar(void);
