@@ -161,6 +161,7 @@ table.dbg .saude{text-align:right;white-space:nowrap;font-size:.64rem}
 .bteste .acoes{display:flex;gap:.4rem;margin-top:.5rem}
 .bteste .acoes .acao{flex:1}
 .bteste .aviso{color:var(--brasa)}
+.bteste .seg{grid-template-columns:1fr 1fr;margin-bottom:.45rem}
 .bteste .barra{height:.3rem;border-radius:1rem;background:var(--linha);overflow:hidden;margin-top:.45rem}
 .bteste .barra i{display:block;height:100%;width:0;background:var(--crema)}
 #esT{font-family:ui-monospace,Menlo,monospace;font-size:.6rem;color:var(--fosco);margin-left:auto}
@@ -554,10 +555,14 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
     <div>
       <table class="dbg"><tbody id="dLista"></tbody></table>
       <p class="dica" id="dScan"></p>
-      <!-- Teste de bomba: duty fixo por tempo curto, fora de shot. O firmware é
+      <!-- Teste de bancada, bomba ou SSR: duty fixo por tempo curto. O firmware é
            quem garante os limites; a página só pede e mostra o que ele aplicou. -->
       <div class="bteste" id="bTeste">
-        <div class="tit"><span data-i18n="pt_title">Pump test</span><s id="btEst">&mdash;</s></div>
+        <div class="tit"><span data-i18n="pt_title">Bench test</span><s id="btEst">&mdash;</s></div>
+        <div class="seg" id="btAlvo" role="radiogroup">
+          <button class="on" data-a="bomba" role="radio" aria-checked="true" data-i18n="pt_pump">Pump</button>
+          <button data-a="ssr" role="radio" aria-checked="false" data-i18n="pt_ssr">Heater (SSR)</button>
+        </div>
         <div class="sl"><label for="sBtD"><span data-i18n="pt_duty">Duty</span><b id="lBtD">30%</b></label>
           <input type="range" id="sBtD" min="0" max="100" step="5" value="30"></div>
         <div class="sl"><label for="sBtS"><span data-i18n="pt_time">Duration</span><b id="lBtS">3,0 s</b></label>
@@ -568,7 +573,7 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
           <button class="acao parar" id="btStop" data-i18n="pt_stop">STOP</button>
         </div>
         <p class="dica" id="btAviso"></p>
-        <p class="dica" data-i18n="pt_tip"></p>
+        <p class="dica" id="btDica" data-i18n="pt_tip"></p>
       </div>
     </div>
     <!-- Osciloscópio: o que chega pelo WebSocket, guardado só no navegador. A placa
@@ -747,10 +752,13 @@ en:{
  scope_tip:'Telemetry at ~30 frames/s, kept only in this browser. Hover or drag across the traces to read every channel at the same instant. Gaps mean no valid reading.',
  c_pr:'Pressure',c_pv:'ADS A0 raw',c_tc:'PT100',c_to:'PT100 raw',c_ssr:'SSR duty',c_bmb:'Pump command',
  c_psm:'PSM applied',c_zc:'Zero-cross',c_um:'Reservoir',c_uh:'Echo rate',c_bme:'BME680',c_rssi:'Wi-Fi',c_dt:'Frame gap',
- pt_title:'Pump test',pt_duty:'Duty',pt_time:'Duration',pt_run:'Run',pt_stop:'STOP',
+ pt_title:'Bench test',pt_pump:'Pump',pt_ssr:'Heater (SSR)',pt_duty:'Duty',pt_time:'Duration',pt_run:'Run',pt_stop:'STOP',
  pt_tip:'Ignores boiler temperature and water level, on purpose. The board still cuts it at 10 s, above 13 bar and on any fault. Esc stops. Dry pump: keep pulses short.',
  pt_idle:'stopped',pt_running:'running',pt_nozc:'No zero-cross: the pump will not respond.',
  pt_blocked:'Blocked: machine in fault or pulling a shot.',
+ pt_blocked_ssr:'Blocked: turn the machine off first (or clear the fault). With it on, the PID owns the heater.',
+ pt_tip_ssr:'Heats the boiler at a fixed duty, ignoring the PID. Machine must be off. The board stops it at 60 s, at the setpoint, and on any fault. Esc stops. Boiler must have water.',
+ pt_end_maq:'ended: machine turned on',pt_end_temp:'ended: reached setpoint',
  pt_end_tempo:'ended: time',pt_end_manual:'ended: stopped',pt_end_shot:'ended: shot started',pt_end_falha:'ended: fault',
  s_zc:'Pump dimmer (zero-cross)',s_nomains:'no mains on the dimmer',
  s_notbought:'not purchased',s_scan:'I²C scan',s_mode:'source',
@@ -807,10 +815,13 @@ pt:{
  scope_tip:'Telemetria a ~30 quadros/s, guardada só neste navegador. Passe ou arraste o cursor sobre os traços para ler todos os canais no mesmo instante. Buraco é leitura inválida.',
  c_pr:'Pressão',c_pv:'ADS A0 cru',c_tc:'PT100',c_to:'PT100 cru',c_ssr:'SSR (duty)',c_bmb:'Bomba (comando)',
  c_psm:'PSM aplicado',c_zc:'Zero-cross',c_um:'Reservatório',c_uh:'Taxa de ecos',c_bme:'BME680',c_rssi:'Wi-Fi',c_dt:'Intervalo de quadro',
- pt_title:'Teste de bomba',pt_duty:'Duty',pt_time:'Duração',pt_run:'Acionar',pt_stop:'PARAR',
+ pt_title:'Teste de bancada',pt_pump:'Bomba',pt_ssr:'Resistência (SSR)',pt_duty:'Duty',pt_time:'Duração',pt_run:'Acionar',pt_stop:'PARAR',
  pt_tip:'Ignora a temperatura da caldeira e o nível de água, de propósito. A placa ainda corta em 10 s, acima de 13 bar e em qualquer falha. Esc para. Bomba a seco: pulsos curtos.',
  pt_idle:'parada',pt_running:'acionada',pt_nozc:'Sem zero-cross: a bomba não vai responder.',
  pt_blocked:'Bloqueado: máquina em falha ou em shot.',
+ pt_blocked_ssr:'Bloqueado: desligue a máquina antes (ou limpe a falha). Ligada, quem manda na resistência é o PID.',
+ pt_tip_ssr:'Aquece a caldeira com duty fixo, sem o PID. Só com a máquina desligada. A placa corta em 60 s, ao chegar no setpoint e em qualquer falha. Esc para. A caldeira precisa ter água.',
+ pt_end_maq:'fim: máquina ligada',pt_end_temp:'fim: chegou no setpoint',
  pt_end_tempo:'fim: tempo',pt_end_manual:'fim: parada manual',pt_end_shot:'fim: shot começou',pt_end_falha:'fim: falha',
  s_zc:'Dimmer da bomba (zero-cross)',s_nomains:'sem rede no dimmer',
  s_notbought:'não comprada',s_scan:'varredura I²C',s_mode:'fonte',
@@ -1543,25 +1554,38 @@ btAv.onclick=function(){esAtivar(!mdbg.classList.contains('av'));};
 try{ if(localStorage.getItem('dbgAv')==='1')esAtivar(true); }catch(e){}
 
 /* ------------------------------------------------------- teste de bomba */
-var btTot=3;
+var btTot=3, btA='bomba';
+[].forEach.call(btAlvo.children,function(b){
+ b.onclick=function(){
+  btA=b.dataset.a;
+  [].forEach.call(btAlvo.children,function(o){o.classList.toggle('on',o===b);o.setAttribute('aria-checked',o===b);});
+  sBtS.max=btA==='ssr'?60:10;
+  if(+sBtS.value>+sBtS.max)sBtS.value=sBtS.max;
+  sBtS.oninput();
+  btDica.setAttribute('data-i18n',btA==='ssr'?'pt_tip_ssr':'pt_tip');
+  btDica.textContent=t(btDica.getAttribute('data-i18n'));
+ };
+});
 function fmtS(v){return (+v).toFixed(1).replace('.',idi==='pt'?',':'.')+' s';}
 sBtD.oninput=function(){lBtD.textContent=sBtD.value+'%';};
 sBtS.oninput=function(){lBtS.textContent=fmtS(sBtS.value);};
-btGo.onclick=function(){btTot=+sBtS.value;env('bomba teste '+(sBtD.value/100)+' '+sBtS.value);};
-btStop.onclick=function(){env('bomba parar');};
-// Esc para a bomba de qualquer lugar da página, com ou sem o diálogo aberto
+btGo.onclick=function(){btTot=+sBtS.value;env(btA+' teste '+(sBtD.value/100)+' '+sBtS.value);};
+btStop.onclick=function(){env('bomba parar');};   // para qualquer teste, bomba ou SSR
+// Esc para o teste de qualquer lugar da página, com ou sem o diálogo aberto
 addEventListener('keydown',function(e){if(e.key==='Escape')env('bomba parar');});
 function pintaTeste(m){
- var on=m.bt>0, bloq=m.est==='fault'||['pre','ramp','plateau','decline'].indexOf(m.est)>=0;
- btEst.textContent=on?t('pt_running')+' · '+fmtS(m.bt)+' · PSM '+(m.psm*100).toFixed(0)+'%'
-   :(!m.btf?t('pt_idle'):(['tempo','manual','shot'].indexOf(m.btf)>=0?t('pt_end_'+m.btf)
+ var on=m.bt>0, ssr=btA==='ssr',
+     bloq=m.est==='fault'||(ssr?m.on===1:['pre','ramp','plateau','decline'].indexOf(m.est)>=0);
+ btEst.textContent=on?t('pt_running')+' · '+fmtS(m.bt)+' · '+(m.bta?'SSR '+(m.ssr*100).toFixed(0)+'% · '
+     +m.tc.toFixed(1).replace('.',idi==='pt'?',':'.')+' °C':'PSM '+(m.psm*100).toFixed(0)+'%')
+   :(!m.btf?t('pt_idle'):(['tempo','manual','shot','maq','temp'].indexOf(m.btf)>=0?t('pt_end_'+m.btf)
      :t('pt_end_falha')+' — '+t(m.btf)));
  btEst.style.color=on?'var(--crema)':'';
  btBarra.style.width=on?Math.min(100,100*m.bt/btTot)+'%':'0';
  btGo.disabled=on||bloq;
  var av=[];
- if(bloq)av.push(t('pt_blocked'));
- if(!(m.zhz>110&&m.zhz<130))av.push(t('pt_nozc'));
+ if(bloq)av.push(t(ssr?'pt_blocked_ssr':'pt_blocked'));
+ if(!ssr&&!(m.zhz>110&&m.zhz<130))av.push(t('pt_nozc'));
  btAviso.textContent=av.join(' ');btAviso.className='dica'+(av.length?' aviso':'');
 }
 

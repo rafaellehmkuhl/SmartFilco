@@ -242,7 +242,14 @@ static bool extraindo(void)
     return estado >= MQ_PRE_INFUSAO && estado <= MQ_DECLINIO;
 }
 
-// ---------------------------------------------------- teste de bomba (bancada)
+// ------------------------------------------- teste de bomba ou SSR (bancada)
+//
+// Um teste por vez, num atuador só: `teste_ssr` diz qual. O SSR tem regras
+// próprias porque esquenta uma caldeira, não empurra água: só com a máquina
+// DESLIGADA (senão o PID e o teste disputam a resistência, e o integral acumula
+// dívida enquanto o teste manda), teto maior (a caldeira leva minutos para
+// mostrar alguma coisa) e corte ao chegar no setpoint — o teste nunca aquece
+// além do que a máquina ligada aqueceria.
 //
 // Prazo em RELÓGIO ABSOLUTO, não somando dt: o laço limita dt a 0,2 s por passo,
 // então um engasgo de 2 s contaria só 0,2 — e o teste duraria mais do que o
@@ -253,23 +260,28 @@ static bool extraindo(void)
 // válido com duty velho. int64 rasgado no pior caso dá um prazo absurdo por um
 // passo — e o teto abaixo corta pelo relógio do PRÓPRIO laço também.
 static volatile float teste_duty;
+static volatile bool teste_ssr;
 static volatile int64_t teste_ate_us;   // 0 = sem teste
 static int64_t teste_ini_us;
 static const char *teste_fim = "";
 
-void mq_teste_bomba(float duty, float s)
+void mq_teste(bool ssr, float duty, float s)
 {
     if (estado == MQ_FALHA || extraindo()) return;
+    if (ssr && estado != MQ_OCIOSO) return;
     if (!(duty > 0.0f)) duty = 0.0f;     // pega NaN
     if (duty > 1.0f) duty = 1.0f;
     if (!(s > 0.0f)) return;
-    if (s > MQ_TESTE_MAX_S) s = MQ_TESTE_MAX_S;
+    float teto = ssr ? MQ_TESTE_SSR_MAX_S : MQ_TESTE_MAX_S;
+    if (s > teto) s = teto;
+    teste_ate_us = 0;        // para o anterior antes de trocar de atuador
+    teste_ssr = ssr;
     teste_duty = duty;
     teste_fim = "";
     int64_t agora = esp_timer_get_time();
     teste_ini_us = agora;
     teste_ate_us = agora + (int64_t)(s * 1e6f);
-    ESP_LOGW(TAG, "teste de bomba: %.0f%% por %.1f s", duty * 100.0f, s);
+    ESP_LOGW(TAG, "teste de %s: %.0f%% por %.1f s", ssr ? "ssr" : "bomba", duty * 100.0f, s);
 }
 
 void mq_teste_parar(void)
@@ -511,19 +523,21 @@ void mq_passo(float dt_s)
         pid_zerar(&pid_press);
     }
 
-    // ---- teste de bomba: sobrepõe a saída da bomba, e só ela. Shot que começar
-    //      vence o teste — dois donos para o mesmo atuador não pode.
+    // ---- teste de bancada: sobrepõe a saída de UM atuador, e só ela. Quem
+    //      assumir o atuador de verdade vence o teste — shot pega a bomba, máquina
+    //      ligada pega o SSR. Dois donos para o mesmo atuador não pode.
     if (teste_ate_us) {
         int64_t agora = esp_timer_get_time();
-        if (extraindo()) {
-            teste_ate_us = 0; teste_fim = "shot";
-        } else if (agora >= teste_ate_us ||
-                   agora - teste_ini_us > (int64_t)(MQ_TESTE_MAX_S * 1e6f)) {
-            teste_ate_us = 0; teste_fim = "tempo";
-            saida.bomba = 0.0f;
-        } else {
-            saida.bomba = teste_duty;
-        }
+        float teto = teste_ssr ? MQ_TESTE_SSR_MAX_S : MQ_TESTE_MAX_S;
+        const char *fim = NULL;
+        if (teste_ssr && estado != MQ_OCIOSO) fim = "maq";
+        else if (!teste_ssr && extraindo()) fim = "shot";
+        else if (teste_ssr && t_boiler_cru >= perfil.setpoint_c) fim = "temp";
+        else if (agora >= teste_ate_us || agora - teste_ini_us > (int64_t)(teto * 1e6f)) fim = "tempo";
+
+        if (fim) { teste_ate_us = 0; teste_fim = fim; }
+        else if (teste_ssr) saida.ssr = teste_duty;
+        else saida.bomba = teste_duty;
     }
 
     // ---- log em cartão, a 20 Hz. Grava DEPOIS do controle para a linha refletir
@@ -565,4 +579,5 @@ void mq_publicar(mq_estado_pub_t *o)
     int64_t resta = teste_ate_us ? teste_ate_us - esp_timer_get_time() : 0;
     o->teste_s = resta > 0 ? (float)resta / 1e6f : 0.0f;
     o->teste_fim = teste_fim;
+    o->teste_ssr = teste_ssr;
 }

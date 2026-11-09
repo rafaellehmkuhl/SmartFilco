@@ -680,7 +680,7 @@ static int montar_json(char *buf, size_t tam)
                   // manda escrever código, "não respondeu" manda conferir fio, e
                   // trocar uma pela outra manda procurar no lugar errado.
                   "\"drv_t\":1,\"drv_g\":0,\"zhz\":%.1f,\"zn\":%lu,\"psm\":%.3f,"
-                  "\"bt\":%.1f,\"btf\":\"%s\"}}",
+                  "\"bt\":%.1f,\"btf\":\"%s\",\"bta\":%d}}",
                   NOMES[m.estado], m.t_boiler, m.pressao, m.massa, m.vazao,
                   m.nivel_pct, m.alvo_pressao, m.ssr, m.bomba, m.shot_s,
                   m.falha ? m.falha : "", m.motivo ? m.motivo : "", mq_ligada() ? 1 : 0,
@@ -692,7 +692,7 @@ static int montar_json(char *buf, size_t tam)
                   tmed.celsius, tmed.ohms, tmed.valida ? 1 : 0, tmed.falha_txt,
                   max_pronto() ? 1 : 0,
                   ad.zc_hz, (unsigned long)ad.zc_total, ad.psm_duty,
-                  m.teste_s, m.teste_fim ? m.teste_fim : ""), tam);
+                  m.teste_s, m.teste_fim ? m.teste_fim : "", m.teste_ssr ? 1 : 0), tam);
     return p;
 }
 
@@ -907,6 +907,7 @@ static esp_err_t h_p(httpd_req_t *req)
 //
 //   brilho 80         shot start | shot stop      falha limpar
 //   sim on | off      set <chave> <valor>         reset
+//   bomba teste <duty 0..1> <s> | ssr teste <duty 0..1> <s>    bomba parar | ssr parar
 //
 // ⚠️ Todo valor é limitado NO SERVIDOR. O cliente não define teto — vale para o
 // brilho desde o começo e agora vale para setpoint, alvo de peso e pressão, que
@@ -941,9 +942,11 @@ static void ws_comando(char *s)
     if (strncmp(s, "falha limpar", 12) == 0) { mq_limpar_falha(); return; }
     {
         float duty, seg;
-        if (sscanf(s, "bomba teste %f %f", &duty, &seg) == 2) { mq_teste_bomba(duty, seg); return; }
+        if (sscanf(s, "bomba teste %f %f", &duty, &seg) == 2) { mq_teste(false, duty, seg); return; }
+        if (sscanf(s, "ssr teste %f %f", &duty, &seg) == 2) { mq_teste(true, duty, seg); return; }
     }
-    if (strncmp(s, "bomba parar", 11) == 0) { mq_teste_parar(); return; }
+    // um teste por vez: qualquer um dos dois para o que estiver rodando
+    if (strncmp(s, "bomba parar", 11) == 0 || strncmp(s, "ssr parar", 9) == 0) { mq_teste_parar(); return; }
     if (strncmp(s, "sim on", 6) == 0) { hal_set_modo(HAL_SIM); return; }
     if (strncmp(s, "sim off", 7) == 0) { hal_set_modo(HAL_REAL); return; }
     if (strncmp(s, "reset", 5) == 0) { sim_reset(); return; }
