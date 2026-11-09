@@ -6,7 +6,7 @@ void at_iniciar(at_t *a, float alvo, float alto, float baixo, float hist,
                 int descartar, int medir, float y0)
 {
     *a = (at_t){ .alvo = alvo, .alto = alto, .baixo = baixo, .hist = hist,
-                 .descartar = descartar, .medir = medir,
+                 .descartar = descartar, .medir = medir, .preaq = -1e30f,
                  .ligado = y0 < alvo, .y_max = y0, .y_min = y0 };
 }
 
@@ -32,6 +32,7 @@ float at_passo(at_t *a, float y, float dt)
         a->t_subida = a->t;
         a->y_max = a->y_min = y;
     }
+    if (a->subidas == 0 && a->ligado && y < a->preaq) return 1.0f;
     return a->ligado ? a->alto : a->baixo;
 }
 

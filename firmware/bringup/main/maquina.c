@@ -428,21 +428,27 @@ bool mq_ignorando_nivel(void) { return ignora_nivel; }
 
 // Autoajuste. Pedido pelo WS, executado pelo laço: quem inicializa o relé é quem
 // tem a medida na mão, e o estado do relé fica todo de um core só.
-#define CAL_T_ALTO 0.5f          // relé da caldeira: 0/50%. Com 100% passa ~6 °C do
-                                 // alvo a cada ciclo; com 50% fica em ~2 °C
+// Caldeira real (09/11/2026): aquecendo a 100% e cortando NO setpoint, subiu mais
+// ~19 °C depois do corte e passou de 110. O calor guardado na resistência e na
+// água leva dezenas de segundos para chegar ao sensor. Daí: 100% só até 20 °C
+// abaixo, e relé de 0/25% — a amplitude da oscilação acompanha a potência.
+#define CAL_T_ALTO 0.25f
+#define CAL_T_PREAQ 20.0f
 #define CAL_T_HIST 0.2f
-#define CAL_T_MAX_S (45 * 60)
+#define CAL_T_MAX_S (60 * 60)    // relé fraco = ciclos longos
 #define CAL_T_FOLGA 10.0f        // passou disto acima do alvo, algo está errado
 #define CAL_P_ALVO 6.0f          // longe do teto de 13 bar mesmo com o relé passando
 #define CAL_P_ALTO 0.8f
-#define CAL_P_HIST 0.3f          // a ondulação da bomba fica abaixo disto
+#define CAL_P_HIST 0.5f          // acima da ondulação da bomba, que com 0,3 chaveava sozinha
 #define CAL_P_MAX_S 40.0f
 #define CAL_P_SUBIR_S 12.0f      // sem chegar no alvo até aqui: não há puck
 // Período crítico abaixo disto não é a planta, é ruído cruzando a histerese.
 // A caldeira real leva minutos por ciclo; o simulador, sem atraso térmico,
-// dava 0,4 s e "ok" — foi assim que este piso apareceu.
+// dava 0,4 s e "ok". Na pressão, um puck real leva segundos para despressurizar;
+// a primeira calibração real deu 0,2 s com o circuito sem vazão — era a
+// ondulação da bomba chaveando o relé, e passou pelo piso antigo de 0,1 s.
 #define CAL_T_TU_MIN 10.0f
-#define CAL_P_TU_MIN 0.1f
+#define CAL_P_TU_MIN 0.6f
 
 static volatile int cal_pedido;           // 0 nada, 1+m iniciar malha m, -1 parar
 static int cal_malha;
@@ -475,9 +481,10 @@ static void cal_passo(const hal_ent_t *e, float dt_s)
         cal_s = 0.0f;
         cal_fim = "";
         cal_on = true;
-        if (cal_malha == MQ_MALHA_TEMP)
+        if (cal_malha == MQ_MALHA_TEMP) {
             at_iniciar(&cal_at, perfil.setpoint_c, CAL_T_ALTO, 0.0f, CAL_T_HIST, 1, 2, t_boiler);
-        else
+            at_preaquecer(&cal_at, perfil.setpoint_c - CAL_T_PREAQ);
+        } else
             at_iniciar(&cal_at, CAL_P_ALVO, CAL_P_ALTO, 0.0f, CAL_P_HIST, 1, 3, pressao);
         ESP_LOGW(TAG, "autoajuste de %s começou", cal_malha ? "pressão" : "temperatura");
     }
@@ -500,9 +507,6 @@ static void cal_passo(const hal_ent_t *e, float dt_s)
     }
 
     float u = at_passo(&cal_at, temp ? t_boiler : pressao, dt_s);
-    // Caldeira fria até o alvo a 100%: o relé de 50% levaria o dobro do tempo, e o
-    // primeiro ciclo é descartado de qualquer jeito.
-    if (temp && cal_at.subidas == 0 && cal_at.ligado) u = 1.0f;
     if (temp) saida.ssr = u; else saida.bomba = u;
 
     if (!at_pronto(&cal_at)) return;

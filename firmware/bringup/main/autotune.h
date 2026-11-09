@@ -13,6 +13,7 @@
 
 typedef struct {
     float alvo, alto, baixo, hist;
+    float preaq;               // antes da 1ª subida, abaixo disto a saída é 100%
     int descartar, medir;      // ciclos ignorados no começo / ciclos que contam
     bool ligado;
     int subidas;               // quantas vezes a saída foi para `alto`
@@ -23,6 +24,10 @@ typedef struct {
 
 void at_iniciar(at_t *a, float alvo, float alto, float baixo, float hist,
                 int descartar, int medir, float y0);
+// Planta lenta partindo longe do alvo: 100% até `ate`, depois o relé normal.
+// Tem que parar BEM antes do alvo — o calor guardado continua chegando ao sensor
+// depois do corte (na caldeira real, ~19 °C a partir de 100%).
+static inline void at_preaquecer(at_t *a, float ate) { a->preaq = ate; }
 // Avança um passo e devolve a saída a aplicar.
 float at_passo(at_t *a, float y, float dt);
 bool at_pronto(const at_t *a);

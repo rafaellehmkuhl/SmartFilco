@@ -57,17 +57,25 @@ static float pid(float kp, float ki, float kd, float tau_d, float *i, float *m_a
 static int falhas;
 #define CHECA(c, ...) do { if (!(c)) { printf("✗ " __VA_ARGS__); printf("\n"); falhas++; } } while (0)
 
-static void caso(const char *nome, planta_t pl, float alvo, float alto, float hist,
+static void caso(const char *nome, planta_t pl, float alvo, float alto, float hist, float preaq,
                  float t_max, float x0, int pi, float tau_d, float tol_sobre, float t_assentar)
 {
     planta_t p = pl;
     at_t a;
-    float y = p.y;
+    float y = p.y, pico_cal = y;
     at_iniciar(&a, alvo, alto, 0.0f, hist, 1, 2, y);
+    at_preaquecer(&a, preaq);
     float t = 0;
-    while (!at_pronto(&a) && t < t_max) { y = planta_passo(&p, at_passo(&a, y, DT)); t += DT; }
+    while (!at_pronto(&a) && t < t_max) {
+        y = planta_passo(&p, at_passo(&a, y, DT)); t += DT;
+        if (y > pico_cal) pico_cal = y;
+    }
     CHECA(at_pronto(&a), "%s: relé não fechou 3 ciclos em %.0f s", nome, t_max);
     if (!at_pronto(&a)) return;
+    // O firmware cancela a 10 acima do alvo. A própria calibração tem que ficar
+    // longe disso, senão ela se cancela — foi o que aconteceu na caldeira real.
+    printf("  %-9s calibração levou %.0f s e chegou a %.2f acima do alvo\n", nome, t, pico_cal - alvo);
+    CHECA(pico_cal - alvo < 8.0f, "%s: a calibração passou %.1f do alvo", nome, pico_cal - alvo);
 
     float ku, tu, kp, ki, kd;
     at_resultado(&a, &ku, &tu);
@@ -91,12 +99,25 @@ int main(void)
 {
     srand(1);
     planta_t caldeira, pressao;
-    // 0,5 °C/s a 100%; perda que pede ~12% para segurar 93 °C; atraso 15 s; sensor 20 s
-    planta_iniciar(&caldeira, 0.5f, 0.5f * 0.12f / 68.0f, 25.0f, 15.0f, 20.0f, 60.0f);
-    caso("caldeira", caldeira, 93.0f, 0.5f, 0.2f, 3600, 25.0f, 0, 2.0f, 1.5f, 1200);
+    // 0,5 °C/s a 100%; perda que pede ~12% para segurar 93 °C; atraso 20 s; sensor 35 s.
+    // Confere antes que a planta é tão lenta quanto a caldeira real: a 100% até
+    // 93 e corte, a real subiu ~19 °C além (09/11/2026).
+    planta_iniciar(&caldeira, 0.5f, 0.5f * 0.12f / 68.0f, 25.0f, 20.0f, 35.0f, 60.0f);
+    {
+        planta_t c = caldeira; float y = c.y, pico = 0; int corte = 0;
+        for (float t = 0; t < 1200; t += DT) {
+            if (y >= 93.0f) corte = 1;
+            y = planta_passo(&c, corte ? 0.0f : 1.0f);
+            if (y > pico) pico = y;
+        }
+        printf("  planta: 100%% até 93 °C e corte → pico %.1f °C\n", pico);
+        CHECA(pico - 93.0f > 16.0f, "planta da caldeira rápida demais: passou só %.1f", pico - 93.0f);
+    }
+    // mesmos números de maquina.c: relé 0/25%, 100% até 20 °C abaixo, histerese 0,2
+    caso("caldeira", caldeira, 93.0f, 0.25f, 0.2f, 93.0f - 20.0f, 3600, 25.0f, 0, 2.0f, 1.5f, 1200);
     // pressão: 12 bar/s a 100%, escoa pelo puck, 0,3 s de atraso, sensor rápido
     planta_iniciar(&pressao, 12.0f, 1.2f, 0.0f, 0.3f, 0.05f, 0.0f);
-    caso("pressão", pressao, 6.0f, 0.8f, 0.3f, 60, 0.0f, 1, 0.05f, 1.0f, 15);
+    caso("pressão", pressao, 6.0f, 0.8f, 0.5f, -1e30f, 60, 0.0f, 1, 0.05f, 1.0f, 15);
 
     // Ku pela fórmula 4d/(πa), e o sentido da correção de histerese: com ε maior,
     // a mesma amplitude medida significa uma planta de ganho crítico MAIOR.
