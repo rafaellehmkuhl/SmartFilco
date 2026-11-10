@@ -29,6 +29,10 @@
   font-family:ui-sans-serif,system-ui,sans-serif;letter-spacing:.04em}
 .acao:hover{filter:brightness(1.08)}
 .acao.parar{background:var(--brasa);color:#fff}
+.destravar{background:none;border:1px dashed var(--linha);color:var(--fosco);border-radius:.4rem;
+ padding:.35rem .5rem;margin-top:auto;width:100%;font:inherit;font-size:.8rem;cursor:pointer}
+.destravar.on{border-color:var(--brasa);color:var(--brasa)}
+.perfil .destravar:not([hidden])+.acao{margin-top:.4rem}
 .acao[disabled]{background:var(--linha);color:var(--fosco);cursor:not-allowed}
 .cfg{background:none;border:1px solid var(--linha);color:var(--cinza);
   border-radius:.4rem;width:2rem;height:1.8rem;font-size:.9rem;cursor:pointer;line-height:1}
@@ -558,6 +562,7 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
     </div>
   </div>
 
+  <button class="destravar" id="btDestravar" hidden data-i18n="unlock">Unlock: pull outside temperature</button>
   <button class="acao" id="btShot" data-i18n="pull">Pull shot</button>
 </div>
 </div>
@@ -793,7 +798,7 @@ en:{
  peso:'weight target reached',tempo:'max time',manual:'stopped by hand',
  boiler:'Boiler',pump:'Pump',incup:'In cup',time:'Time',
  profile:'Profile',target:'Target',preinf:'Pre-infusion',plateau_l:'Plateau',
- decline_l:'Decline',pull:'Pull shot',stop:'Stop',
+ decline_l:'Decline',unlock:'Unlock: pull outside temperature',pull:'Pull shot',stop:'Stop',
  reservoir:'Reservoir',ambient:'Ambient',temperature:'temperature',
  humidity:'humidity',airpress:'air pressure',gas:'gas (VOC)',
  distance:'distance (median)',wrange:'window range',valid:'valid samples',
@@ -872,7 +877,7 @@ pt:{
  peso:'alvo de peso atingido',tempo:'tempo máximo',manual:'parado à mão',
  boiler:'Boiler',pump:'Bomba',incup:'Na xícara',time:'Tempo',
  profile:'Perfil',target:'Alvo',preinf:'Pré-infusão',plateau_l:'Platô',
- decline_l:'Declínio',pull:'Puxar shot',stop:'Parar',
+ decline_l:'Declínio',unlock:'Destravar: puxar fora da temperatura',pull:'Puxar shot',stop:'Parar',
  reservoir:'Reservatório',ambient:'Ambiente',temperature:'temperatura',
  humidity:'umidade',airpress:'pressão do ar',gas:'gás (VOC)',
  distance:'distância (mediana)',wrange:'faixa da janela',valid:'amostras válidas',
@@ -1846,7 +1851,9 @@ btLimpar.onclick=function(){env('falha limpar');};
 [].forEach.call(document.querySelectorAll('.chips button[data-f]'),function(b){
  b.onclick=function(){ env('set '+b.dataset.f+' '+(b.classList.toggle('on')?1:0)); };
 });
-btShot.onclick=function(){ env(btShot.dataset.on==='1'?'shot stop':'shot start'); };
+var destravado=false;
+btDestravar.onclick=function(){ destravado=!destravado; btDestravar.classList.toggle('on',destravado); };
+btShot.onclick=function(){ env(btShot.dataset.on==='1'?'shot stop':(destravado?'shot start force':'shot start')); };
 btPwr.onclick=function(){ env(btPwr.classList.contains('on')?'maq off':'maq on'); };
 
 /* ---------------------------------------------------------- perfil (+/-)
@@ -1913,7 +1920,12 @@ function pinta(d){
  // isso antes, em vez de deixar descobrir na xícara.
  // Só de PRONTA. Máquina em repouso ou ainda aquecendo não puxa shot — o botão
  // desabilitado diz isso antes de virar café ruim.
- btShot.disabled=falhou||(!ext&&m.est!=='ready');
+ // Fora da janela (aquecendo/esfriando), o operador pode destravar: overshoot
+ // de poucos décimos não deve custar horas de espera. Destrava vale por um shot.
+ var podeForcar=!falhou&&!ext&&m.est==='heat';
+ if(!podeForcar){destravado=false;btDestravar.classList.remove('on');}
+ btDestravar.hidden=!podeForcar;
+ btShot.disabled=falhou||(!ext&&m.est!=='ready'&&!(podeForcar&&destravado));
 
  vVazao.textContent=ext?m.q.toFixed(1)+' g/s':'';
  vMotivo.textContent=(m.est==='done'&&m.mot)?('· '+t(m.mot)):'';

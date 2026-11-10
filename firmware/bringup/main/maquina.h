@@ -69,7 +69,9 @@ void mq_publicar(mq_estado_pub_t *o);
 void mq_ligar(bool on);
 bool mq_ligada(void);
 
-void mq_shot_iniciar(void);
+// forcar: puxa mesmo fora da janela de temperatura (máquina ligada, aquecendo).
+// A decisão é do operador; o overshoot da caldeira leva muito tempo para assentar.
+void mq_shot_iniciar(bool forcar);
 void mq_shot_parar(void);
 void mq_perfil_get(mq_perfil_t *p);
 void mq_perfil_set(const mq_perfil_t *p);

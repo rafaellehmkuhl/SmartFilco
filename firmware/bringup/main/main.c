@@ -952,7 +952,7 @@ static void ws_comando(char *s)
     }
     if (strncmp(s, "maq on", 6) == 0) { mq_ligar(true); return; }
     if (strncmp(s, "maq off", 7) == 0) { mq_ligar(false); return; }
-    if (strncmp(s, "shot start", 10) == 0) { mq_shot_iniciar(); return; }
+    if (strncmp(s, "shot start", 10) == 0) { mq_shot_iniciar(strstr(s, "force") != NULL); return; }
     if (strncmp(s, "shot stop", 9) == 0) { mq_shot_parar(); return; }
     if (strncmp(s, "falha limpar", 12) == 0) { mq_limpar_falha(); return; }
     {

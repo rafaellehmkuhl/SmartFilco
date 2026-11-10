@@ -215,14 +215,14 @@ void mq_ligar(bool on)
 
 bool mq_ligada(void) { return estado != MQ_OCIOSO && estado != MQ_FALHA; }
 
-void mq_shot_iniciar(void)
+void mq_shot_iniciar(bool forcar)
 {
     if (estado == MQ_FALHA) return;
     // Deixar puxar shot com a máquina fria é como o painel mostrar número
     // inventado: tecnicamente funciona e o resultado é lixo.
     // Só de PRONTA. Antes aceitava de OCIOSO para facilitar teste, e isso deixava
     // puxar shot com a máquina fria — café ruim de forma silenciosa.
-    if (estado != MQ_PRONTA) return;
+    if (estado != MQ_PRONTA && !(forcar && estado == MQ_AQUECENDO)) return;
     massa_ini = massa;         // tara: o que já está na balança não conta
     shot_s = 0.0f;
     t_log = 0.0f;
