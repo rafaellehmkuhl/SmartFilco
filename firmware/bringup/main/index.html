@@ -281,6 +281,7 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
 .trilho b{position:absolute;left:0;right:0;top:50%;z-index:2;transform:translateY(-50%);
   text-align:center;font-size:.95rem;font-weight:500;
   text-shadow:0 1px 4px #000,0 0 10px #000}
+.trilho b.txt{font-size:.6rem;color:var(--cinza)}  /* palavra não cabe no trilho no tamanho do número */
 .trilho.ruim{opacity:.3}
 .nivel .cm{position:absolute;left:0;right:0;bottom:.43rem;z-index:2;text-align:center;
   font-size:.58rem;color:var(--fosco);font-variant-numeric:tabular-nums;
@@ -734,7 +735,7 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
 
 <div class="modal" id="modal" role="dialog">
   <div class="mcab" id="mcab">
-    <span class="rot"><span data-i18n="simulation">Simulation</span> <s data-i18n="bench">bench</s></span>
+    <span class="rot" data-i18n="settings_t">Settings</span>
     <button class="fechar" id="btFechar" aria-label="close">&times;</button>
   </div>
   <div class="mcorpo">
@@ -817,7 +818,7 @@ en:{
  peso:'weight target reached',tempo:'max time',manual:'stopped by hand',
  boiler:'Boiler',pump:'Pump',incup:'In cup',time:'Time',
  profile:'Profile',target:'Target',preinf:'Pre-infusion',plateau_l:'Plateau',
- shot_sec:'Shot',aj_tmax:'Time limit',aj_jan:'Ready window ±',aj_rampa:'Ramp to plateau',aj_decf:'Decline starts at (of target)',aj_decs:'Decline duration',aj_boost:'Heater during shot',aj_padrao:'apply defaults',aj_tip:'Saved on the machine. Heater during shot: minimum heater power while pulling, only below the setpoint — cold water entering cools the boiler faster than the PID reacts. Without a scale the shot stops at the time limit.',decline_l:'Decline',unlock:'Unlock: pull outside temperature',pull:'Pull shot',stop:'Stop',
+ settings_t:'Settings',shot_sec:'Shot',aj_tmax:'Time limit',aj_jan:'Ready window ±',aj_rampa:'Ramp to plateau',aj_decf:'Decline starts at (of target)',aj_decs:'Decline duration',aj_boost:'Heater during shot',aj_padrao:'apply defaults',aj_tip:'Saved on the machine. Heater during shot: minimum heater power while pulling, only below the setpoint — cold water entering cools the boiler faster than the PID reacts. Without a scale the shot stops at the time limit.',decline_l:'Decline',unlock:'Unlock: pull outside temperature',pull:'Pull shot',stop:'Stop',
  reservoir:'Reservoir',ambient:'Ambient',temperature:'temperature',
  humidity:'humidity',airpress:'air pressure',gas:'gas (VOC)',
  distance:'distance (median)',wrange:'window range',valid:'valid samples',
@@ -828,7 +829,7 @@ en:{
  s_filt:'filtered',s_raw:'raw',
  recorded:'Recorded shots',noshots:'No shots on the card yet.',
  card:'card',free:'MB free',nocard:'no card',noresp:'card did not respond',
- simulation:'Simulation',bench:'bench',datasource:'Data source',
+ datasource:'Data source',
  simulated:'simulated',realhw:'real hardware',world:'World',grind:'Grind',
  element:'Element',timespeed:'Time speed',injectfault:'Inject fault',
  f_probe:'probe open',f_press:'pressure out of range',f_water:'empty reservoir',
@@ -896,7 +897,7 @@ pt:{
  peso:'alvo de peso atingido',tempo:'tempo máximo',manual:'parado à mão',
  boiler:'Boiler',pump:'Bomba',incup:'Na xícara',time:'Tempo',
  profile:'Perfil',target:'Alvo',preinf:'Pré-infusão',plateau_l:'Platô',
- shot_sec:'Shot',aj_tmax:'Tempo máximo',aj_jan:'Janela de pronta ±',aj_rampa:'Rampa até o platô',aj_decf:'Declínio começa em (do alvo)',aj_decs:'Duração do declínio',aj_boost:'Resistência no shot',aj_padrao:'aplicar padrões',aj_tip:'Gravado na máquina. Resistência no shot: potência mínima durante a extração, só abaixo do setpoint — a água fria entrando esfria a caldeira mais rápido do que o PID reage. Sem balança, o shot para no tempo máximo.',decline_l:'Declínio',unlock:'Destravar: puxar fora da temperatura',pull:'Puxar shot',stop:'Parar',
+ settings_t:'Configurações',shot_sec:'Shot',aj_tmax:'Tempo máximo',aj_jan:'Janela de pronta ±',aj_rampa:'Rampa até o platô',aj_decf:'Declínio começa em (do alvo)',aj_decs:'Duração do declínio',aj_boost:'Resistência no shot',aj_padrao:'aplicar padrões',aj_tip:'Gravado na máquina. Resistência no shot: potência mínima durante a extração, só abaixo do setpoint — a água fria entrando esfria a caldeira mais rápido do que o PID reage. Sem balança, o shot para no tempo máximo.',decline_l:'Declínio',unlock:'Destravar: puxar fora da temperatura',pull:'Puxar shot',stop:'Parar',
  reservoir:'Reservatório',ambient:'Ambiente',temperature:'temperatura',
  humidity:'umidade',airpress:'pressão do ar',gas:'gás (VOC)',
  distance:'distância (mediana)',wrange:'faixa da janela',valid:'amostras válidas',
@@ -907,7 +908,7 @@ pt:{
  s_filt:'filtrado',s_raw:'cru',
  recorded:'Shots gravados',noshots:'Nenhum shot no cartão ainda.',
  card:'cartão',free:'MB livres',nocard:'sem cartão',noresp:'cartão não respondeu',
- simulation:'Simulação',bench:'bancada',datasource:'Fonte dos dados',
+ datasource:'Fonte dos dados',
  simulated:'simulada',realhw:'hardware real',world:'Mundo',grind:'Moagem',
  element:'Resistência',timespeed:'Velocidade do tempo',injectfault:'Injetar falha',
  f_probe:'sonda aberta',f_press:'pressão fora de faixa',f_water:'reservatório vazio',
@@ -1956,6 +1957,7 @@ function pinta(d){
 
  agua.style.height=m.niv.toFixed(0)+'%';
  nivel.textContent=m.ign?t('lvl_ignored'):Math.round(m.niv)+'%';
+ nivel.classList.toggle('txt',!!m.ign);
  nDist.textContent=d.uok?(d.umm/10).toFixed(0)+' cm':'';
  trilho.classList.toggle('ruim',!m.ign&&m.niv<=2);
  swIgnNivel.checked=m.ign===1;
