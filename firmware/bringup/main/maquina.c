@@ -445,10 +445,11 @@ bool mq_ignorando_nivel(void) { return ignora_nivel; }
 // Período crítico abaixo disto não é a planta, é ruído cruzando a histerese.
 // A caldeira real leva minutos por ciclo; o simulador, sem atraso térmico,
 // dava 0,4 s e "ok". Na pressão, um puck real leva segundos para despressurizar;
-// a primeira calibração real deu 0,2 s com o circuito sem vazão — era a
-// ondulação da bomba chaveando o relé, e passou pelo piso antigo de 0,1 s.
+// a ondulação da bomba chaveia o relé a cada 2–3 ciclos da rede (< 0,1 s). Com
+// puck (10/11/2026) a pressão sobe 0→6 bar em 0,5 s e cai 2,5 bar em 50 ms ao
+// cortar: Tu real ≈ 0,19 s, ±1,2 bar. O piso de 0,6 s rejeitava a planta real.
 #define CAL_T_TU_MIN 10.0f
-#define CAL_P_TU_MIN 0.6f
+#define CAL_P_TU_MIN 0.12f
 
 static volatile int cal_pedido;           // 0 nada, 1+m iniciar malha m, -1 parar
 static int cal_malha;
