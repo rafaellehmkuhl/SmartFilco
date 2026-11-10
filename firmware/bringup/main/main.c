@@ -673,7 +673,7 @@ static int montar_json(char *buf, size_t tam)
                   ",\"m\":{\"est\":\"%s\",\"tb\":%.1f,\"pr\":%.2f,\"g\":%.1f,"
                   "\"q\":%.2f,\"niv\":%.0f,\"ap\":%.2f,\"ssr\":%.2f,\"bmb\":%.2f,"
                   "\"t\":%.1f,\"falha\":\"%s\",\"mot\":\"%s\",\"on\":%d,\"sim\":%d,"
-                  "\"sp\":%.1f,\"alvo\":%.0f,\"tmax\":%.0f,"
+                  "\"sp\":%.1f,\"alvo\":%.0f,\"tmax\":%.0f,\"rampa\":%.1f,\"jan\":%.1f,\"decs\":%.1f,\"decf\":%.0f,\"boost\":%.0f,"
                   "\"prebar\":%.1f,\"pres\":%.0f,\"plato\":%.1f,\"declinio\":%.1f,"
                   "\"vaz\":%.2f,\"tagua\":%.1f,\"w\":%.0f,"
                   "\"pv\":%.4f,\"pvc\":%.4f,\"pcru\":%d,\"pok\":%d,"
@@ -693,7 +693,8 @@ static int montar_json(char *buf, size_t tam)
                   m.nivel_pct, m.alvo_pressao, m.ssr, m.bomba, m.shot_s,
                   m.falha ? m.falha : "", m.motivo ? m.motivo : "", mq_ligada() ? 1 : 0,
                   hal_modo() == HAL_SIM ? 1 : 0,
-                  pf.setpoint_c, pf.alvo_g, pf.tempo_max_s,
+                  pf.setpoint_c, pf.alvo_g, pf.tempo_max_s, pf.rampa_s, pf.janela_c,
+                  pf.declinio_s, pf.declinio_frac * 100.0f, pf.boost * 100.0f,
                   pf.pre_bar, pf.pre_s, pf.plato_bar, pf.declinio_bar,
                   esp.vazao_g_s, esp.t_agua_grupo, esp.energia_w,
                   pmed.volts, pmed.volts_cru, pmed.cru, pmed.valida ? 1 : 0,
@@ -987,6 +988,7 @@ static void ws_comando(char *s)
     if (strncmp(s, "sim on", 6) == 0) { hal_set_modo(HAL_SIM); return; }
     if (strncmp(s, "sim off", 7) == 0) { hal_set_modo(HAL_REAL); return; }
     if (strncmp(s, "reset", 5) == 0) { sim_reset(); return; }
+    if (strncmp(s, "perfil padrao", 13) == 0) { mq_perfil_padrao(); return; }
 
     if (sscanf(s, "set %19s %f", chave, &val) == 2) {
         mq_perfil_t p;
@@ -1002,6 +1004,10 @@ static void ws_comando(char *s)
         else if (!strcmp(chave, "plato")) p.plato_bar = lim(val, 1, 12);
         else if (!strcmp(chave, "rampa")) p.rampa_s = lim(val, 0.1f, 20);
         else if (!strcmp(chave, "declinio")) p.declinio_bar = lim(val, 0, 12);
+        else if (!strcmp(chave, "jan")) p.janela_c = lim(val, 0.2f, 10);
+        else if (!strcmp(chave, "decs")) p.declinio_s = lim(val, 0.5f, 20);
+        else if (!strcmp(chave, "decf")) p.declinio_frac = lim(val, 10, 100) / 100.0f;
+        else if (!strcmp(chave, "boost")) p.boost = lim(val, 0, 100) / 100.0f;
         // daqui para baixo é só simulação
         else if (!strcmp(chave, "tamb")) c.t_ambiente = lim(val, -5, 45);
         else if (!strcmp(chave, "pot")) c.pot_resistencia = lim(val, 100, 2000);

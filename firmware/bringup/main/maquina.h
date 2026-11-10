@@ -29,6 +29,11 @@ typedef struct {
     float declinio_bar;    // pressão no fim
     float alvo_g;          // parada por peso — o critério principal
     float tempo_max_s;     // parada por tempo — só como rede de segurança
+    // ajustes finos (tela de configurações)
+    float janela_c;        // ±°C do setpoint para a máquina se dizer pronta
+    float declinio_s;      // duração da rampa de alívio da bomba
+    float declinio_frac;   // fração do alvo em g em que o declínio começa
+    float boost;           // SSR mínimo durante o shot, abaixo do setpoint (0..1)
 } mq_perfil_t;
 
 typedef struct {
@@ -72,6 +77,8 @@ bool mq_ligada(void);
 // forcar: puxa mesmo fora da janela de temperatura (máquina ligada, aquecendo).
 // A decisão é do operador; o overshoot da caldeira leva muito tempo para assentar.
 void mq_shot_iniciar(bool forcar);
+// Perfil volta ao padrão de fábrica (e é gravado).
+void mq_perfil_padrao(void);
 void mq_shot_parar(void);
 void mq_perfil_get(mq_perfil_t *p);
 void mq_perfil_set(const mq_perfil_t *p);

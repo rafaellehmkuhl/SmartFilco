@@ -181,6 +181,7 @@ table.dbg .saude{text-align:right;white-space:nowrap;font-size:.64rem}
 .ccal .edicao{display:none}
 #mcal.editar .ccal .edicao{display:flex}
 .ccal .aviso{color:var(--brasa)}
+.ajustes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.35rem}
 .cedit{display:flex;align-items:center;gap:.4rem;margin-top:.8rem;color:var(--cinza)}
 .bteste .barra{height:.3rem;border-radius:1rem;background:var(--linha);overflow:hidden;margin-top:.45rem}
 .bteste .barra i{display:block;height:100%;width:0;background:var(--crema)}
@@ -746,6 +747,24 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
     </div>
     <p class="dica" id="dicaModo"></p>
 
+    <div class="rot sec" data-i18n="shot_sec">Shot</div>
+    <div class="ajustes">
+      <div class="ctr"><span class="cl" data-i18n="aj_tmax"></span>
+        <div class="cv" data-k="tmax" data-p="1" data-c="0" data-u=" s"><button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button></div></div>
+      <div class="ctr"><span class="cl" data-i18n="aj_jan"></span>
+        <div class="cv" data-k="jan" data-p="0.1" data-c="1" data-u=" °C"><button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button></div></div>
+      <div class="ctr"><span class="cl" data-i18n="aj_rampa"></span>
+        <div class="cv" data-k="rampa" data-p="0.5" data-c="1" data-u=" s"><button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button></div></div>
+      <div class="ctr"><span class="cl" data-i18n="aj_decf"></span>
+        <div class="cv" data-k="decf" data-p="5" data-c="0" data-u=" %"><button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button></div></div>
+      <div class="ctr"><span class="cl" data-i18n="aj_decs"></span>
+        <div class="cv" data-k="decs" data-p="0.5" data-c="1" data-u=" s"><button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button></div></div>
+      <div class="ctr"><span class="cl" data-i18n="aj_boost"></span>
+        <div class="cv" data-k="boost" data-p="5" data-c="0" data-u=" %"><button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button></div></div>
+    </div>
+    <p class="dica" data-i18n="aj_tip"></p>
+    <div class="chips"><button id="btPerfilPadrao" class="neutro" data-i18n="aj_padrao">apply defaults</button></div>
+
     <div class="rot sec" data-i18n="sensors_sec">Sensors</div>
     <label class="cedit" style="margin-top:0"><input type="checkbox" id="swIgnNivel"> <span data-i18n="ign_lvl">Ignore the reservoir sensor</span></label>
     <p class="dica" data-i18n="ign_lvl_tip"></p>
@@ -798,7 +817,7 @@ en:{
  peso:'weight target reached',tempo:'max time',manual:'stopped by hand',
  boiler:'Boiler',pump:'Pump',incup:'In cup',time:'Time',
  profile:'Profile',target:'Target',preinf:'Pre-infusion',plateau_l:'Plateau',
- decline_l:'Decline',unlock:'Unlock: pull outside temperature',pull:'Pull shot',stop:'Stop',
+ shot_sec:'Shot',aj_tmax:'Time limit',aj_jan:'Ready window ±',aj_rampa:'Ramp to plateau',aj_decf:'Decline starts at (of target)',aj_decs:'Decline duration',aj_boost:'Heater during shot',aj_padrao:'apply defaults',aj_tip:'Saved on the machine. Heater during shot: minimum heater power while pulling, only below the setpoint — cold water entering cools the boiler faster than the PID reacts. Without a scale the shot stops at the time limit.',decline_l:'Decline',unlock:'Unlock: pull outside temperature',pull:'Pull shot',stop:'Stop',
  reservoir:'Reservoir',ambient:'Ambient',temperature:'temperature',
  humidity:'humidity',airpress:'air pressure',gas:'gas (VOC)',
  distance:'distance (median)',wrange:'window range',valid:'valid samples',
@@ -877,7 +896,7 @@ pt:{
  peso:'alvo de peso atingido',tempo:'tempo máximo',manual:'parado à mão',
  boiler:'Boiler',pump:'Bomba',incup:'Na xícara',time:'Tempo',
  profile:'Perfil',target:'Alvo',preinf:'Pré-infusão',plateau_l:'Platô',
- decline_l:'Declínio',unlock:'Destravar: puxar fora da temperatura',pull:'Puxar shot',stop:'Parar',
+ shot_sec:'Shot',aj_tmax:'Tempo máximo',aj_jan:'Janela de pronta ±',aj_rampa:'Rampa até o platô',aj_decf:'Declínio começa em (do alvo)',aj_decs:'Duração do declínio',aj_boost:'Resistência no shot',aj_padrao:'aplicar padrões',aj_tip:'Gravado na máquina. Resistência no shot: potência mínima durante a extração, só abaixo do setpoint — a água fria entrando esfria a caldeira mais rápido do que o PID reage. Sem balança, o shot para no tempo máximo.',decline_l:'Declínio',unlock:'Destravar: puxar fora da temperatura',pull:'Puxar shot',stop:'Parar',
  reservoir:'Reservatório',ambient:'Ambiente',temperature:'temperatura',
  humidity:'umidade',airpress:'pressão do ar',gas:'gás (VOC)',
  distance:'distância (mediana)',wrange:'faixa da janela',valid:'amostras válidas',
@@ -1845,6 +1864,7 @@ liga(sVel,'vel',function(v){return (+v).toFixed(1).replace('.',',')+'×';},lVel)
 swIgnNivel.onchange=function(){ env('nivel ignorar '+(swIgnNivel.checked?1:0)); };
 swSim.onchange=function(){ env(swSim.value==='1'?'sim on':'sim off'); };
 btReset.onclick=function(){env('reset');};
+btPerfilPadrao.onclick=function(){env('perfil padrao');};
 btLimpar.onclick=function(){env('falha limpar');};
 // Falhas alternam: injetar é metade do teste, tirar e ver a máquina se recuperar
 // é a outra metade.

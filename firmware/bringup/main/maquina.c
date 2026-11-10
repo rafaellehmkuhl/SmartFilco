@@ -19,11 +19,9 @@ static const char *TAG = "maquina";
 #define P_MAX 13.0f           // teto do sensor é 13,8 bar
 #define SHOT_TETO_S 60.0f     // bomba nunca fica ligada indefinidamente
 #define NIVEL_SECO_MM 240.0f  // perto de vazio: não deixar bombear a seco
-#define PRONTA_JANELA 1.5f    // ±°C do setpoint para considerar pronta
 
 #define NIVEL_CHEIO 40.0f
 #define NIVEL_VAZIO 250.0f
-#define DECLINIO_S 6.0f       // duração da rampa de alívio da bomba
 
 // ---------------------------------------------------------------- PID
 
@@ -146,7 +144,7 @@ static pid_ctrl_t pid_press = {
     .kp = 0.09f, .ki = 0.05f, .kd = 0.004f,
     .tau_d = 0.05f, .i_max = 20.0f, .primeiro = true };
 
-static mq_perfil_t perfil = {
+static const mq_perfil_t PERFIL_PADRAO = {
     .setpoint_c = 93.0f,
     .pre_bar = 3.0f,
     .pre_s = 8.0f,
@@ -155,7 +153,15 @@ static mq_perfil_t perfil = {
     .declinio_bar = 6.0f,
     .alvo_g = 36.0f,
     .tempo_max_s = 35.0f,
+    .janela_c = 1.5f,
+    .declinio_s = 6.0f,
+    .declinio_frac = 0.8f,
+    // Primeiro shot real (10/11/2026): 92 → 77 °C. Água fria entrando tira mais
+    // calor do que o PID repõe — ele só reage depois que o sensor, atrasado, vê a
+    // queda. Resistência cheia desde o início do shot antecipa isso.
+    .boost = 1.0f,
 };
+static mq_perfil_t perfil = PERFIL_PADRAO;
 
 static mq_estado_t estado = MQ_OCIOSO;
 static mq_estado_t estado_ant = MQ_OCIOSO;   // detecta a borda que fecha o arquivo
@@ -173,18 +179,48 @@ static float t_boiler, t_boiler_cru, pressao, massa, nivel_mm, alvo_p;
 static hal_sai_t saida;
 static void ganhos_carregar(void);
 static void ignora_nivel_carregar(void);
+static void perfil_carregar(void);
 
 void mq_iniciar(void)
 {
     hal_iniciar();
     ganhos_carregar();
     ignora_nivel_carregar();
+    perfil_carregar();
     estado = MQ_OCIOSO;
     falha = NULL;
 }
 
 void mq_perfil_get(mq_perfil_t *p) { *p = perfil; }
-void mq_perfil_set(const mq_perfil_t *p) { perfil = *p; }
+// Gravado na NVS: perfil que some a cada reinício obriga a reajustar tudo.
+static void perfil_salvar(void)
+{
+    nvs_handle_t h;
+    if (nvs_open("cal", NVS_READWRITE, &h) != ESP_OK) return;
+    nvs_set_blob(h, "perfil", &perfil, sizeof(perfil));
+    nvs_commit(h);
+    nvs_close(h);
+}
+
+static void perfil_carregar(void)
+{
+    nvs_handle_t h;
+    if (nvs_open("cal", NVS_READONLY, &h) != ESP_OK) return;
+    mq_perfil_t p;
+    size_t n = sizeof(p);
+    // tamanho diferente = struct de outra versão; fica o padrão
+    if (nvs_get_blob(h, "perfil", &p, &n) == ESP_OK && n == sizeof(p)) perfil = p;
+    nvs_close(h);
+}
+
+void mq_perfil_set(const mq_perfil_t *p)
+{
+    if (!memcmp(p, &perfil, sizeof(perfil))) return;   // sliders do simulador também passam aqui
+    perfil = *p;
+    perfil_salvar();
+}
+
+void mq_perfil_padrao(void) { perfil = PERFIL_PADRAO; perfil_salvar(); }
 
 void mq_limpar_falha(void)
 {
@@ -631,10 +667,13 @@ void mq_passo(float dt_s)
         pid_zerar(&pid_ctrl_temp);
     } else {
         float u = pid_passo(&pid_ctrl_temp, perfil.setpoint_c, t_boiler, dt_s, 0.0f, 1.0f);
+        // Alimentação direta no shot: só abaixo do setpoint, então shot destravado
+        // com a caldeira passada do ponto não ganha calor extra.
+        if (extraindo() && t_boiler < perfil.setpoint_c) u = fmaxf(u, perfil.boost);
         saida.ssr = fminf(fmaxf(u, 0.0f), 1.0f);
     }
 
-    bool na_faixa = fabsf(t_boiler - perfil.setpoint_c) <= PRONTA_JANELA;
+    bool na_faixa = fabsf(t_boiler - perfil.setpoint_c) <= perfil.janela_c;
 
     // ---- máquina de estados
     if (extraindo()) shot_s += dt_s;
@@ -667,7 +706,7 @@ void mq_passo(float dt_s)
             break;
 
         case MQ_PLATO:
-            if (massa - massa_ini >= perfil.alvo_g * 0.8f) {
+            if (massa - massa_ini >= perfil.alvo_g * perfil.declinio_frac) {
                 duty_plato = saida.bomba;   // ponto de partida do alívio
                 decl_s = 0.0f;
                 estado = MQ_DECLINIO;
@@ -733,7 +772,7 @@ void mq_passo(float dt_s)
         float razao = perfil.plato_bar > 0.5f
                           ? perfil.declinio_bar / perfil.plato_bar : 0.5f;
         float destino = duty_plato * fminf(fmaxf(razao, 0.0f), 1.0f);
-        float k = fminf(decl_s / DECLINIO_S, 1.0f);
+        float k = fminf(decl_s / fmaxf(perfil.declinio_s, 0.1f), 1.0f);
         saida.bomba = duty_plato + (destino - duty_plato) * k;
         pid_zerar(&pid_press);   // ao voltar a fechar a malha, sem dívida acumulada
     } else if (extraindo()) {
