@@ -455,6 +455,7 @@ static int cal_malha;
 static at_t cal_at;
 static float cal_s;
 static const char *cal_fim = "";
+static float cal_ku, cal_tu;             // do último resultado, aceito ou não
 
 void mq_cal_iniciar(mq_malha_t m) { if (m < MQ_MALHAS) cal_pedido = 1 + m; }
 void mq_cal_parar(void) { cal_pedido = -1; }
@@ -513,11 +514,13 @@ static void cal_passo(const hal_ent_t *e, float dt_s)
 
     float ku, tu, kp, ki, kd;
     at_resultado(&cal_at, &ku, &tu);
+    cal_ku = ku; cal_tu = tu;
     // Caldeira com PID (a derivada filtrada a 2 s segura o sobressinal); pressão
     // com PI — a ondulação de 60 Hz da bomba faria a derivada trabalhar contra.
     (temp ? at_ganhos_pid : at_ganhos_pi)(ku, tu, &kp, &ki, &kd);
     if (tu < (temp ? CAL_T_TU_MIN : CAL_P_TU_MIN) ||
         !(kp > 0.0f && kp < 10.0f && ki >= 0.0f && ki < 10.0f && kd >= 0.0f && kd < 100.0f)) {
+        ESP_LOGW(TAG, "autoajuste rejeitado: Ku=%.4f Tu=%.3f s → kp=%.4f ki=%.5f kd=%.4f", ku, tu, kp, ki, kd);
         cal_acabar("invalido");
         return;
     }
@@ -804,4 +807,5 @@ void mq_publicar(mq_estado_pub_t *o)
     o->cal_passo = cal_on ? cal_at.subidas : 0;
     o->cal_total = cal_at.descartar + cal_at.medir + 1;
     o->cal_fim = cal_fim;
+    o->cal_ku = cal_ku; o->cal_tu = cal_tu;
 }

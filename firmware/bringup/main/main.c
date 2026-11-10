@@ -687,7 +687,7 @@ static int montar_json(char *buf, size_t tam)
                   // autoajuste: [rodando, malha, subidas, subidas necessárias, fim]
                   // e ganhos por malha: [kp, ki, kd, Ku, Tu, origem]. Não é "g": "g" já
                   // é a massa, e chave repetida em JSON apaga a anterior em silêncio
-                  "\"cal\":[%d,%d,%d,%d,\"%s\"],"
+                  "\"cal\":[%d,%d,%d,%d,\"%s\",%.4g,%.4g],"
                   "\"pid\":[[%.5g,%.5g,%.5g,%.5g,%.4g,%d],[%.5g,%.5g,%.5g,%.5g,%.4g,%d]]}}",
                   NOMES[m.estado], m.t_boiler, m.pressao, m.massa, m.vazao,
                   m.nivel_pct, m.alvo_pressao, m.ssr, m.bomba, m.shot_s,
@@ -703,7 +703,7 @@ static int montar_json(char *buf, size_t tam)
                   m.teste_s, m.teste_fim ? m.teste_fim : "", m.teste_ssr ? 1 : 0,
                   mq_ignorando_nivel() ? 1 : 0,
                   m.cal_on ? 1 : 0, m.cal_malha, m.cal_passo, m.cal_total,
-                  m.cal_fim ? m.cal_fim : "",
+                  m.cal_fim ? m.cal_fim : "", m.cal_ku, m.cal_tu,
                   gt.kp, gt.ki, gt.kd, gt.ku, gt.tu, gt.origem,
                   gp.kp, gp.ki, gp.kd, gp.ku, gp.tu, gp.origem), tam);
     return p;

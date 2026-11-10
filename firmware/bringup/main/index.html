@@ -1399,7 +1399,7 @@ function pintaCal(d){
   cEl(k,'Est').textContent=meu
     ?(c[2]===0?t(i?'cal_rise':'cal_heat')+' '+(i?'6 bar':cNum(m.sp,0)+' °C')
               :t('cal_osc')+' '+c[2]+' '+t('cal_of')+' '+(c[3]-1))
-    :(c[1]===i&&c[4]?cFim(c[4]):t('cal_idle'));
+    :(c[1]===i&&c[4]?cFim(c[4])+(c[4]==='invalido'&&c[6]>0?' (Ku '+cNum(c[5],3)+' · Tu '+cNum(c[6],2)+' s)':''):t('cal_idle'));
   cEl(k,'Est').style.color=meu?'var(--crema)':(c[1]===i&&c[4]&&c[4]!=='ok'&&c[4]!=='manual'?'var(--brasa)':'');
   cEl(k,'Vivo').textContent=(i?cNum(m.pr,1)+' bar':cNum(m.tc,1)+' °C')
     +(meu?' · '+(i?t('c_bmb'):'SSR')+' '+Math.round(100*(i?m.bmb:m.ssr))+'%':'');

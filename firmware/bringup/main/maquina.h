@@ -56,6 +56,7 @@ typedef struct {
     int   cal_malha;
     int   cal_passo, cal_total;
     const char *cal_fim;
+    float cal_ku, cal_tu;  // medidos na última calibração, mesmo rejeitada
     const char *teste_fim; // por que o último teste acabou: "tempo", "manual", ...
 } mq_estado_pub_t;
 
