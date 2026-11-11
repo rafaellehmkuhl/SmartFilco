@@ -54,7 +54,7 @@
   grid-template-columns:minmax(11rem,26%) 1fr;gap:.8rem;overflow:hidden}
 #mhist .hlado{overflow:auto;min-height:0}
 #mhist .hdet{margin:0;padding:0;border:0;display:flex;flex-direction:column;min-height:0}
-#hPlot{display:block;width:100%;flex:1;min-height:0;height:auto}
+#mhist .tela{flex:1;min-height:0}
 .modal.aberto{display:block}
 .mcab{display:flex;align-items:center;gap:.6rem;padding:.5rem .7rem;
   border-bottom:1px solid var(--linha);cursor:grab;user-select:none;
@@ -320,7 +320,13 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
 .metr.frio .big{color:var(--fosco);font-size:1.7rem}
 .metr.frio .big u{vertical-align:.42em;margin-left:.18rem}
 .tela{position:relative;min-width:0;min-height:0}
-#plot{position:absolute;inset:0;width:100%;height:100%}
+.tela canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
+.gbar{position:absolute;top:0;right:2.4rem;display:flex;gap:.3rem}
+.gbar button{background:var(--graf);color:var(--cinza);border:1px solid var(--linha);border-radius:.3rem;
+  font:inherit;font-size:.62rem;padding:.1rem .45rem;cursor:pointer}
+.gbar button[aria-pressed="true"]{color:var(--crema);border-color:var(--crema)}
+.gbar button:disabled{opacity:.35;cursor:default}
+table.hist td s{text-decoration:none;color:var(--fosco);font-size:.6rem;margin-left:.35rem}
 .rodape{grid-column:1/-1;display:flex;justify-content:space-between;gap:1rem;
   margin-top:.5rem;padding-top:.45rem;border-top:1px solid var(--linha);
   font-family:ui-sans-serif,system-ui,sans-serif;font-size:.63rem;color:var(--fosco)}
@@ -635,11 +641,11 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
   <div class="mcorpo">
     <div class="hlado">
       <table class="hist"><tbody id="hLista"></tbody></table>
-      <p class="dica" id="hVazio" data-i18n="noshots">No shots on the card yet.</p>
+      <p class="dica" id="hVazio" data-i18n="noshots">No shots saved yet.</p>
     </div>
     <div class="hdet" id="hDet" hidden>
       <div class="rot" id="hDetNome">&mdash;</div>
-      <canvas id="hPlot"></canvas>
+      <div class="tela"><canvas id="hPlot"></canvas></div>
       <p class="dica" id="hDetInfo">&mdash;</p>
     </div>
   </div>
@@ -825,16 +831,18 @@ en:{
  rate:'rate',eqlevel:'equivalent level',clock:'Clock',date:'date',
  provenance:'provenance',chiptemp:'chip temp.',absent:'absent',invalid:'INVALID',
  nowindow:'no window',window60:'1 h window',now:'now',
- zoomhint:'double-click to reset',
+ g_smooth:'smooth',g_all:'⤢ all',tt_smooth:'Smooth curve through the samples (off: raw steps, sample and hold)',
+ tt_all:'See everything and follow live (double-click). Drag on the chart to zoom into a stretch; wheel zooms at the cursor, shift+wheel pans',
+ src_loc:'browser',src_sd:'card',
  s_filt:'filtered',s_raw:'raw',
- recorded:'Recorded shots',noshots:'No shots on the card yet.',
+ recorded:'Recorded shots',noshots:'No shots saved yet.',
  card:'card',free:'MB free',nocard:'no card',noresp:'card did not respond',
  datasource:'Data source',
  simulated:'simulated',realhw:'real hardware',world:'World',grind:'Grind',
  element:'Element',timespeed:'Time speed',injectfault:'Inject fault',
  f_probe:'probe open',f_press:'pressure out of range',f_water:'empty reservoir',
  f_puck:'no portafilter',resetmodel:'reset model',clearfault:'clear fault',
- tt_hist:'Shots recorded on the card',tt_cfg:'Settings and simulation',
+ tt_hist:'Saved shots',tt_cfg:'Settings and simulation',
  tt_led:'Board LED: color and brightness',tt_cal:'Calibration: tune the temperature and pressure loops',
  sensors_sec:'Sensors',ign_lvl:'Ignore the reservoir sensor',lvl_ignored:'ignored',
  ign_lvl_tip:'While the level sensor is unreliable. On, the reservoir no longer blocks shots or calibration, so the pump can run dry: check the water yourself. Saved on the board.',
@@ -904,16 +912,18 @@ pt:{
  rate:'taxa',eqlevel:'nível equivalente',clock:'Relógio',date:'data',
  provenance:'procedência',chiptemp:'temp. do chip',absent:'ausente',invalid:'INVÁLIDA',
  nowindow:'sem janela',window60:'janela 1 h',now:'agora',
- zoomhint:'duplo clique para voltar',
+ g_smooth:'suave',g_all:'⤢ tudo',tt_smooth:'Curva suave passando pelas amostras (desligado: degraus crus, amostra e retém)',
+ tt_all:'Ver tudo e seguir ao vivo (duplo clique). Arraste no gráfico para dar zoom num trecho; a roda aproxima no cursor, shift+roda desloca',
+ src_loc:'navegador',src_sd:'cartão',
  s_filt:'filtrado',s_raw:'cru',
- recorded:'Shots gravados',noshots:'Nenhum shot no cartão ainda.',
+ recorded:'Shots gravados',noshots:'Nenhum shot guardado ainda.',
  card:'cartão',free:'MB livres',nocard:'sem cartão',noresp:'cartão não respondeu',
  datasource:'Fonte dos dados',
  simulated:'simulada',realhw:'hardware real',world:'Mundo',grind:'Moagem',
  element:'Resistência',timespeed:'Velocidade do tempo',injectfault:'Injetar falha',
  f_probe:'sonda aberta',f_press:'pressão fora de faixa',f_water:'reservatório vazio',
  f_puck:'sem porta-filtro',resetmodel:'reiniciar modelo',clearfault:'limpar falha',
- tt_hist:'Shots gravados no cartão',tt_cfg:'Configurações e simulação',
+ tt_hist:'Shots guardados',tt_cfg:'Configurações e simulação',
  tt_led:'LED da placa: cor e brilho',tt_cal:'Calibração: ajuste das malhas de temperatura e pressão',
  sensors_sec:'Sensores',ign_lvl:'Ignorar o sensor do reservatório',lvl_ignored:'ignorado',
  ign_lvl_tip:'Enquanto o sensor de nível não for confiável. Ligado, o reservatório não barra mais shot nem calibração, e a bomba pode rodar a seco: confira a água você mesmo. Fica salvo na placa.',
@@ -1047,160 +1057,339 @@ function mediSinal(){
 function REM(){return parseFloat(getComputedStyle(document.documentElement).fontSize)||14;}
 
 /* ------------------------------------------------------------- histórico vivo
-   A janela era de 60 s e jogava fora tudo o que passava disso. Agora guarda
-   **1 hora**, e só começa a descartar quando enche — antes disso o eixo do tempo
-   CRESCE, mostrando desde o boot.
+   Guarda **1 hora** em buffer circular de `Float32Array` (escrita em tempo
+   constante; `shift()` num array comum seria O(n) a cada amostra) e só começa a
+   descartar quando enche.
 
-   1 h a 250 ms são 14.400 pontos por série, 4 séries. Em array comum de JS isso
-   seria ~460 kB e um `shift()` por amostra, que é O(n) — a 4 Hz o navegador
-   passaria o dia realocando. Com `Float32Array` em buffer circular são 230 kB e
-   escrita em tempo constante.
-
-   ⚠️ E desenhar 14.400 pontos num canvas de ~600 px seria 24 pontos por pixel:
-   lento e inútil. O traçado agrega por COLUNA DE PIXEL guardando mín e máx, o
-   que preserva o envelope — decimação simples (pegar 1 a cada 24) esconderia
-   justamente os picos de pressão, que é o que se quer ver. */
-var PASSO=250, JANELA_S=3600;
+   Cada amostra leva o seu INSTANTE (`serX`, segundos desde o início da série).
+   O eixo X é tempo de verdade, não índice: o WebSocket não chega em ritmo exato,
+   e com o tempo guardado o zoom vira um intervalo de segundos que fica PARADO
+   enquanto o buffer anda — zoom por índice escorregava a cada amostra nova. */
+var PASSO=100, JANELA_S=3600;
 var NPT=Math.round(JANELA_S*1000/PASSO);
-var serT=new Float32Array(NPT), serP=new Float32Array(NPT);
-var serTa=new Float32Array(NPT), serPa=new Float32Array(NPT);
-var escI=0, nPts=0, tAmostra=0;
-
-/* ------------------------------------------------------------------ zoom
-   Só no eixo X, e isso é decisão, não limitação: a escala vertical da pressão é
-   FIXA em 0–12 bar de propósito (eixo que se ajusta sozinho mente sobre a
-   distância dos 9 bar), e a da temperatura olha o buffer INTEIRO. Se o Y
-   acompanhasse o zoom, a curva mudaria de forma ao aproximar — você compararia
-   dois desenhos diferentes achando que é o mesmo dado.
-
-   `vN` = quantos pontos cabem na janela (0 = tudo).
-   `vOff` = a quantos pontos do mais recente está a borda direita (0 = ao vivo).
-   Com vOff = 0 o gráfico segue sozinho; assim que você navega para trás, ele
-   PARA de correr — senão o dado que você está olhando escaparia da tela. */
-var vN=0, vOff=0;
-function janela(){
- var n = vN>0 ? Math.min(vN,nPts) : nPts;
- var off = Math.min(vOff, Math.max(0,nPts-n));
- return [nPts-off-n, nPts-off];
-}
-function zoomado(){ return vN>0 && vN<nPts; }
-// NaN é o "sem dado" aqui: Float32Array não guarda null, e 0 seria um valor
-// legítimo de pressão. NaN !== NaN é o teste, igual ao que o ultrassônico faz.
+var serX=new Float32Array(NPT), serT=new Float32Array(NPT), serP=new Float32Array(NPT);
+var serTa=new Float32Array(NPT), serPa=new Float32Array(NPT), serG=new Float32Array(NPT);
+var escI=0, nPts=0, tAmostra=0, t0Serie=performance.now();
 function at(s,i){return s[(escI-nPts+i+NPT*2)%NPT];}
+// NaN (Float32Array) e null (JSON de shot guardado) são "sem dado"; 0 é pressão
+// legítima, então não pode ser o marcador.
+function ok(v){return typeof v==='number'&&v===v;}
 
-function faixa2(a,b,vao){
- var lo=1/0,hi=-1/0,n=0;
- for(var i=0;i<nPts;i++){
-  var v=at(a,i); if(v===v){n++;if(v<lo)lo=v;if(v>hi)hi=v;}
-  if(b){var w=at(b,i); if(w===w){n++;if(w<lo)lo=w;if(w>hi)hi=w;}}
+/* ---------------------------------------------------------------- gráfico
+   Um desenhista só, para o painel ao vivo e para o histórico: zoom, seleção e
+   leitura sob o cursor funcionam igual nos dois.
+
+   Pressão FIXA em 0–12 (eixo que se ajusta sozinho mente sobre a distância dos
+   9 bar); temperatura AUTO com vão mínimo de 3 °C, senão 0,3 °C vira montanha.
+   As escalas Y olham os dados INTEIROS, não só o trecho com zoom: se o Y
+   acompanhasse o zoom, a curva mudaria de forma ao aproximar e você compararia
+   dois desenhos diferentes achando que é o mesmo dado. Massa não tem eixo (seria
+   o terceiro): rótulo direto na ponta. Referências (setpoint, alvo) tracejadas,
+   esmaecidas e POR BAIXO — onde coincidem, ganha o que aconteceu de verdade.
+
+   Zoom:
+   - `z` nulo = ver tudo e seguir ao vivo. É o ÚNICO estado em que o gráfico anda.
+   - arrastar = seleciona um trecho e trava nele;
+   - roda = aproxima ancorado no cursor; shift+roda ou arrasto lateral do
+     trackpad = desloca;
+   - duplo clique ou ⤢ = volta a ver tudo.
+
+   Traçado: com mais amostras que pixels, agrega por coluna guardando mín e máx
+   (decimação simples esconderia os picos de pressão). Com menos, liga as
+   amostras na posição real delas — "suave" por Catmull-Rom, que passa EXATAMENTE
+   por cada amostra; desligado, degrau (amostra e retém), que mostra o dado cru. */
+var SUAVE=true;
+try{SUAVE=localStorage.getItem('grafSuave')!=='0';}catch(e){}
+var GRAFS=[], MIN_S=1;
+var CORES={T:'#c98330',P:'#3d86c8',G:'#7a9a5b'};
+function fmtT(s,st){
+ if(st>=60||s>=600){
+  var m=Math.floor(s/60),ss=Math.round(s-m*60);
+  if(ss===60){m++;ss=0;}
+  return m+':'+(ss<10?'0':'')+ss;
  }
- if(!n)return null;
- var c=(lo+hi)/2, d=Math.max(hi-lo,vao)*1.2/2;
- return [c-d,c+d];
+ return (st<1?s.toFixed(1):Math.round(s))+' s';
 }
-// Agrega por coluna de pixel: para cada coluna, o mín e o máx dos pontos que
-// caem nela viram um segmento vertical. É assim que se desenha forma de onda sem
-// mentir — decimação simples pularia os picos.
-function traca(ctx,s,f,cor,x0,pw,y0,ph,ini,fim,alvo){
- if(!f||fim<=ini)return;
- var py=function(v){return y0+ph-(Math.max(f[0],Math.min(f[1],v))-f[0])/(f[1]-f[0])*ph;};
- var r=REM(), n=fim-ini, cols=Math.max(2,Math.floor(pw));
- ctx.save();
- ctx.strokeStyle=cor;ctx.lineJoin='round';ctx.lineCap='round';
- if(alvo){
-  ctx.globalAlpha=.42;ctx.lineWidth=Math.max(1.5,r/11);
-  ctx.setLineDash([Math.max(3,r*.28),Math.max(3,r*.28)]);
- }else{ ctx.lineWidth=Math.max(2,r/7); }
- ctx.beginPath();
- var atras=false,ux=0,uy=0;
- for(var c=0;c<cols;c++){
-  var i0=ini+Math.floor(c*n/cols), i1=Math.max(i0+1,ini+Math.floor((c+1)*n/cols));
-  var lo=1/0,hi=-1/0,ult=NaN;
-  for(var i=i0;i<i1&&i<fim;i++){
-   var v=at(s,i); if(v!==v)continue;
-   if(v<lo)lo=v; if(v>hi)hi=v; ult=v;
+function criaGrafico(cv,F){
+ var z=null,hov=null,sel=null,G={x0:0,pw:1,v:null};
+ var bar=document.createElement('div');bar.className='gbar';
+ bar.innerHTML='<button data-i18n="g_smooth" data-i18n-t="tt_smooth"></button>'+
+               '<button data-i18n="g_all" data-i18n-t="tt_all"></button>';
+ cv.parentNode.appendChild(bar);
+ var bS=bar.children[0],bT=bar.children[1];
+ bS.onclick=function(){
+  SUAVE=!SUAVE;
+  try{localStorage.setItem('grafSuave',SUAVE?'1':'0');}catch(e){}
+  GRAFS.forEach(function(g){g.desenha();});
+ };
+ bT.onclick=function(){z=null;desenha();};
+
+ function ext(){var n=F.n();return n?[F.x(0),F.x(n-1)]:null;}
+ function vis(){
+  var e=ext();if(!e)return null;
+  var v=z||e;
+  return v[1]-v[0]<MIN_S?[v[0],v[0]+MIN_S]:v;
+ }
+ function busca(x){   // primeiro índice com instante >= x
+  var lo=0,hi=F.n();
+  while(lo<hi){var m=(lo+hi)>>1;if(F.x(m)<x)lo=m+1;else hi=m;}
+  return lo;
+ }
+ function faixa(e){
+  if(e==='P')return [0,12];
+  var lo=1/0,hi=-1/0,n=F.n();
+  F.s.forEach(function(s){
+   if(s.e!==e)return;
+   for(var i=0;i<n;i++){var v=s.v(i);if(ok(v)){if(v<lo)lo=v;if(v>hi)hi=v;}}
+  });
+  if(lo>hi)return null;
+  // sem balança a massa é 0 o shot inteiro: linha morta no chão não diz nada
+  if(e==='G')return hi>=.5?[0,hi*1.15]:null;
+  var c=(lo+hi)/2,d=Math.max(hi-lo,3)*1.2/2;
+  return [c-d,c+d];
+ }
+ function inv(p){var v=G.v;return v[0]+(p-G.x0)/G.pw*(v[1]-v[0]);}
+
+ function traca(ctx,s,py,px,i0,i1){
+  var pts=[],col=null,lo=0,hi=0,ult=0,xc=0,fim=null;
+  function fecha(){
+   if(col===null)return;
+   if(lo===hi)pts.push([xc,py(ult)]);
+   else pts.push([xc,py(lo)],[xc,py(hi)],[xc,py(ult)]);
+   fim=[xc,py(ult),ult];col=null;
   }
-  if(ult!==ult){atras=false;continue;}
-  var x=x0+pw*(c+0.5)/cols;
-  if(atras)ctx.lineTo(x,py(lo));else ctx.moveTo(x,py(lo));
-  if(hi!==lo)ctx.lineTo(x,py(hi));
-  ux=x;uy=py(ult);
-  ctx.lineTo(ux,uy);
-  atras=true;
+  for(var i=i0;i<i1;i++){
+   var v=s.v(i);
+   if(!ok(v)){fecha();pts.push(null);continue;}
+   var x=px(F.x(i)),c=Math.floor(x);
+   if(c!==col){fecha();col=c;lo=hi=ult=v;xc=x;}
+   else{if(v<lo)lo=v;if(v>hi)hi=v;ult=v;xc=c+.5;}
+  }
+  fecha();
+  ctx.beginPath();
+  var run=[];
+  function sai(){
+   var k=run.length-1;if(k<0)return;
+   ctx.moveTo(run[0][0],run[0][1]);
+   for(var j=0;j<k;j++){
+    var a=run[j?j-1:0],b=run[j],c=run[j+1],d=run[j+2<=k?j+2:k];
+    // controle preso entre as duas amostras: sem isso, num degrau (3→9 bar) a
+    // curva passa do ponto e desenha um pico que não aconteceu
+    var ylo=Math.min(b[1],c[1]),yhi=Math.max(b[1],c[1]);
+    if(SUAVE)ctx.bezierCurveTo(b[0]+(c[0]-a[0])/6,Math.max(ylo,Math.min(yhi,b[1]+(c[1]-a[1])/6)),
+                               c[0]-(d[0]-b[0])/6,Math.max(ylo,Math.min(yhi,c[1]-(d[1]-b[1])/6)),c[0],c[1]);
+    else{ctx.lineTo(c[0],b[1]);ctx.lineTo(c[0],c[1]);}
+   }
+   run=[];
+  }
+  pts.forEach(function(p){if(p)run.push(p);else sai();});
+  sai();
+  ctx.stroke();
+  return fim;
  }
- ctx.stroke();
- if(!atras||alvo){ctx.restore();return;}
- ctx.fillStyle=cor;ctx.beginPath();ctx.arc(ux,uy,Math.max(4,r*.29),0,6.284);ctx.fill();
- ctx.strokeStyle='#1c1915';ctx.lineWidth=Math.max(2,r/7);ctx.stroke();
- ctx.restore();
+
+ function desenha(){
+  var dpr=devicePixelRatio||1,w=cv.clientWidth,h=cv.clientHeight;
+  bS.setAttribute('aria-pressed',SUAVE?'true':'false');
+  bT.disabled=!z;
+  if(!w||!h)return;
+  var W=Math.round(w*dpr),H=Math.round(h*dpr);
+  if(cv.width!==W||cv.height!==H){cv.width=W;cv.height=H;}
+  var ctx=cv.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+  var r=REM(),x0=3*r,y0=2*r,pw=w-x0-2.4*r,ph=h-y0-1.6*r;
+  G.x0=x0;G.pw=pw;G.v=null;
+  if(pw<3*r||ph<2*r)return;
+  var FX={T:faixa('T'),P:[0,12],G:faixa('G')},fT=FX.T;
+  function pyDe(f){return function(val){
+   return y0+ph-(Math.max(f[0],Math.min(f[1],val))-f[0])/(f[1]-f[0])*ph;};}
+  var MONO='px ui-monospace,Menlo,monospace';
+
+  ctx.font=(.72*r).toFixed(1)+MONO;ctx.textBaseline='middle';
+  for(var k=0;k<=3;k++){
+   var y=Math.round(y0+ph*k/3)+.5;
+   ctx.strokeStyle='#2b2620';ctx.lineWidth=1;
+   ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x0+pw,y);ctx.stroke();
+   ctx.textAlign='right';ctx.fillStyle=fT?CORES.T:'#5d564c';
+   ctx.fillText(fT?(fT[1]-(fT[1]-fT[0])*k/3).toFixed(1):'--',x0-.5*r,y);
+   ctx.textAlign='left';ctx.fillStyle=CORES.P;
+   ctx.fillText((12-12*k/3).toFixed(0),x0+pw+.5*r,y);
+  }
+  ctx.textBaseline='alphabetic';
+  ctx.textAlign='right';ctx.fillStyle=CORES.T;ctx.fillText('°C',x0-.5*r,y0-.55*r);
+  ctx.textAlign='left';ctx.fillStyle=CORES.P;ctx.fillText('bar',x0+pw+.5*r,y0-.55*r);
+
+  var v=vis();G.v=v;
+  if(!v)return;
+  var px=function(x){return x0+(x-v[0])/(v[1]-v[0])*pw;};
+
+  // eixo do tempo com marcas redondas, quantas couberem
+  var span=v[1]-v[0],cabe=Math.max(2,pw/(4.5*r)),st=3600;
+  var PS=[.5,1,2,5,10,15,30,60,120,300,600,900,1800,3600];
+  for(var j=0;j<PS.length;j++)if(span/PS[j]<=cabe){st=PS[j];break;}
+  ctx.font=(.64*r).toFixed(1)+MONO;ctx.textBaseline='top';ctx.textAlign='center';
+  for(var tk=Math.ceil(v[0]/st)*st;tk<=v[1]+1e-6;tk+=st){
+   var xt=Math.round(px(tk))+.5;
+   ctx.strokeStyle='#221f1a';ctx.lineWidth=1;
+   ctx.beginPath();ctx.moveTo(xt,y0);ctx.lineTo(xt,y0+ph);ctx.stroke();
+   ctx.fillStyle='#5d564c';ctx.fillText(fmtT(tk,st),xt,y0+ph+.35*r);
+  }
+
+  var n=F.n(),i0=Math.max(0,busca(v[0])-1),i1=Math.min(n,busca(v[1])+1);
+  var pontas=[];
+  ctx.save();
+  ctx.beginPath();ctx.rect(x0,y0-r,pw,ph+2*r);ctx.clip();
+  ctx.lineJoin='round';ctx.lineCap='round';
+  F.s.filter(function(s){return s.ref;}).concat(F.s.filter(function(s){return !s.ref;}))
+   .forEach(function(s){
+    var f=FX[s.e];if(!f)return;
+    ctx.strokeStyle=CORES[s.e];
+    if(s.ref){ctx.globalAlpha=.42;ctx.lineWidth=Math.max(1.5,r/11);
+              ctx.setLineDash([Math.max(3,r*.28),Math.max(3,r*.28)]);}
+    else{ctx.globalAlpha=1;ctx.lineWidth=Math.max(2,r/7);ctx.setLineDash([]);}
+    var u=traca(ctx,s,pyDe(f),px,i0,i1);
+    if(u&&!s.ref)pontas.push([s,u]);
+   });
+  ctx.restore();
+
+  // ponto vivo só seguindo ao vivo: com zoom travado a ponta é só a borda da tela
+  ctx.font=(.68*r).toFixed(1)+MONO;
+  pontas.forEach(function(p){
+   var s=p[0],u=p[1];
+   if(F.vivo&&!z&&i1===n){
+    ctx.fillStyle=CORES[s.e];ctx.beginPath();ctx.arc(u[0],u[1],Math.max(4,r*.29),0,6.284);ctx.fill();
+    ctx.strokeStyle='#1c1915';ctx.lineWidth=Math.max(2,r/7);ctx.stroke();
+   }
+   if(s.e==='G'){
+    ctx.fillStyle=CORES.G;ctx.textAlign='right';ctx.textBaseline='bottom';
+    ctx.fillText(u[2].toFixed(1)+' g',Math.min(u[0],x0+pw),u[1]-.4*r);
+   }
+  });
+
+  if(sel){
+   var a=Math.max(x0,Math.min(sel[0],sel[1])),b=Math.min(x0+pw,Math.max(sel[0],sel[1]));
+   ctx.fillStyle='rgba(201,160,106,.13)';ctx.fillRect(a,y0,b-a,ph);
+   ctx.strokeStyle='rgba(201,160,106,.65)';ctx.lineWidth=1;
+   ctx.strokeRect(Math.round(a)+.5,y0+.5,Math.round(b-a),ph);
+  }else if(hov!==null&&hov>=x0&&hov<=x0+pw&&n){
+   // leitura sob o cursor: a amostra mais próxima, com o alvo ao lado do medido
+   var xv=inv(hov),i=Math.min(busca(xv),n-1);
+   if(i>0&&xv-F.x(i-1)<F.x(i)-xv)i--;
+   var xs=Math.round(px(F.x(i)))+.5;
+   ctx.strokeStyle='rgba(232,224,212,.35)';ctx.lineWidth=1;
+   ctx.beginPath();ctx.moveTo(xs,y0);ctx.lineTo(xs,y0+ph);ctx.stroke();
+   var linhas=[[fmtT(F.x(i),.1),'#8a8278']];
+   F.s.forEach(function(s){
+    var val=s.v(i),f=FX[s.e];
+    if(s.ref||!ok(val)||!f)return;
+    ctx.fillStyle=CORES[s.e];ctx.beginPath();ctx.arc(xs,pyDe(f)(val),Math.max(3,r*.22),0,6.284);ctx.fill();
+    var txt=val.toFixed(1)+' '+s.u;
+    var rf=F.s.filter(function(q){return q.ref&&q.e===s.e;})[0];
+    if(rf&&ok(rf.v(i)))txt+='  '+t('target_p')+' '+rf.v(i).toFixed(1);
+    linhas.push([txt,CORES[s.e]]);
+   });
+   var lh=1.2*r,bw=0;
+   linhas.forEach(function(l){bw=Math.max(bw,ctx.measureText(l[0]).width);});
+   bw+=1.2*r;
+   var bh=linhas.length*lh+.5*r,bx=xs+.8*r,by=y0+.3*r;
+   if(bx+bw>x0+pw)bx=xs-.8*r-bw;
+   ctx.fillStyle='rgba(20,18,15,.92)';ctx.fillRect(bx,by,bw,bh);
+   ctx.strokeStyle='#3a342c';ctx.strokeRect(Math.round(bx)+.5,Math.round(by)+.5,Math.round(bw),Math.round(bh));
+   ctx.textAlign='left';ctx.textBaseline='middle';
+   linhas.forEach(function(l,k){ctx.fillStyle=l[1];ctx.fillText(l[0],bx+.6*r,by+.25*r+lh*(k+.5));});
+  }
+ }
+
+ cv.addEventListener('wheel',function(e){
+  var v=vis();if(!v)return;
+  e.preventDefault();
+  var e2=ext(),span=v[1]-v[0],dx=e.deltaX,dy=e.deltaY;
+  if(e.deltaMode===1){dx*=16;dy*=16;}
+  if(e.shiftKey&&!dx){dx=dy;dy=0;}
+  if(Math.abs(dx)>Math.abs(dy)){
+   if(!z)return;                       // vendo tudo, não há para onde deslocar
+   var a=v[0]+dx/G.pw*span;
+   a=Math.max(e2[0],Math.min(e2[1]-span,a));
+   z=[a,a+span];
+  }else{
+   var u=Math.max(0,Math.min(1,(e.offsetX-G.x0)/G.pw)),alvo=v[0]+u*span;
+   var ns=Math.max(MIN_S,span*Math.exp(Math.max(-200,Math.min(200,dy))*.004));
+   if(ns>=e2[1]-e2[0])z=null;
+   else{var b=Math.max(e2[0],Math.min(e2[1]-ns,alvo-u*ns));z=[b,b+ns];}
+  }
+  desenha();
+ },{passive:false});
+ cv.addEventListener('pointerdown',function(e){
+  if(e.button!==0||!G.v)return;
+  e.preventDefault();
+  sel=[e.offsetX,e.offsetX];
+  cv.setPointerCapture(e.pointerId);
+ });
+ cv.addEventListener('pointermove',function(e){
+  hov=e.offsetX;if(sel)sel[1]=e.offsetX;
+  desenha();
+ });
+ cv.addEventListener('pointerup',function(){
+  if(!sel)return;
+  var a=Math.max(G.x0,Math.min(sel[0],sel[1])),b=Math.min(G.x0+G.pw,Math.max(sel[0],sel[1]));
+  sel=null;
+  if(b-a>6&&G.v){
+   var xa=inv(a),xb=inv(b);
+   if(xb-xa<MIN_S){var c=(xa+xb)/2;xa=c-MIN_S/2;xb=c+MIN_S/2;}
+   z=[xa,xb];
+  }
+  desenha();
+ });
+ cv.addEventListener('pointerleave',function(){hov=null;desenha();});
+ cv.addEventListener('dblclick',function(){z=null;desenha();});
+ var g={desenha:desenha,reset:function(){z=null;sel=null;desenha();}};
+ GRAFS.push(g);
+ return g;
 }
-function desenhaPlot(){
- var cv=plot,ctx=cv.getContext('2d'),dpr=devicePixelRatio||1;
- var w=cv.clientWidth,h=cv.clientHeight;
- if(!w||!h)return;
- if(cv.width!==Math.round(w*dpr)){cv.width=w*dpr;cv.height=h*dpr;}
- ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
 
- var r=REM(), EL=3*r, ER=2.4*r, ET=.65*r, EB=1.5*r;
- var x0=EL,y0=ET,pw=w-EL-ER,ph=h-ET-EB;
- if(pw<3*r||ph<2*r)return;
- // a faixa olha medida E alvo: senão a referência sai do plot justamente quando
- // está longe da medida, que é quando ela mais importa
- // a faixa olha medida E alvo juntos: senão a referência sai do plot justamente
- // quando está longe da medida, que é quando ela mais importa
- var fT=faixa2(serT,serTa,3), fP=[0,12];
- var jw=janela(), ini=jw[0], fim=jw[1];
- var temP=false;
- for(var i=ini;i<fim&&!temP;i++){var v=at(serP,i);temP=(v===v);}
+var gVivo=criaGrafico(plot,{vivo:true,
+ n:function(){return nPts;}, x:function(i){return at(serX,i);},
+ s:[{e:'P',ref:1,v:function(i){return at(serPa,i);}},
+    {e:'T',ref:1,v:function(i){return at(serTa,i);}},
+    {e:'T',u:'°C',v:function(i){return at(serT,i);}},
+    {e:'P',u:'bar',v:function(i){return at(serP,i);}},
+    {e:'G',u:'g',v:function(i){return at(serG,i);}}]});
 
- ctx.font=(.72*r).toFixed(1)+'px ui-monospace,Menlo,monospace';ctx.textBaseline='middle';
- for(var k=0;k<=3;k++){
-  var y=Math.round(y0+ph*k/3)+.5;
-  ctx.strokeStyle='#2b2620';ctx.lineWidth=1;
-  ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x0+pw,y);ctx.stroke();
-  ctx.textAlign='right';ctx.fillStyle=fT?'#c98330':'#5d564c';
-  ctx.fillText(fT?(fT[1]-(fT[1]-fT[0])*k/3).toFixed(1):'--',x0-.5*r,y);
-  ctx.textAlign='left';ctx.globalAlpha=temP?1:.4;ctx.fillStyle='#3d86c8';
-  ctx.fillText((fP[1]-(fP[1]-fP[0])*k/3).toFixed(0),x0+pw+.5*r,y);
-  ctx.globalAlpha=1;
- }
- // referências primeiro, para as medidas ficarem POR CIMA: quando coincidem,
- // quem tem que ganhar o pixel é o que aconteceu de verdade
- traca(ctx,serPa,fP,'#3d86c8',x0,pw,y0,ph,ini,fim,true);
- traca(ctx,serTa,fT,'#c98330',x0,pw,y0,ph,ini,fim,true);
- traca(ctx,serP,fP,'#3d86c8',x0,pw,y0,ph,ini,fim);
- traca(ctx,serT,fT,'#c98330',x0,pw,y0,ph,ini,fim);
-
- // O span CRESCE até encher a hora, então o rótulo tem que ser calculado, não
- // fixo. "−60 s" chumbado passaria a mentir no primeiro minuto de uso.
- ctx.fillStyle='#5d564c';ctx.font=(.64*r).toFixed(1)+'px ui-monospace,Menlo,monospace';
- ctx.textAlign='left';ctx.fillText('−'+dur((fim-ini)*PASSO/1000),x0,h-.45*r);
- ctx.textAlign='right';
- // quando você navegou para trás, o canto direito NÃO é "agora" — dizer que é
- // seria a mentira mais fácil de cometer num gráfico que corre sozinho
- ctx.fillText(vOff>0 ? ('−'+dur(vOff*PASSO/1000)) : t('now'), x0+pw, h-.45*r);
- if(zoomado()||vOff>0){
-  ctx.textAlign='center';ctx.fillStyle='#c9a06a';
-  ctx.fillText(t('zoomhint'),x0+pw/2,h-.45*r);
- }
-}
 // Zera o histórico do gráfico. Chamada na borda de início do shot: com janela de
 // 1 h, uma extração de 30 s ocuparia 0,8% da largura e viraria um risco fino.
 // Limpando, o eixo recomeça do zero e o shot toma a tela inteira enquanto corre.
 function limparSerie(){
- escI=0; nPts=0;
- vN=0; vOff=0;      // shot novo começa vendo tudo e ao vivo
- desenhaPlot();
+ escI=0;nPts=0;t0Serie=performance.now();
+ gVivo.reset();      // shot novo começa vendo tudo e ao vivo
 }
-function amostra(a,b,c,d){
- serT[escI]=a;serP[escI]=b;serTa[escI]=c;serPa[escI]=d;
+function amostra(tm,a,b,c,d,g){
+ serX[escI]=(tm-t0Serie)/1000;
+ serT[escI]=a;serP[escI]=b;serTa[escI]=c;serPa[escI]=d;serG[escI]=g;
  escI=(escI+1)%NPT;
  if(nPts<NPT)nPts++;      // só desliza depois de encher a hora inteira
- // Navegado para trás: o índice de tudo anda 1, então o deslocamento tem que
- // andar junto para a tela ficar no MESMO trecho de tempo em vez de escorregar.
- else if(vOff>0)vOff++;
- if(vOff>nPts)vOff=nPts;
- desenhaPlot();
+ gVivo.desenha();
+}
+
+/* Shots guardados no navegador: cada extração vira um registro no localStorage,
+   no mesmo formato de pontos do CSV do cartão ([t, bar, g, alvo bar, °C, sp]),
+   para o histórico tratar os dois igual. ~5 kB por shot; sem cartão, é o único
+   lugar onde o shot sobrevive. Só grava o navegador que estava aberto no shot.
+   Cota cheia: descarta os mais antigos até caber. */
+var shotRec=null;
+function r2(v){return Math.round(v*100)/100;}
+function carimbo(){
+ var d=new Date(),p=function(n){return (n<10?'0':'')+n;};
+ return ''+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'-'+
+        p(d.getHours())+p(d.getMinutes())+p(d.getSeconds());
+}
+function shotsLocais(){
+ try{return JSON.parse(localStorage.getItem('shots')||'[]');}catch(e){return [];}
+}
+function salvaShot(s){
+ var l=shotsLocais();l.push(s);
+ while(l.length){
+  try{localStorage.setItem('shots',JSON.stringify(l));return;}catch(e){l.shift();}
+ }
 }
 
 /* Trem de pulsos do PSM: desenha o duty que a máquina manda para a bomba,
@@ -1228,45 +1417,7 @@ function desenhaTrem(frac){
  conta.textContent=disp+' '+(disp===1?t('shot_u'):t('shots_u'));
  vDuty.innerHTML=Math.round(frac*100)+'<u>%</u>';
 }
-addEventListener('resize',function(){mediSinal();desenhaTrem(dutyAtual);desenhaPlot();});
-
-/* ------------------------------------------------------- interação do gráfico
-   Roda do mouse = zoom no tempo, ANCORADO NO CURSOR: o instante embaixo do
-   ponteiro fica parado enquanto o resto se aproxima. Zoom que ancora no meio
-   obriga a caçar de novo o ponto que você estava olhando a cada passo.
-
-   Ancorar também dispensa arrastar: afasta, leva o cursor para onde quer, e
-   aproxima. Duas rodadas chegam em qualquer trecho da hora.
-
-   `preventDefault` porque senão a página inteira rola junto — e num painel que
-   cabe na tela sem rolagem, isso só produziria tremor. */
-var MIN_PTS=20;   // 5 s: abaixo disso a agregação por pixel perde o sentido
-plot.addEventListener('wheel',function(e){
- if(!nPts)return;
- e.preventDefault();
- var jw=janela(), ini=jw[0], fim=jw[1], n=fim-ini;
- var r=REM(), EL=3*r, ER=2.4*r;
- var cx=plot.getBoundingClientRect();
- var pw=cx.width-EL-ER;
- var u=Math.max(0,Math.min(1,(e.clientX-cx.left-EL)/pw));   // 0..1 no eixo
- var alvo=ini+u*n;                                          // índice sob o cursor
-
- var f=e.deltaY<0?0.8:1.25;
- var novo=Math.round(n*f);
- novo=Math.max(MIN_PTS,Math.min(nPts,novo));
- if(novo===n)return;
-
- // mantém `alvo` na mesma fração da tela
- var novoIni=Math.round(alvo-u*novo);
- novoIni=Math.max(0,Math.min(nPts-novo,novoIni));
- vN = novo>=nPts ? 0 : novo;
- vOff = nPts-(novoIni+novo);
- desenhaPlot();
-},{passive:false});
-
-// Duplo clique volta a ver tudo e a seguir ao vivo. Gesto de desfazer que não
-// gasta espaço na tela — e o rodapé avisa que ele existe enquanto há zoom.
-plot.addEventListener('dblclick',function(){ vN=0; vOff=0; desenhaPlot(); });
+addEventListener('resize',function(){mediSinal();desenhaTrem(dutyAtual);GRAFS.forEach(function(g){g.desenha();});});
 
 /* Ultrassônico: a saúde do sensor não é sinal nem sigma, é a TAXA DE ECOS. Eco
    parado com distância congelada é sensor mudo, e sem a contagem isso pareceria
@@ -1450,93 +1601,26 @@ function pintaCal(d){
 function resumo(csv){
  var l=csv.trim().split('\n').filter(function(x){return x&&x[0]!=='#';});
  var col=l.shift().split(',');
- var it=col.indexOf('t_s'),ig=col.indexOf('massa_g'),ip=col.indexOf('pressao_bar');
- var ia=col.indexOf('alvo_bar'),ib=col.indexOf('t_boiler_c');
- var pts=[],tf=0,gf=0,tlo=1/0,thi=-1/0;
+ var ix=['t_s','pressao_bar','massa_g','alvo_bar','t_boiler_c'].map(function(c){return col.indexOf(c);});
+ var pts=[];
  l.forEach(function(x){
   var v=x.split(',');
-  var s=+v[it],g=+v[ig],p=+v[ip];
-  var a=ia>=0?+v[ia]:NaN, b=ib>=0?+v[ib]:NaN;
-  if(isNaN(s))return;
-  if(!isNaN(b)){ if(b<tlo)tlo=b; if(b>thi)thi=b; }
-  pts.push([s,p,g,a,b]); tf=s; gf=g;
+  var p=ix.map(function(i){return i>=0?parseFloat(v[i]):NaN;});
+  if(!isNaN(p[0]))pts.push(p);
  });
- // vão mínimo de 3 °C, mesma regra do painel: num shot bem controlado ela varia
- // menos de 1 °C, e escala automática crua transforma ruído em montanha
- var c=(tlo+thi)/2, d=Math.max(thi-tlo,3)*1.2/2;
- return {pts:pts,t:tf,g:gf,q:tf>0?gf/tf:0,tf:isFinite(tlo)?[c-d,c+d]:null};
+ return resumoPts(pts);
 }
-function desenhaHist(r){
- var cv=hPlot,ctx=cv.getContext('2d'),dpr=devicePixelRatio||1;
- var w=cv.clientWidth,h=cv.clientHeight;
- if(!w||!h||!r.pts.length)return;
- if(cv.width!==Math.round(w*dpr)){cv.width=w*dpr;cv.height=h*dpr;}
- ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
-
- // Mesma anatomia do gráfico ao vivo — margens para os rótulos caberem FORA da
- // área de dados. Antes o plot ia de borda a borda e os únicos números eram os
- // extremos, o que não é escala: é legenda. Sem grade e sem valores
- // intermediários não dá para ler quanto vale um ponto no meio da curva.
- var r0=REM(), EL=2.9*r0, ER=2.6*r0, ET=.9*r0, EB=1.4*r0;
- var x0=EL,y0=ET,pw=w-EL-ER,ph=h-ET-EB;
- if(pw<40||ph<30)return;
- var tmax=r.t||1, gmax=Math.max(r.g,1), ft=r.tf, fp=[0,12];
- var px=function(s){return x0+s/tmax*pw;};
-
- ctx.font=(.68*r0).toFixed(1)+'px ui-monospace,Menlo,monospace';
- ctx.textBaseline='middle';
- for(var k=0;k<=3;k++){
-  var y=Math.round(y0+ph*k/3)+.5;
-  ctx.strokeStyle='#2b2620';ctx.lineWidth=1;
-  ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x0+pw,y);ctx.stroke();
-  // rótulo de cada eixo NA COR da sua série: é o que resolve "qual escala é de
-  // quem" sem gastar espaço com legenda
-  if(ft){
-   ctx.textAlign='right';ctx.fillStyle='#c98330';
-   ctx.fillText((ft[1]-(ft[1]-ft[0])*k/3).toFixed(1),x0-.4*r0,y);
-  }
-  ctx.textAlign='left';ctx.fillStyle='#3d86c8';
-  ctx.fillText((fp[1]-(fp[1]-fp[0])*k/3).toFixed(0),x0+pw+.4*r0,y);
- }
-
- // séries: [índice, faixa, cor, tracejado]. `null` na faixa = não desenhe —
- // arquivo antigo sem a coluna some da lista em vez de virar linha em zero.
- [[3,fp,'#3d86c8',1],[4,ft,'#c98330',0],
-  [1,fp,'#3d86c8',0],[2,[0,gmax],'#7a9a5b',0]].forEach(function(s){
-  var f=s[1]; if(!f)return;
-  ctx.save();ctx.strokeStyle=s[2];
-  if(s[3]){ctx.globalAlpha=.42;ctx.lineWidth=1.5;ctx.setLineDash([4,4]);}
-  else{ctx.lineWidth=2;}
-  ctx.beginPath();
-  var primeiro=true,ux=0,uy=0;
-  r.pts.forEach(function(p){
-   var v=p[s[0]]; if(isNaN(v))return;
-   ux=px(p[0]); uy=y0+ph-((v-f[0])/(f[1]-f[0]))*ph;
-   primeiro?ctx.moveTo(ux,uy):ctx.lineTo(ux,uy);
-   primeiro=false;
-  });
-  ctx.stroke();ctx.restore();
-  // A massa é a TERCEIRA escala e não cabe mais um eixo. Rótulo direto na ponta
-  // resolve identidade e valor de uma vez — é o que a cartilha de dataviz
-  // recomenda quando eixo sairia caro.
-  if(s[0]===2&&!primeiro){
-   ctx.fillStyle=s[2];ctx.textAlign='right';ctx.textBaseline='bottom';
-   ctx.fillText(r.g.toFixed(1)+' g',Math.min(ux,x0+pw),uy-.25*r0);
-   ctx.textBaseline='middle';
-  }
- });
-
- // eixo do tempo com valor no meio, não só nos extremos
- ctx.fillStyle='#5d564c';ctx.textBaseline='top';
- [[0,'left'],[tmax/2,'center'],[tmax,'right']].forEach(function(e){
-  ctx.textAlign=e[1];
-  ctx.fillText(e[0].toFixed(e[0]<10?1:0)+' s',px(e[0]),y0+ph+.25*r0);
- });
- // unidade de cada eixo, uma vez, no topo
- ctx.textBaseline='alphabetic';
- if(ft){ctx.textAlign='right';ctx.fillStyle='#c98330';ctx.fillText('°C',x0-.4*r0,y0-.15*r0);}
- ctx.textAlign='left';ctx.fillStyle='#3d86c8';ctx.fillText('bar',x0+pw+.4*r0,y0-.15*r0);
+// pts = [[t, bar, g, alvo bar, °C, sp °C], ...] — o CSV do cartão não tem sp
+function resumoPts(pts){
+ var u=pts[pts.length-1]||[0,0,0],tf=u[0]||0,gf=ok(u[2])?u[2]:0;
+ return {pts:pts,t:tf,g:gf,q:tf>0?gf/tf:0};
 }
+var hDados=[];
+function hSer(k){return function(i){return hDados[i][k];};}
+var gHist=criaGrafico(hPlot,{
+ n:function(){return hDados.length;}, x:hSer(0),
+ s:[{e:'P',ref:1,v:hSer(3)},{e:'T',ref:1,v:hSer(5)},
+    {e:'T',u:'°C',v:hSer(4)},{e:'P',u:'bar',v:hSer(1)},{e:'G',u:'g',v:hSer(2)}]});
 /* O nome do arquivo É a data (o firmware o carimba pelo relógio), mas
    "20260802-230732" não se lê — data e hora existem para ORDENAR e RECONHECER, e
    nenhuma das duas funciona nesse formato. Aqui vira texto legível no idioma
@@ -1560,36 +1644,50 @@ function quando(nome){
          full:t('noclock')+' · '+(u?(+u[1])+' s '+t('uptime'):nome)};
 }
 
+/* Lista = shots guardados neste navegador + os do cartão, mais novo primeiro. Os
+   locais aparecem na hora; os do cartão quando o /sd responder. */
 var histCache=null;
 function carregaHist(){
- fetch('/sd').then(function(r){return r.json();}).then(function(j){
-  hSub.textContent=j.montado?(t('card')+' · '+(j.livre_kb/1024).toFixed(0)+' '+t('free'))
-                            :t('nocard');
-  var fs=(j.shots||[]).sort(function(a,b){return a.n<b.n?1:-1;});
-  histCache=j;
-  hVazio.hidden=fs.length>0;
+ var itens=shotsLocais().map(function(s){
+  var r=resumoPts(s.pts);
+  return {n:s.n,src:'src_loc',g:r.g,abre:function(cb){cb(r);}};
+ });
+ function lista(){
+  itens.sort(function(a,b){return a.n<b.n?1:-1;});
+  hVazio.hidden=itens.length>0;
   hLista.innerHTML='';
-  fs.forEach(function(f){
-   var q=quando(f.n);
+  itens.forEach(function(it){
+   var q=quando(it.n);
    var tr=document.createElement('tr');
-   tr.innerHTML='<td>'+q.d+'</td><td class="q">'+q.h+
-                '</td><td class="g">→</td>';
+   tr.innerHTML='<td>'+q.d+'<s>'+t(it.src)+'</s></td><td class="q">'+q.h+
+                '</td><td class="g">'+(it.g!=null?it.g.toFixed(1)+' g':'→')+'</td>';
    tr.onclick=function(){
     [].forEach.call(hLista.children,function(x){x.classList.remove('sel');});
     tr.classList.add('sel');
-    fetch('/sd?f='+encodeURIComponent(f.n)).then(function(r){return r.text();})
-     .then(function(csv){
-      var r=resumo(csv);
-      hDet.hidden=false;
-      hDetNome.textContent=q.full;
-      hDetInfo.textContent=r.g.toFixed(1)+' g · '+r.t.toFixed(1)+' s · '+
-        r.q.toFixed(2)+' g/s '+t('avg')+' · '+r.pts.length+' '+t('samples');
-      desenhaHist(r);
-      tr.children[2].textContent=r.g.toFixed(1)+' g';
-     });
+    it.abre(function(r){
+     hDet.hidden=false;
+     hDetNome.textContent=q.full;
+     hDetInfo.textContent=r.g.toFixed(1)+' g · '+r.t.toFixed(1)+' s · '+
+       r.q.toFixed(2)+' g/s '+t('avg')+' · '+r.pts.length+' '+t('samples');
+     hDados=r.pts;gHist.reset();
+     it.g=r.g;tr.children[2].textContent=r.g.toFixed(1)+' g';
+    });
    };
    hLista.appendChild(tr);
   });
+ }
+ lista();
+ fetch('/sd').then(function(r){return r.json();}).then(function(j){
+  hSub.textContent=j.montado?(t('card')+' · '+(j.livre_kb/1024).toFixed(0)+' '+t('free'))
+                            :t('nocard');
+  histCache=j;
+  (j.shots||[]).forEach(function(f){
+   itens.push({n:f.n,src:'src_sd',g:null,abre:function(cb){
+    fetch('/sd?f='+encodeURIComponent(f.n)).then(function(r){return r.text();})
+     .then(function(csv){cb(resumo(csv));});
+   }});
+  });
+  lista();
  }).catch(function(){hSub.textContent=t('noresp');});
 }
 btHist.onclick=function(){ if(abrir(mhist)) carregaHist(); };
@@ -1932,7 +2030,8 @@ function pinta(d){
  // Limpa na BORDA do estado, não no clique do botão: assim vale também para shot
  // disparado de outro navegador, e um dia pelo botão físico da máquina. O clique
  // só pede; quem manda é a máquina dizer que começou.
- if(ext&&!extAnt)limparSerie();
+ if(ext&&!extAnt){limparSerie();shotRec={n:carimbo(),pts:[]};}
+ if(!ext&&extAnt&&shotRec){if(shotRec.pts.length>4)salvaShot(shotRec);shotRec=null;}
  extAnt=ext;
  btShot.textContent=ext?t('stop'):t('pull');
  btShot.classList.toggle('parar',ext);
@@ -1962,7 +2061,10 @@ function pinta(d){
  trilho.classList.toggle('ruim',!m.ign&&m.niv<=2);
  swIgnNivel.checked=m.ign===1;
 
- if(tm-tAmostra>PASSO){tAmostra=tm;amostra(m.tb,m.pr,m.sp,m.ap);}
+ if(tm-tAmostra>PASSO){
+  tAmostra=tm;amostra(tm,m.tb,m.pr,m.sp,m.ap,m.g);
+  if(shotRec)shotRec.pts.push([m.t,m.pr,m.g,m.ap,m.tb,m.sp].map(r2));
+ }
 
  if(tm-tNum>250){   // ritmo humano: dígito trocando 30x/s ninguém lê, só treme
   tNum=tm;
@@ -2020,7 +2122,7 @@ function liga_ws(){
 try{
  traduzir();
  txtEstado.textContent=t('connecting');
- mediSinal();desenhaPlot();desenhaTrem(0);
+ mediSinal();gVivo.desenha();desenhaTrem(0);
 }catch(e){
  console.error('inicialização da apresentação falhou:',e);
 }
