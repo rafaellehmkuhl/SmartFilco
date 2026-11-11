@@ -364,3 +364,8 @@ resultante tem que chegar ao alvo sem passar do ponto.
 ⚠️ **Antes de abrir a máquina**, leia a seção 0 de
 [docs/06](docs/06-engenharia-reversa-checklist.md) sobre o **parafuso do chuveiro** —
 é o defeito que mais destrói essa máquina, e espaná-lo custa uma caldeira nova.
+
+## Licença
+
+[GPL v3](LICENSE). Pode usar, modificar e vender; quem distribuir uma versão
+modificada precisa publicar o código-fonte dela sob a mesma licença.
