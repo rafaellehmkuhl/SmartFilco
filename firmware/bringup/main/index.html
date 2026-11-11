@@ -320,7 +320,7 @@ body{margin:0;background:var(--graf);color:var(--osso);overflow:hidden;
 .metr.frio .big{color:var(--fosco);font-size:1.7rem}
 .metr.frio .big u{vertical-align:.42em;margin-left:.18rem}
 .tela{position:relative;min-width:0;min-height:0}
-.tela canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
+.tela canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:pan-y;cursor:crosshair}
 .gbar{position:absolute;top:0;right:2.4rem;display:flex;gap:.3rem}
 .gbar button{background:var(--graf);color:var(--cinza);border:1px solid var(--linha);border-radius:.3rem;
   font:inherit;font-size:.62rem;padding:.1rem .45rem;cursor:pointer}
@@ -376,16 +376,23 @@ table.hist td s{text-decoration:none;color:var(--fosco);font-size:.6rem;margin-l
 @media (max-width:700px){
   body{overflow:auto}
   .app{height:auto;grid-template-columns:1fr;grid-template-rows:none;padding-bottom:2rem}
-  .nivel{height:80px}
+  .nivel{height:56px}
   .nivel .eixo{writing-mode:horizontal-tb;transform:translateX(-50%);top:6px}
-  .graf{grid-template-columns:1fr 1fr;grid-template-rows:auto 170px auto}
+  .app>*,.corpo>*{min-width:0}
+  /* topo em duas linhas: marca, estado e relógio em cima; botões embaixo, com
+     a largura toda. Numa linha só eles se sobrepunham à marca. */
+  .topo{grid-template-columns:1fr auto;row-gap:.5rem}
+  .tdir{grid-column:1/-1;justify-self:stretch;justify-content:space-between}
+  .tray>button{font-size:.66rem;padding:.25rem .4rem;white-space:nowrap}
+  .graf{grid-template-columns:1fr;grid-template-rows:auto 250px auto;padding:.7rem .6rem .5rem}
+  .pilha{display:grid!important;grid-template-columns:1fr 1fr;gap:.5rem 1rem;margin-bottom:.6rem}
+  .perfil>.tit{flex-basis:100%}
   .perfil{flex-direction:row;flex-wrap:wrap;overflow:visible}
   .ctr{flex:1 1 8rem}
   #mhist{width:96vw;height:88vh;top:6vh}
   #mhist .mcorpo{grid-template-columns:1fr;grid-template-rows:auto 1fr}
-  .pilha{flex-direction:row;justify-content:space-between;gap:1rem}
   .tela{grid-column:1/-1}
-  .big{font-size:2.6rem}
+  .big{font-size:2.1rem}
 }
 </style></head><body>
 <div class="app">
@@ -647,6 +654,10 @@ table.hist td s{text-decoration:none;color:var(--fosco);font-size:.6rem;margin-l
       <div class="rot" id="hDetNome">&mdash;</div>
       <div class="tela"><canvas id="hPlot"></canvas></div>
       <p class="dica" id="hDetInfo">&mdash;</p>
+      <div class="chips">
+        <button id="hCsv" class="neutro">CSV</button>
+        <button id="hApagar" class="neutro" data-i18n="del">delete</button>
+      </div>
     </div>
   </div>
 </div>
@@ -833,7 +844,7 @@ en:{
  nowindow:'no window',window60:'1 h window',now:'now',
  g_smooth:'smooth',g_all:'⤢ all',tt_smooth:'Smooth curve through the samples (off: raw steps, sample and hold)',
  tt_all:'See everything and follow live (double-click). Drag on the chart to zoom into a stretch; wheel zooms at the cursor, shift+wheel pans',
- src_loc:'browser',src_sd:'card',
+ src_loc:'browser',src_sd:'card',del:'delete',del_ok:'confirm delete?',
  s_filt:'filtered',s_raw:'raw',
  recorded:'Recorded shots',noshots:'No shots saved yet.',
  card:'card',free:'MB free',nocard:'no card',noresp:'card did not respond',
@@ -914,7 +925,7 @@ pt:{
  nowindow:'sem janela',window60:'janela 1 h',now:'agora',
  g_smooth:'suave',g_all:'⤢ tudo',tt_smooth:'Curva suave passando pelas amostras (desligado: degraus crus, amostra e retém)',
  tt_all:'Ver tudo e seguir ao vivo (duplo clique). Arraste no gráfico para dar zoom num trecho; a roda aproxima no cursor, shift+roda desloca',
- src_loc:'navegador',src_sd:'cartão',
+ src_loc:'navegador',src_sd:'cartão',del:'apagar',del_ok:'confirmar?',
  s_filt:'filtrado',s_raw:'cru',
  recorded:'Shots gravados',noshots:'Nenhum shot guardado ainda.',
  card:'cartão',free:'MB livres',nocard:'sem cartão',noresp:'cartão não respondeu',
@@ -1646,7 +1657,26 @@ function quando(nome){
 
 /* Lista = shots guardados neste navegador + os do cartão, mais novo primeiro. Os
    locais aparecem na hora; os do cartão quando o /sd responder. */
-var histCache=null;
+var histCache=null, hSel=null;
+// Mesmas colunas do CSV do cartão, para os dois abrirem no mesmo lugar.
+hCsv.onclick=function(){
+ if(!hSel)return;
+ var L=['t_s,pressao_bar,massa_g,alvo_bar,t_boiler_c,sp_c'];
+ hSel.r.pts.forEach(function(p){L.push(p.map(function(v){return ok(v)?v:'';}).join(','));});
+ var a=document.createElement('a');
+ a.href=URL.createObjectURL(new Blob([L.join('\n')],{type:'text/csv'}));
+ a.download='smartfilco-shot-'+hSel.it.n+'.csv';
+ a.click(); setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
+};
+// Apagar em dois toques: o primeiro só pergunta. Só shots do navegador — os do
+// cartão são do firmware.
+hApagar.onclick=function(){
+ if(!hSel)return;
+ if(!hApagar.dataset.c){hApagar.dataset.c='1';hApagar.textContent=t('del_ok');return;}
+ var n=hSel.it.n;
+ try{localStorage.setItem('shots',JSON.stringify(shotsLocais().filter(function(s){return s.n!==n;})));}catch(e){}
+ hSel=null;hDet.hidden=true;carregaHist();
+};
 function carregaHist(){
  var itens=shotsLocais().map(function(s){
   var r=resumoPts(s.pts);
@@ -1670,6 +1700,8 @@ function carregaHist(){
      hDetInfo.textContent=r.g.toFixed(1)+' g · '+r.t.toFixed(1)+' s · '+
        r.q.toFixed(2)+' g/s '+t('avg')+' · '+r.pts.length+' '+t('samples');
      hDados=r.pts;gHist.reset();
+     hSel={it:it,r:r,q:q};
+     hApagar.hidden=it.src!=='src_loc';hApagar.textContent=t('del');hApagar.dataset.c='';
      it.g=r.g;tr.children[2].textContent=r.g.toFixed(1)+' g';
     });
    };

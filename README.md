@@ -49,7 +49,9 @@ conhecida: 32 g em 35 s, com pré-infusão, platô de 9 bar e temperatura contro
   tracejados, zoom que trava no trecho, leitura sob o cursor, trem de pulsos real
   da bomba.
 - 🗂️ **Histórico de shots no navegador** — cada extração fica guardada e pode ser
-  reaberta depois com o mesmo gráfico (e os do cartão, quando houver).
+  reaberta depois com o mesmo gráfico (e os do cartão, quando houver), exportada
+  em CSV ou apagada.
+- 📱 **Funciona no celular** — a mesma página vira uma coluna rolável.
 - ⚙️ **Tudo ajustável, nada fixo no código** — perfil, tempos, janela de pronta,
   ganhos; com "aplicar padrões" para voltar ao começo. Gravado na placa.
 - 🧪 **Bancada de testes** — acionar bomba ou resistência com duty e tempo fixos,
@@ -79,8 +81,6 @@ Sendo honesto sobre o que falta:
 - **Vapor.** O controle é só para extração.
 - **Tela física.** Por ora a interface é web; uma tela fixa na máquina é a fase
   seguinte ([por quê duas placas](docs/05-firmware-arquitetura.md)).
-- **Layout de celular.** Funciona, mas o topo se embola em telas estreitas — a
-  página foi desenhada primeiro para 800×480 deitado.
 
 ---
 
