@@ -41,29 +41,37 @@
 .crono{font-size:1.05rem;font-variant-numeric:tabular-nums;min-width:4em}
 .crono u{text-decoration:none;font-size:.7rem;color:var(--cinza);margin-left:.1rem}
 
-.modal{position:fixed;top:12%;left:50%;z-index:20;width:min(24rem,92vw);
-  background:var(--painel);border:1px solid var(--linha);border-radius:.6rem;
-  box-shadow:0 18px 50px rgba(0,0,0,.6);display:none;
-  max-height:82vh;overflow:auto}
+/* Diálogos: centrados, cabeçalho FIXO e só o corpo rola — com o diálogo inteiro
+   rolando, o × subia junto e sumia. Véu escurece e desfoca o fundo; clicar nele
+   fecha. Um diálogo por vez. */
+#veu{position:fixed;inset:0;z-index:19;background:rgba(8,7,6,.6);
+  backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);display:none}
+#veu.on{display:block}
+.modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:20;
+  width:min(46rem,94vw);max-height:90vh;
+  background:var(--painel);border:1px solid var(--linha);border-radius:.7rem;
+  box-shadow:0 24px 70px rgba(0,0,0,.65);display:none;flex-direction:column;overflow:hidden}
+.modal.aberto{display:flex}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:0 1.6rem;align-items:start}
+.cols>div>.rot.sec:first-child{margin-top:0;padding-top:0;border-top:0}
 /* O histórico é para COMPARAR shots: lista e curva têm que caber juntas na tela,
    senão vira rolagem entre uma e outra e a comparação se perde. */
-#mhist{width:70vw;height:70vh;max-height:70vh;top:15vh;display:none;
-  flex-direction:column}
-#mhist.aberto{display:flex}
+#mhist{width:min(72rem,94vw);height:78vh}
 #mhist .mcorpo{flex:1;min-height:0;display:grid;
   grid-template-columns:minmax(11rem,26%) 1fr;gap:.8rem;overflow:hidden}
 #mhist .hlado{overflow:auto;min-height:0}
 #mhist .hdet{margin:0;padding:0;border:0;display:flex;flex-direction:column;min-height:0}
 #mhist .tela{flex:1;min-height:0}
-.modal.aberto{display:block}
+#mhist .hdet[hidden]{display:none}
 .mcab{display:flex;align-items:center;gap:.6rem;padding:.5rem .7rem;
-  border-bottom:1px solid var(--linha);cursor:grab;user-select:none;
-  position:sticky;top:0;background:var(--painel);border-radius:.6rem .6rem 0 0}
+  border-bottom:1px solid var(--linha);cursor:grab;user-select:none;flex:none;
+  padding:.65rem .8rem .65rem 1.1rem}
 .mcab.arrastando{cursor:grabbing}
-.fechar{margin-left:auto;background:none;border:0;color:var(--cinza);font-size:1.1rem;
-  cursor:pointer;line-height:1;padding:0 .2rem}
-.mcorpo{padding:.6rem .7rem .8rem;
-  font-family:ui-sans-serif,system-ui,sans-serif;font-size:.72rem}
+.fechar{margin-left:auto;background:none;border:1px solid transparent;color:var(--cinza);
+  font-size:1.35rem;cursor:pointer;line-height:1;width:2.2rem;height:2.2rem;border-radius:.4rem;flex:none}
+.fechar:hover{border-color:var(--linha);color:var(--osso);background:var(--graf)}
+.mcorpo{padding:1rem 1.1rem 1.2rem;flex:1;min-height:0;overflow:auto;
+  font-family:ui-sans-serif,system-ui,sans-serif;font-size:.84rem}
 .mcorpo .rot.sec{margin:.9rem 0 .4rem;padding-top:.5rem;border-top:1px solid var(--linha)}
 .linha{display:flex;align-items:center;gap:.6rem}
 .linha label{color:var(--cinza)}
@@ -76,10 +84,10 @@
 .sl input{width:100%;accent-color:var(--crema);height:1.4rem}
 .chips{display:flex;flex-wrap:wrap;gap:.35rem;margin:.3rem 0}
 .chips button{background:var(--graf);color:var(--cinza);border:1px solid var(--linha);
-  border-radius:1rem;padding:.22rem .6rem;font:inherit;font-size:.68rem;cursor:pointer}
+  border-radius:1rem;padding:.3rem .75rem;font:inherit;font-size:.76rem;cursor:pointer}
 .chips button.on{background:var(--brasa);border-color:var(--brasa);color:#fff}
 .chips button.neutro:hover{border-color:var(--fosco);color:var(--osso)}
-.dica{margin:.4rem 0 0;color:var(--fosco);font-size:.66rem;line-height:1.4}
+.dica{margin:.45rem 0 0;color:var(--fosco);font-size:.74rem;line-height:1.45}
 table.hist{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
 table.hist td{padding:.3rem .2rem;border-bottom:1px solid var(--linha);font-size:.7rem}
 table.hist tr{cursor:pointer}
@@ -87,9 +95,10 @@ table.hist tr:hover td{background:rgba(201,160,106,.07)}
 table.hist tr.sel td{color:var(--crema)}
 table.hist td.q{text-align:right;color:var(--cinza)}
 table.hist td.g{text-align:right;color:var(--osso);font-weight:600}
-.modal.larga{width:min(34rem,94vw)}
 /* ---- LED ---- */
-#mled{width:min(22rem,92vw)}
+#mled{width:min(30rem,94vw)}
+#mcal,#modal{width:min(62rem,96vw)}
+#mdbg{width:min(66rem,96vw);height:min(46rem,90vh)}
 .lprev{display:flex;align-items:center;gap:.9rem;margin:.2rem 0 .7rem}
 .lbola{width:3.2rem;height:3.2rem;border-radius:50%;flex:none;background:#000;
   border:1px solid var(--linha);transition:box-shadow .15s}
@@ -112,8 +121,17 @@ table.hist td.g{text-align:right;color:var(--osso);font-weight:600}
   background:var(--osso);border:2px solid var(--graf);cursor:pointer}
 .sl.off{opacity:.35;pointer-events:none}
 table.dbg{width:100%;border-collapse:collapse}
-table.dbg td{padding:.4rem .3rem;border-bottom:1px solid var(--linha);
-  font-size:.7rem;vertical-align:top}
+/* Sensores em cartões: no diálogo largo a tabela espalhava nome e valor de uma
+   ponta à outra. Cartão = nome e saúde em cima, valores embaixo. */
+table.dbg tbody{display:grid;grid-template-columns:repeat(auto-fill,minmax(19rem,1fr));gap:.6rem}
+table.dbg tr{display:grid;grid-template-columns:1fr auto;grid-template-areas:"n s" "v v";
+  border:1px solid var(--linha);border-radius:.55rem;background:var(--graf);padding:.6rem .75rem}
+table.dbg tr td{border:0!important;padding:0}
+table.dbg tr td:first-child{grid-area:n}
+table.dbg tr td.val{grid-area:v;margin-top:.45rem}
+table.dbg tr td.saude{grid-area:s}
+table.dbg td{padding:.55rem .4rem;border-bottom:1px solid var(--linha);
+  font-size:.8rem;vertical-align:top}
 table.dbg tr:last-child td{border-bottom:0}
 table.dbg .nome{color:var(--osso);font-weight:600}
 table.dbg .onde{color:var(--fosco);font-size:.62rem;display:block;margin-top:.1rem}
@@ -125,14 +143,13 @@ table.dbg .saude{text-align:right;white-space:nowrap;font-size:.64rem}
 .pto.ok{background:#7a9a5b} .pto.mau{background:var(--brasa)}
 .pto.duvida{background:var(--crema)} .pto.n{background:var(--fosco)}
 /* ---- modo avançado do debug: osciloscópio de canais empilhados ---- */
-.btav{background:none;border:1px solid var(--linha);color:var(--cinza);border-radius:1rem;
-  padding:.12rem .55rem;font:inherit;font-size:.62rem;cursor:pointer;
-  font-family:ui-sans-serif,system-ui,sans-serif}
-.btav[aria-pressed="true"]{background:var(--crema);border-color:var(--crema);color:#1a1510;font-weight:600}
-#mdbg.av{width:min(62rem,96vw)}
-#mdbg.av .mcorpo{display:grid;grid-template-columns:minmax(15rem,34%) 1fr;gap:.9rem;align-items:start}
-#escopo{display:none;min-width:0}
-#mdbg.av #escopo{display:block}
+.abas{display:flex;gap:2px;background:var(--linha);border-radius:.45rem;padding:2px;margin-left:.6rem}
+.abas button{background:var(--graf);color:var(--cinza);border:0;border-radius:.35rem;
+  padding:.3rem .8rem;font:inherit;font-size:.74rem;cursor:pointer;font-family:ui-sans-serif,system-ui,sans-serif}
+.abas button[aria-selected="true"]{background:var(--crema);color:#1a1510;font-weight:600}
+#mdbg .aba{display:none;min-width:0}
+#mdbg[data-aba="sens"] .aba[data-a="sens"],#mdbg[data-aba="sinais"] .aba[data-a="sinais"],
+#mdbg[data-aba="teste"] .aba[data-a="teste"]{display:block}
 .esbar{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem;margin-bottom:.45rem}
 .esbar .seg{display:inline-grid;grid-template-columns:repeat(3,auto);margin:0}
 .esbar .seg button{padding:.2rem .5rem}
@@ -156,9 +173,8 @@ table.dbg .saude{text-align:right;white-space:nowrap;font-size:.64rem}
 .trilha canvas{display:block;width:100%;height:3.1rem}
 #esCursor{position:absolute;top:0;bottom:0;width:1px;background:var(--osso);opacity:.5;
   pointer-events:none;display:none}
-.bteste{display:none;margin-top:.8rem;padding:.6rem .65rem;border:1px solid var(--linha);
-  border-radius:.5rem;background:var(--graf)}
-#mdbg.av .bteste{display:block}
+.bteste{max-width:36rem;margin:0 auto;padding:.9rem 1rem;border:1px solid var(--linha);
+  border-radius:.6rem;background:var(--graf)}
 .bteste .tit{display:flex;align-items:center;gap:.5rem;color:var(--osso);font-weight:600;margin-bottom:.3rem}
 .bteste .tit s{text-decoration:none;margin-left:auto;font-weight:500;font-size:.62rem;
   font-family:ui-monospace,Menlo,monospace;color:var(--cinza)}
@@ -389,10 +405,15 @@ table.hist td s{text-decoration:none;color:var(--fosco);font-size:.6rem;margin-l
   .perfil>.tit{flex-basis:100%}
   .perfil{flex-direction:row;flex-wrap:wrap;overflow:visible}
   .ctr{flex:1 1 8rem}
-  #mhist{width:96vw;height:88vh;top:6vh}
+  #mhist{height:88vh}
   #mhist .mcorpo{grid-template-columns:1fr;grid-template-rows:auto 1fr}
   .tela{grid-column:1/-1}
   .big{font-size:2.1rem}
+  .cols{grid-template-columns:1fr}
+  .cols>div+div{margin-top:1.1rem;padding-top:.9rem;border-top:1px solid var(--linha)}
+  .modal{width:96vw!important;max-height:92vh}
+  #mdbg{height:90vh}
+  .abas button{padding:.3rem .5rem}
 }
 </style></head><body>
 <div class="app">
@@ -587,16 +608,23 @@ table.hist td s{text-decoration:none;color:var(--fosco);font-size:.6rem;margin-l
      lendo 38 cm com status "válido"), e sensor cujo driver simplesmente não
      existia devolvendo zero plausível. Presente, saudável e implementado são
      três coisas diferentes, e a tela mostra as três. -->
-<div class="modal larga" id="mdbg" role="dialog">
+<div id="veu"></div>
+<div class="modal" id="mdbg" role="dialog" data-aba="sens">
   <div class="mcab" id="mdcab">
-    <span class="rot"><span data-i18n="sensors">Sensors</span> <s id="dSub"></s></span>
-    <button class="btav" id="btAv" aria-pressed="false" data-i18n="advanced">advanced</button>
+    <span class="rot"><span data-i18n="diag_t">Diagnostics</span> <s id="dSub"></s></span>
+    <div class="abas" id="dAbas" role="tablist">
+      <button data-a="sens" role="tab" data-i18n="tab_sens">Sensors</button>
+      <button data-a="sinais" role="tab" data-i18n="tab_sig">Signals</button>
+      <button data-a="teste" role="tab" data-i18n="tab_test">Bench test</button>
+    </div>
     <button class="fechar" id="btDFechar" aria-label="close">&times;</button>
   </div>
   <div class="mcorpo">
-    <div>
+    <div class="aba" data-a="sens">
       <table class="dbg"><tbody id="dLista"></tbody></table>
       <p class="dica" id="dScan"></p>
+    </div>
+    <div class="aba" data-a="teste">
       <!-- Teste de bancada, bomba ou SSR: duty fixo por tempo curto. O firmware é
            quem garante os limites; a página só pede e mostra o que ele aplicou. -->
       <div class="bteste" id="bTeste">
@@ -620,7 +648,7 @@ table.hist td s{text-decoration:none;color:var(--fosco);font-size:.6rem;margin-l
     </div>
     <!-- Osciloscópio: o que chega pelo WebSocket, guardado só no navegador. A placa
          não paga nada a mais por isto, e o histórico some ao recarregar. -->
-    <div id="escopo">
+    <div id="escopo" class="aba" data-a="sinais">
       <div class="esbar">
         <div class="seg" id="esJan" role="radiogroup">
           <button data-s="10">10 s</button><button data-s="30">30 s</button><button data-s="120">2 min</button>
@@ -673,7 +701,8 @@ table.hist td s{text-decoration:none;color:var(--fosco);font-size:.6rem;margin-l
     <button class="fechar" id="btCFechar" aria-label="close">&times;</button>
   </div>
   <div class="mcorpo">
-    <p class="dica" data-i18n="cal_intro"></p>
+    <p class="dica" data-i18n="cal_intro" style="margin:0 0 .9rem"></p>
+    <div class="cols"><div>
     <div class="rot sec" data-i18n="cal_temp_t"></div>
     <div class="ccal" id="cT">
       <div class="cest"><b id="cTEst">&mdash;</b><s id="cTVivo"></s></div>
@@ -694,6 +723,7 @@ table.hist td s{text-decoration:none;color:var(--fosco);font-size:.6rem;margin-l
       <p class="dica" id="cTAviso"></p>
       <p class="dica" data-i18n="cal_temp_tip"></p>
     </div>
+    </div><div>
     <div class="rot sec" data-i18n="cal_press_t"></div>
     <div class="ccal" id="cP">
       <div class="cest"><b id="cPEst">&mdash;</b><s id="cPVivo"></s></div>
@@ -714,6 +744,7 @@ table.hist td s{text-decoration:none;color:var(--fosco);font-size:.6rem;margin-l
       <p class="dica" id="cPAviso"></p>
       <p class="dica" data-i18n="cal_press_tip"></p>
     </div>
+    </div></div>
     <label class="cedit"><input type="checkbox" id="cEditar"> <span data-i18n="cal_edit">Edit gains by hand</span></label>
   </div>
 </div>
@@ -755,16 +786,8 @@ table.hist td s{text-decoration:none;color:var(--fosco);font-size:.6rem;margin-l
     <span class="rot" data-i18n="settings_t">Settings</span>
     <button class="fechar" id="btFechar" aria-label="close">&times;</button>
   </div>
-  <div class="mcorpo">
-    <div class="linha">
-      <label for="swSim" data-i18n="datasource">Data source</label>
-      <select id="swSim">
-        <option value="1" data-i18n="simulated">simulated</option>
-        <option value="0" data-i18n="realhw">real hardware</option>
-      </select>
-    </div>
-    <p class="dica" id="dicaModo"></p>
-
+  <div class="mcorpo cols">
+   <div>
     <div class="rot sec" data-i18n="shot_sec">Shot</div>
     <div class="ajustes">
       <div class="ctr"><span class="cl" data-i18n="aj_tmax"></span>
@@ -783,11 +806,24 @@ table.hist td s{text-decoration:none;color:var(--fosco);font-size:.6rem;margin-l
     <p class="dica" data-i18n="aj_tip"></p>
     <div class="chips"><button id="btPerfilPadrao" class="neutro" data-i18n="aj_padrao">apply defaults</button></div>
 
+   </div>
+   <div>
     <div class="rot sec" data-i18n="sensors_sec">Sensors</div>
     <label class="cedit" style="margin-top:0"><input type="checkbox" id="swIgnNivel"> <span data-i18n="ign_lvl">Ignore the reservoir sensor</span></label>
     <p class="dica" data-i18n="ign_lvl_tip"></p>
 
-    <div class="rot sec" data-i18n="world">World</div>
+    <div class="rot sec" data-i18n="sim_sec">Simulation</div>
+    <div class="linha">
+      <label for="swSim" data-i18n="datasource">Data source</label>
+      <select id="swSim">
+        <option value="1" data-i18n="simulated">simulated</option>
+        <option value="0" data-i18n="realhw">real hardware</option>
+      </select>
+    </div>
+    <p class="dica" id="dicaModo"></p>
+
+    <div id="simCtl">
+    <div class="rot sec" data-i18n="world" style="border-top:0">World</div>
     <div class="sl"><label><span data-i18n="grind">Grind</span><b id="lMoagem">1,00</b></label>
       <input type="range" id="sMoagem" min="0.4" max="3" step="0.05" value="1"></div>
     <div class="sl"><label><span data-i18n="ambient">Ambient</span><b id="lTamb">25 °C</b></label>
@@ -809,6 +845,8 @@ table.hist td s{text-decoration:none;color:var(--fosco);font-size:.6rem;margin-l
       <button id="btLimpar" class="neutro" data-i18n="clearfault">clear fault</button>
     </div>
     <p class="dica" data-i18n="tip_speed"></p>
+    </div>
+   </div>
   </div>
 </div>
 
@@ -844,6 +882,7 @@ en:{
  nowindow:'no window',window60:'1 h window',now:'now',
  g_smooth:'smooth',g_all:'⤢ all',tt_smooth:'Smooth curve through the samples (off: raw steps, sample and hold)',
  tt_all:'See everything and follow live (double-click). Drag on the chart to zoom into a stretch; wheel zooms at the cursor, shift+wheel pans',
+ diag_t:'Diagnostics',tab_sens:'Sensors',tab_sig:'Signals',tab_test:'Bench test',sim_sec:'Simulation',
  src_loc:'browser',src_sd:'card',del:'delete',del_ok:'confirm delete?',
  s_filt:'filtered',s_raw:'raw',
  recorded:'Recorded shots',noshots:'No shots saved yet.',
@@ -885,7 +924,7 @@ en:{
  shots_u:'shots',shot_u:'shot',target_p:'target',
  samples:'samples',avg:'avg',
  noclock:'no clock',at:'at',uptime:'since boot',
- sensors:'Sensors',tt_dbg:'Connected sensors and live values',
+ sensors:'Sensors',tt_dbg:'Diagnostics: sensors, signals and bench test',
  tt_power:'Turn the machine on or off',standby:'at rest',
  s_absent:'absent',s_nodrv:'no driver',s_ok:'ok',s_susp:'suspect',
  advanced:'advanced',pause:'pause',resume:'resume',
@@ -925,6 +964,7 @@ pt:{
  nowindow:'sem janela',window60:'janela 1 h',now:'agora',
  g_smooth:'suave',g_all:'⤢ tudo',tt_smooth:'Curva suave passando pelas amostras (desligado: degraus crus, amostra e retém)',
  tt_all:'Ver tudo e seguir ao vivo (duplo clique). Arraste no gráfico para dar zoom num trecho; a roda aproxima no cursor, shift+roda desloca',
+ diag_t:'Diagnóstico',tab_sens:'Sensores',tab_sig:'Sinais',tab_test:'Teste de bancada',sim_sec:'Simulação',
  src_loc:'navegador',src_sd:'cartão',del:'apagar',del_ok:'confirmar?',
  s_filt:'filtrado',s_raw:'cru',
  recorded:'Shots gravados',noshots:'Nenhum shot guardado ainda.',
@@ -966,7 +1006,7 @@ pt:{
  shots_u:'disparos',shot_u:'disparo',target_p:'alvo',
  samples:'amostras',avg:'médio',
  noclock:'sem relógio',at:'às',uptime:'desde o boot',
- sensors:'Sensores',tt_dbg:'Sensores ligados e valores ao vivo',
+ sensors:'Sensores',tt_dbg:'Diagnóstico: sensores, sinais e teste de bancada',
  tt_power:'Liga ou desliga a máquina',standby:'em repouso',
  s_absent:'ausente',s_nodrv:'sem driver',s_ok:'ok',s_susp:'suspeito',
  advanced:'avançado',pause:'pausar',resume:'continuar',
@@ -990,7 +1030,7 @@ pt:{
 var idi = (localStorage.getItem('lang')==='pt') ? 'pt' : 'en';
 function t(k){ return (L[idi][k]!==undefined) ? L[idi][k] : (L.en[k]!==undefined?L.en[k]:k); }
 function traduzir(){
- if(typeof CANAIS!=='undefined'&&CANAIS&&mdbg.classList.contains('av'))esMontar();
+ if(typeof CANAIS!=='undefined'&&CANAIS&&mdbg.dataset.aba==='sinais')esMontar();
  lang.textContent = idi==='en' ? 'EN' : 'PT';
  [].forEach.call(document.querySelectorAll('[data-i18n]'),function(e){
   e.textContent=t(e.dataset.i18n);
@@ -1452,7 +1492,8 @@ function mostraUltra(d){
 function arrastavel(cx,cab,fechar){
  var mx=0,my=0,on=false;
  cab.addEventListener('pointerdown',function(e){
-  if(e.target===fechar)return;
+  // botão no cabeçalho (×, abas): sem esta guarda a captura do ponteiro roubava o clique
+  if(e.target.closest('button,select,input'))return;
   on=true;cab.classList.add('arrastando');
   var r=cx.getBoundingClientRect();
   mx=e.clientX-r.left;my=e.clientY-r.top;
@@ -1466,13 +1507,20 @@ function arrastavel(cx,cab,fechar){
   cx.style.left=x+'px';cx.style.top=y+'px';cx.style.transform='none';
  });
  cab.addEventListener('pointerup',function(){on=false;cab.classList.remove('arrastando');});
- fechar.onclick=function(){cx.classList.remove('aberto');};
+ fechar.onclick=function(){cx.classList.remove('aberto');veuSync();};
 }
+function veuSync(){veu.classList.toggle('on',!!document.querySelector('.modal.aberto'));}
+function fecharTodos(){[].forEach.call(document.querySelectorAll('.modal.aberto'),function(m){m.classList.remove('aberto');});veuSync();}
+// Abre centrado (esquece onde foi arrastado da última vez) e fecha o que estiver
+// aberto: dois diálogos empilhados, um tapando o × do outro, não servem a ninguém.
 function abrir(cx){
- var ab=cx.classList.toggle('aberto');
- if(ab&&cx.style.left==='')cx.style.transform='translateX(-50%)';
+ var ab=!cx.classList.contains('aberto');
+ fecharTodos();
+ if(ab){cx.style.left=cx.style.top=cx.style.transform='';cx.classList.add('aberto');}
+ veuSync();
  return ab;
 }
+veu.onclick=fecharTodos;
 arrastavel(modal,mcab,btFechar);
 arrastavel(mhist,mhcab,btHFechar);
 btCfg.onclick=function(){abrir(modal);};
@@ -1802,7 +1850,7 @@ function esMontar(){
 function esFmt(c,v){return isFinite(v)?v.toFixed(c.f).replace('.',idi==='pt'?',':'.')+' '+c.u:'—';}
 
 function esDesenhar(){
- if(!mdbg.classList.contains('aberto')||!mdbg.classList.contains('av')||!esT.length)return;
+ if(!mdbg.classList.contains('aberto')||mdbg.dataset.aba!=='sinais'||!esT.length)return;
  var tFim=esT[esT.length-1], tIni=tFim-esJanS*1000;
  var i0=0; while(i0<esT.length-1&&esT[i0]<tIni)i0++;
  // instante sob o cursor: índice mais próximo, comum a todos os canais
@@ -1870,13 +1918,17 @@ esCsv.onclick=function(){
  a.download='smartfilco-sinais-'+new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')+'.csv';
  a.click(); setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
 };
-function esAtivar(on){
- mdbg.classList.toggle('av',on); btAv.setAttribute('aria-pressed',on);
- try{localStorage.setItem('dbgAv',on?'1':'0');}catch(e){}
- if(on)esMontar();
+// Abas: olhar (sensores, sinais) separado de mexer (teste de bancada). Lembra a
+// última aba aberta.
+function abaDbg(a){
+ mdbg.dataset.aba=a;
+ mdbg.querySelector('.mcorpo').scrollTop=0;   // cada aba começa do topo
+ [].forEach.call(dAbas.children,function(b){b.setAttribute('aria-selected',b.dataset.a===a);});
+ try{localStorage.setItem('dbgAba',a);}catch(e){}
+ if(a==='sinais')esMontar();
 }
-btAv.onclick=function(){esAtivar(!mdbg.classList.contains('av'));};
-try{ if(localStorage.getItem('dbgAv')==='1')esAtivar(true); }catch(e){}
+[].forEach.call(dAbas.children,function(b){b.onclick=function(){abaDbg(b.dataset.a);};});
+try{ abaDbg(localStorage.getItem('dbgAba')||'sens'); }catch(e){ abaDbg('sens'); }
 
 /* ------------------------------------------------------- teste de bomba */
 var btTot=3, btA='bomba';
@@ -1902,7 +1954,7 @@ function pintaTeste(m){
  var on=m.bt>0, ssr=btA==='ssr',
      bloq=m.est==='fault'||(ssr?m.on===1:['pre','ramp','plateau','decline'].indexOf(m.est)>=0);
  btEst.textContent=on?t('pt_running')+' · '+fmtS(m.bt)+' · '+(m.bta?'SSR '+(m.ssr*100).toFixed(0)+'% · '
-     +m.tc.toFixed(1).replace('.',idi==='pt'?',':'.')+' °C':'PSM '+(m.psm*100).toFixed(0)+'%')
+     +m.tc.toFixed(1).replace('.',idi==='pt'?',':'.')+' °C':'PSM '+(m.psm*100).toFixed(0)+'% · '+m.pr.toFixed(1).replace('.',idi==='pt'?',':'.')+' bar')
    :(!m.btf?t('pt_idle'):(['tempo','manual','shot','maq','temp'].indexOf(m.btf)>=0?t('pt_end_'+m.btf)
      :t('pt_end_falha')+' — '+t(m.btf)));
  btEst.style.color=on?'var(--crema)':'';
@@ -1916,7 +1968,7 @@ function pintaTeste(m){
 
 function pintaDbg(d){
  esGravar(d);
- if(mdbg.classList.contains('aberto')&&mdbg.classList.contains('av'))pintaTeste(d.m);
+ if(mdbg.classList.contains('aberto')&&mdbg.dataset.aba==='teste')pintaTeste(d.m);
  if(!mdbg.classList.contains('aberto'))return;
  var m=d.m, L=[];
  dSub.textContent=t('s_mode')+': '+(m.sim?t('simulated'):t('realhw'));
@@ -2134,6 +2186,7 @@ function pinta(d){
   pintaDbg(d);
   if(document.activeElement!==swSim) swSim.value=m.sim?'1':'0';
   dicaModo.textContent=m.sim?t('tip_sim'):t('tip_real');
+  simCtl.hidden=!m.sim;
  }
 }
 
