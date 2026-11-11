@@ -45,8 +45,11 @@ conhecida: 32 g em 35 s, com pré-infusão, platô de 9 bar e temperatura contro
   entra com potência mínima configurável, antes de o sensor ver a queda.
 - 🎛️ **Autocalibração das duas malhas** — um botão. A placa faz um teste de relé,
   mede como *esta* máquina responde e calcula os ganhos do PID. Fica salvo.
-- 📈 **Gráfico ao vivo** — temperatura e pressão sobrepostas com os alvos
-  tracejados, número grande para cada grandeza, trem de pulsos real da bomba.
+- 📈 **Gráfico ao vivo** — temperatura, pressão e massa sobrepostas com os alvos
+  tracejados, zoom que trava no trecho, leitura sob o cursor, trem de pulsos real
+  da bomba.
+- 🗂️ **Histórico de shots no navegador** — cada extração fica guardada e pode ser
+  reaberta depois com o mesmo gráfico (e os do cartão, quando houver).
 - ⚙️ **Tudo ajustável, nada fixo no código** — perfil, tempos, janela de pronta,
   ganhos; com "aplicar padrões" para voltar ao começo. Gravado na placa.
 - 🧪 **Bancada de testes** — acionar bomba ou resistência com duty e tempo fixos,
@@ -95,6 +98,17 @@ tempo**. À direita deles, o gráfico sobrepõe temperatura (laranja, escala à
 esquerda) e pressão (azul, escala fixa de 0 a 12 bar à direita). As linhas
 tracejadas são o que o perfil está pedindo naquele instante — dá para ver a
 pressão real seguindo o alvo da pré-infusão, subindo na rampa e segurando o platô.
+
+O gráfico se lê com o mouse:
+
+- **arrastar** sobre um trecho dá zoom nele, e o zoom **trava** — os dados novos
+  continuam chegando, mas a tela não anda;
+- **roda** aproxima ancorada no cursor; **shift+roda** (ou arrasto lateral no
+  trackpad) desloca;
+- **duplo clique** ou **⤢ tudo** volta a ver tudo e a seguir ao vivo;
+- passar o mouse mostra os valores daquele instante, medido e alvo lado a lado;
+- **suave** liga a curva suavizada (passa exatamente por cada amostra);
+  desligado, mostra os degraus crus de cada leitura.
 
 Embaixo, o **trem de pulsos do PSM**: cada barra é um semiciclo da rede que foi
 entregue à bomba. Não é animação — é o mesmo acumulador que o firmware usa.
