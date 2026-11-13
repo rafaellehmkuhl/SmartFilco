@@ -1373,14 +1373,20 @@ function criaGrafico(cv,F){
  cv.addEventListener('pointerdown',function(e){
   if(e.button!==0||!G.v)return;
   e.preventDefault();
-  sel=[e.offsetX,e.offsetX];
-  cv.setPointerCapture(e.pointerId);
+  sel=[px(e),px(e)];
+  try{cv.setPointerCapture(e.pointerId);}catch(_){}
  });
+ function px(e){return e.clientX-cv.getBoundingClientRect().left;}
  cv.addEventListener('pointermove',function(e){
-  hov=e.offsetX;if(sel)sel[1]=e.offsetX;
+  hov=px(e);if(sel)sel[1]=hov;
+  if(sel&&!e.buttons)return fimSel();   // soltou onde o evento não chegou
   desenha();
  });
- cv.addEventListener('pointerup',function(){
+ // soltar fora do gráfico (ou da janela) também fecha a seleção
+ window.addEventListener('pointerup',function(e){if(sel){sel[1]=px(e);fimSel();}});
+ cv.addEventListener('lostpointercapture',function(){if(sel)fimSel();});
+ cv.addEventListener('pointercancel',function(){sel=null;desenha();});
+ function fimSel(){
   if(!sel)return;
   var a=Math.max(G.x0,Math.min(sel[0],sel[1])),b=Math.min(G.x0+G.pw,Math.max(sel[0],sel[1]));
   sel=null;
@@ -1390,7 +1396,7 @@ function criaGrafico(cv,F){
    z=[xa,xb];
   }
   desenha();
- });
+ }
  cv.addEventListener('pointerleave',function(){hov=null;desenha();});
  cv.addEventListener('dblclick',function(){z=null;desenha();});
  var g={desenha:desenha,reset:function(){z=null;sel=null;desenha();}};
