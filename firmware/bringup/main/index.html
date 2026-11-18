@@ -1222,8 +1222,9 @@ function ok(v){return typeof v==='number'&&v===v;}
    Um desenhista só, para o painel ao vivo e para o histórico: zoom, seleção e
    leitura sob o cursor funcionam igual nos dois.
 
-   Pressão FIXA em 0–12 (eixo que se ajusta sozinho mente sobre a distância dos
-   9 bar); temperatura AUTO com vão mínimo de 3 °C, senão 0,3 °C vira montanha.
+   Todo eixo começa no ZERO: com o mínimo colado nos dados, 1 °C de oscilação a
+   93 °C vira montanha e a página recarregada quente parece instável. Pressão
+   FIXA em 0–12; temperatura de 0 até um pouco acima do maior valor.
    As escalas Y olham os dados INTEIROS, não só o trecho com zoom: se o Y
    acompanhasse o zoom, a curva mudaria de forma ao aproximar e você compararia
    dois desenhos diferentes achando que é o mesmo dado. Massa não tem eixo (seria
@@ -1288,8 +1289,7 @@ function criaGrafico(cv,F){
   if(lo>hi)return null;
   // sem balança a massa é 0 o shot inteiro: linha morta no chão não diz nada
   if(e==='G')return hi>=.5?[0,hi*1.15]:null;
-  var c=(lo+hi)/2,d=Math.max(hi-lo,3)*1.2/2;
-  return [c-d,c+d];
+  return [0,Math.ceil(Math.max(hi,10)*1.05/15)*15];   // múltiplo de 15: marcas inteiras
  }
  function inv(p){var v=G.v;return v[0]+(p-G.x0)/G.pw*(v[1]-v[0]);}
 
@@ -1354,7 +1354,7 @@ function criaGrafico(cv,F){
    ctx.strokeStyle='#2b2620';ctx.lineWidth=1;
    ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x0+pw,y);ctx.stroke();
    ctx.textAlign='right';ctx.fillStyle=fT?CORES.T:'#5d564c';
-   ctx.fillText(fT?(fT[1]-(fT[1]-fT[0])*k/3).toFixed(1):'--',x0-.5*r,y);
+   ctx.fillText(fT?(fT[1]-(fT[1]-fT[0])*k/3).toFixed(0):'--',x0-.5*r,y);
    ctx.textAlign='left';ctx.fillStyle=CORES.P;
    ctx.fillText((12-12*k/3).toFixed(0),x0+pw+.5*r,y);
   }
