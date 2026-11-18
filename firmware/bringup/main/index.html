@@ -585,9 +585,14 @@ table.hist td s{text-decoration:none;color:var(--fosco);font-size:.6rem;margin-l
     </div>
   </div>
 
-  <div class="ctr">
-    <span class="cl" data-i18n="target">Target</span>
+  <!-- Peso e tempo no mesmo card: o shot para no que vier primeiro, e sem balança
+       é o tempo que manda — ajuste de todo dia, fica à mão. -->
+  <div class="ctr dupla">
+    <span class="cl" data-i18n="stop_at">Stop at</span>
     <div class="cv" data-k="alvo" data-p="1" data-c="0" data-u=" g">
+      <button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button>
+    </div>
+    <div class="cv" data-k="tmax" data-p="1" data-c="0" data-u=" s">
       <button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button>
     </div>
   </div>
@@ -833,8 +838,6 @@ table.hist td s{text-decoration:none;color:var(--fosco);font-size:.6rem;margin-l
    <div>
     <div class="rot sec" data-i18n="shot_sec">Shot</div>
     <div class="ajustes">
-      <div class="ctr"><span class="cl" data-i18n="aj_tmax"></span>
-        <div class="cv" data-k="tmax" data-p="1" data-c="0" data-u=" s"><button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button></div></div>
       <div class="ctr"><span class="cl" data-i18n="aj_jan"></span>
         <div class="cv" data-k="jan" data-p="0.1" data-c="1" data-u=" °C"><button data-d="-1">&minus;</button><b>&mdash;</b><button data-d="1">+</button></div></div>
       <div class="ctr"><span class="cl" data-i18n="aj_rampa"></span>
@@ -920,7 +923,7 @@ en:{
  peso:'weight target reached',tempo:'max time',manual:'stopped by hand',
  boiler:'Boiler',pump:'Pump',incup:'In cup',time:'Time',
  profile:'Profile',target:'Target',preinf:'Pre-infusion',plateau_l:'Plateau',
- settings_t:'Settings',shot_sec:'Shot',aj_tmax:'Time limit',aj_jan:'Ready window ±',aj_rampa:'Ramp to plateau',aj_decf:'Decline starts at (of target)',aj_decs:'Decline duration',aj_boost:'Heater during shot',aj_padrao:'apply defaults',aj_tip:'Saved on the machine. Heater during shot: minimum heater power while pulling, only below the setpoint — cold water entering cools the boiler faster than the PID reacts. Without a scale the shot stops at the time limit.',decline_l:'Decline',unlock:'Unlock: pull outside temperature',pull:'Pull shot',stop:'Stop',
+ stop_at:'Stop at (first)',settings_t:'Settings',shot_sec:'Shot',aj_tmax:'Time limit',aj_jan:'Ready window ±',aj_rampa:'Ramp to plateau',aj_decf:'Decline starts at (of target)',aj_decs:'Decline duration',aj_boost:'Heater during shot',aj_padrao:'apply defaults',aj_tip:'Saved on the machine. The shot stops at the weight target or the time limit (profile panel), whichever comes first. Heater during shot: minimum heater power while pulling, only below the setpoint — cold water entering cools the boiler faster than the PID reacts. Without a scale the shot stops at the time limit.',decline_l:'Decline',unlock:'Unlock: pull outside temperature',pull:'Pull shot',stop:'Stop',
  reservoir:'Reservoir',ambient:'Ambient',temperature:'temperature',
  humidity:'humidity',airpress:'air pressure',gas:'gas (VOC)',
  distance:'distance (median)',wrange:'window range',valid:'valid samples',
@@ -1008,7 +1011,7 @@ pt:{
  peso:'alvo de peso atingido',tempo:'tempo máximo',manual:'parado à mão',
  boiler:'Boiler',pump:'Bomba',incup:'Na xícara',time:'Tempo',
  profile:'Perfil',target:'Alvo',preinf:'Pré-infusão',plateau_l:'Platô',
- settings_t:'Configurações',shot_sec:'Shot',aj_tmax:'Tempo máximo',aj_jan:'Janela de pronta ±',aj_rampa:'Rampa até o platô',aj_decf:'Declínio começa em (do alvo)',aj_decs:'Duração do declínio',aj_boost:'Resistência no shot',aj_padrao:'aplicar padrões',aj_tip:'Gravado na máquina. Resistência no shot: potência mínima durante a extração, só abaixo do setpoint — a água fria entrando esfria a caldeira mais rápido do que o PID reage. Sem balança, o shot para no tempo máximo.',decline_l:'Declínio',unlock:'Destravar: puxar fora da temperatura',pull:'Puxar shot',stop:'Parar',
+ stop_at:'Parar em (o 1º)',settings_t:'Configurações',shot_sec:'Shot',aj_tmax:'Tempo máximo',aj_jan:'Janela de pronta ±',aj_rampa:'Rampa até o platô',aj_decf:'Declínio começa em (do alvo)',aj_decs:'Duração do declínio',aj_boost:'Resistência no shot',aj_padrao:'aplicar padrões',aj_tip:'Gravado na máquina. O shot para no alvo de peso ou no tempo máximo (painel do perfil), o que vier primeiro. Resistência no shot: potência mínima durante a extração, só abaixo do setpoint — a água fria entrando esfria a caldeira mais rápido do que o PID reage. Sem balança, o shot para no tempo máximo.',decline_l:'Declínio',unlock:'Destravar: puxar fora da temperatura',pull:'Puxar shot',stop:'Parar',
  reservoir:'Reservatório',ambient:'Ambiente',temperature:'temperatura',
  humidity:'umidade',airpress:'pressão do ar',gas:'gás (VOC)',
  distance:'distância (mediana)',wrange:'faixa da janela',valid:'amostras válidas',
