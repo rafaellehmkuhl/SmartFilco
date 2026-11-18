@@ -67,6 +67,16 @@
 #hNota .nota #nResumo{display:none}
 /* Notas do shot e o aviso que convida a escrevê-las */
 #mnota{width:min(40rem,94vw)}
+.aval{display:flex;align-items:center;gap:.5rem .7rem;flex-wrap:wrap;margin:.2rem 0 .6rem}
+.aval button{background:var(--graf);border:1px solid var(--linha);color:var(--cinza);
+  border-radius:.4rem;font:inherit;cursor:pointer;padding:0}
+.gosto{display:flex;gap:.3rem}
+.gosto button{width:2.6rem;height:2.2rem;font-size:1.1rem;filter:grayscale(1);opacity:.6}
+.gosto button.on{filter:none;opacity:1;border-color:var(--crema);background:var(--painel)}
+.n10{display:flex;gap:2px;flex:1;min-width:15rem}
+.n10 button{flex:1;height:2.2rem;font-size:.8rem;font-variant-numeric:tabular-nums}
+.n10 button.on{background:var(--crema);border-color:var(--crema);color:#1a1510;font-weight:600}
+#hNota .aval{margin-top:.4rem}
 .nota textarea,.campo{width:100%;box-sizing:border-box;background:var(--graf);color:var(--osso);
   border:1px solid var(--linha);border-radius:.45rem;padding:.6rem .7rem;font:inherit;font-size:.9rem}
 .nota textarea{min-height:10rem;resize:vertical;line-height:1.45}
@@ -727,6 +737,14 @@ table.hist td s{text-decoration:none;color:var(--fosco);font-size:.6rem;margin-l
   <div class="mcorpo" id="mnCorpo">
     <div class="nota" id="nPainel">
       <p class="dica" id="nResumo"></p>
+      <div class="aval">
+        <div class="gosto" id="nGosto">
+          <button data-v="1" data-i18n-t="liked" aria-pressed="false">👍</button>
+          <button data-v="-1" data-i18n-t="disliked" aria-pressed="false">👎</button>
+        </div>
+        <span class="dica" data-i18n="score">score</span>
+        <div class="n10" id="nN10"></div>
+      </div>
       <textarea id="nTxt" data-i18n-p="nota_ph"></textarea>
       <div class="chips nmic">
         <button id="nMic" class="neutro" data-i18n="mic">record</button>
@@ -923,7 +941,7 @@ en:{
  peso:'weight target reached',tempo:'max time',manual:'stopped by hand',
  boiler:'Boiler',pump:'Pump',incup:'In cup',time:'Time',
  profile:'Profile',target:'Target',preinf:'Pre-infusion',plateau_l:'Plateau',
- stop_at:'Stop at (first)',settings_t:'Settings',shot_sec:'Shot',aj_tmax:'Time limit',aj_jan:'Ready window ±',aj_rampa:'Ramp to plateau',aj_decf:'Decline starts at (of target)',aj_decs:'Decline duration',aj_boost:'Heater during shot',aj_padrao:'apply defaults',aj_tip:'Saved on the machine. The shot stops at the weight target or the time limit (profile panel), whichever comes first. Heater during shot: minimum heater power while pulling, only below the setpoint — cold water entering cools the boiler faster than the PID reacts. Without a scale the shot stops at the time limit.',decline_l:'Decline',unlock:'Unlock: pull outside temperature',pull:'Pull shot',stop:'Stop',
+ stop_at:'Stop at (first)',liked:'liked it',disliked:'did not like it',score:'score',settings_t:'Settings',shot_sec:'Shot',aj_tmax:'Time limit',aj_jan:'Ready window ±',aj_rampa:'Ramp to plateau',aj_decf:'Decline starts at (of target)',aj_decs:'Decline duration',aj_boost:'Heater during shot',aj_padrao:'apply defaults',aj_tip:'Saved on the machine. The shot stops at the weight target or the time limit (profile panel), whichever comes first. Heater during shot: minimum heater power while pulling, only below the setpoint — cold water entering cools the boiler faster than the PID reacts. Without a scale the shot stops at the time limit.',decline_l:'Decline',unlock:'Unlock: pull outside temperature',pull:'Pull shot',stop:'Stop',
  reservoir:'Reservoir',ambient:'Ambient',temperature:'temperature',
  humidity:'humidity',airpress:'air pressure',gas:'gas (VOC)',
  distance:'distance (median)',wrange:'window range',valid:'valid samples',
@@ -1011,7 +1029,7 @@ pt:{
  peso:'alvo de peso atingido',tempo:'tempo máximo',manual:'parado à mão',
  boiler:'Boiler',pump:'Bomba',incup:'Na xícara',time:'Tempo',
  profile:'Perfil',target:'Alvo',preinf:'Pré-infusão',plateau_l:'Platô',
- stop_at:'Parar em (o 1º)',settings_t:'Configurações',shot_sec:'Shot',aj_tmax:'Tempo máximo',aj_jan:'Janela de pronta ±',aj_rampa:'Rampa até o platô',aj_decf:'Declínio começa em (do alvo)',aj_decs:'Duração do declínio',aj_boost:'Resistência no shot',aj_padrao:'aplicar padrões',aj_tip:'Gravado na máquina. O shot para no alvo de peso ou no tempo máximo (painel do perfil), o que vier primeiro. Resistência no shot: potência mínima durante a extração, só abaixo do setpoint — a água fria entrando esfria a caldeira mais rápido do que o PID reage. Sem balança, o shot para no tempo máximo.',decline_l:'Declínio',unlock:'Destravar: puxar fora da temperatura',pull:'Puxar shot',stop:'Parar',
+ stop_at:'Parar em (o 1º)',liked:'gostei',disliked:'não gostei',score:'nota',settings_t:'Configurações',shot_sec:'Shot',aj_tmax:'Tempo máximo',aj_jan:'Janela de pronta ±',aj_rampa:'Rampa até o platô',aj_decf:'Declínio começa em (do alvo)',aj_decs:'Duração do declínio',aj_boost:'Resistência no shot',aj_padrao:'aplicar padrões',aj_tip:'Gravado na máquina. O shot para no alvo de peso ou no tempo máximo (painel do perfil), o que vier primeiro. Resistência no shot: potência mínima durante a extração, só abaixo do setpoint — a água fria entrando esfria a caldeira mais rápido do que o PID reage. Sem balança, o shot para no tempo máximo.',decline_l:'Declínio',unlock:'Destravar: puxar fora da temperatura',pull:'Puxar shot',stop:'Parar',
  reservoir:'Reservatório',ambient:'Ambiente',temperature:'temperatura',
  humidity:'umidade',airpress:'pressão do ar',gas:'gás (VOC)',
  distance:'distância (mediana)',wrange:'faixa da janela',valid:'amostras válidas',
@@ -1559,6 +1577,7 @@ function notaAbre(n,onde){
  notaN=n;onde.appendChild(nPainel);
  var x=shotsLocais().filter(function(s){return s.n===n;})[0]||{};
  nTxt.value=x.nota||'';
+ avalPinta(x);
  nResumo.textContent=quando(n).full+(x.p?' · '+paramsTxt(x.p):'');
  nEst.textContent='';
  audMostra();
@@ -1574,6 +1593,20 @@ function audMostra(){
   });
  });
 }
+// Gostei/não gostei e nota 0–10: tocar de novo no que está marcado desmarca.
+for(var i=0;i<=10;i++){var bn=document.createElement('button');bn.textContent=i;bn.dataset.v=i;nN10.appendChild(bn);}
+function avalPinta(x){
+ [].forEach.call(nGosto.children,function(b){var o=x.gosto==b.dataset.v;b.classList.toggle('on',o);b.setAttribute('aria-pressed',o);});
+ [].forEach.call(nN10.children,function(b){b.classList.toggle('on',x.n10==b.dataset.v);});
+}
+function avalClique(campo){return function(e){
+ var b=e.target.closest('button');if(!b||!notaN)return;
+ var v=+b.dataset.v,y={};
+ shotAtualiza(notaN,function(x){x[campo]=x[campo]===v?undefined:v;y=x;});
+ avalPinta(y);
+};}
+nGosto.onclick=avalClique('gosto');
+nN10.onclick=avalClique('n10');
 nTxt.oninput=function(){var v=nTxt.value;shotAtualiza(notaN,function(x){x.nota=v;});};
 
 var snackT=0;
@@ -1973,7 +2006,7 @@ function carregaHist(){
   itens.forEach(function(it){
    var q=quando(it.n);
    var tr=document.createElement('tr');
-   var tem=it.s&&(it.s.nota||it.s.aud)?' ✎':'';
+   var x=it.s||{},tem=(x.gosto>0?' 👍':x.gosto<0?' 👎':'')+(x.n10!=null?' '+x.n10:'')+(x.nota||x.aud?' ✎':'');
    tr.innerHTML='<td>'+q.d+'<s>'+t(it.src)+tem+'</s></td><td class="q">'+q.h+
                 '</td><td class="g">'+(it.g!=null?it.g.toFixed(1)+' g':'→')+'</td>';
    tr.onclick=function(){

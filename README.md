@@ -53,7 +53,7 @@ conhecida: 32 g em 35 s, com pré-infusão, platô de 9 bar e temperatura contro
   em CSV ou apagada. Cada shot guarda os parâmetros com que foi tirado e por
   que parou.
 - 📝 **Notas de prova** — ao fim do shot, um aviso convida a anotar como ficou na
-  xícara, escrevendo ou falando. O áudio fica guardado; com uma chave da
+  xícara: gostei/não gostei, nota de 0 a 10 e texto ou voz. O áudio fica guardado; com uma chave da
   AssemblyAI, a fala vira texto ao vivo. (Microfone exige HTTPS — em `http://IP`,
   libere o endereço em `chrome://flags/#unsafely-treat-insecure-origin-as-secure`.)
 - 📱 **Funciona no celular** — a mesma página vira uma coluna rolável.
