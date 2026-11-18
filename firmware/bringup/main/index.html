@@ -83,6 +83,12 @@
 .nota textarea:focus,.campo:focus{outline:none;border-color:var(--crema)}
 .nota textarea[readonly]{border-color:var(--brasa)}
 .nmic{align-items:center;margin-top:.5rem}
+#nMic>span{display:inline-flex;align-items:center;gap:.35rem}
+#nMic svg{width:.95rem;height:.95rem;stroke:currentColor;fill:none;stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round}
+#nMic .i-pa,#nMic.on .i-gr{display:none}
+#nMic.on .i-pa{display:inline-flex}
+#nMic.on svg rect{fill:currentColor}
 #nMic.on,#nMic.on:hover{background:var(--brasa);border-color:var(--brasa);color:var(--osso)}
 #nAudios audio{display:block;width:100%;height:2.2rem;margin-top:.4rem}
 #snack{position:fixed;left:1rem;bottom:1rem;z-index:18;max-width:min(24rem,calc(100vw - 2rem));
@@ -747,7 +753,10 @@ table.hist td s{text-decoration:none;color:var(--fosco);font-size:.6rem;margin-l
       </div>
       <textarea id="nTxt" data-i18n-p="nota_ph"></textarea>
       <div class="chips nmic">
-        <button id="nMic" class="neutro" data-i18n="mic">record</button>
+        <button id="nMic" class="neutro">
+          <span class="i-gr"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg><span data-i18n="mic">record</span></span>
+          <span class="i-pa"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg><span data-i18n="mic_stop">stop</span></span>
+        </button>
         <span class="dica" id="nEst"></span>
       </div>
       <div id="nAudios"></div>
@@ -952,7 +961,7 @@ en:{
  tt_all:'See everything and follow live (double-click). Drag on the chart to zoom into a stretch; wheel zooms at the cursor, shift+wheel pans',
  diag_t:'Diagnostics',tab_sens:'Sensors',tab_sig:'Signals',tab_test:'Bench test',sim_sec:'Simulation',
  nota_t:'Shot notes',nota_ph:'How was it? Taste, acidity, body, sweetness, the grind, what to change next time…',
- mic:'🎙 record',mic_stop:'■ stop',rec_on:'recording',mic_err:'no microphone',
+ mic:'record',mic_stop:'stop',rec_on:'recording',mic_err:'no microphone',
  mic_http:'The browser only gives the microphone to HTTPS pages. In Chrome, open chrome://flags/#unsafely-treat-insecure-origin-as-secure and add this page\'s address.',
  aai_con:'connecting to AssemblyAI…',aai_live:'recording · transcribing live',aai_err:'transcription failed',
  aai_sec:'Voice notes',aai_key:'AssemblyAI API key (optional)',aai_tip:'With a key, what you say in the shot notes is typed live. It stays in this browser and only goes to AssemblyAI. Without it, the audio is still recorded.',
@@ -1040,7 +1049,7 @@ pt:{
  tt_all:'Ver tudo e seguir ao vivo (duplo clique). Arraste no gráfico para dar zoom num trecho; a roda aproxima no cursor, shift+roda desloca',
  diag_t:'Diagnóstico',tab_sens:'Sensores',tab_sig:'Sinais',tab_test:'Teste de bancada',sim_sec:'Simulação',
  nota_t:'Notas do shot',nota_ph:'Como ficou? Gosto, acidez, corpo, doçura, a moagem, o que mudar no próximo…',
- mic:'🎙 gravar',mic_stop:'■ parar',rec_on:'gravando',mic_err:'sem microfone',
+ mic:'gravar',mic_stop:'parar',rec_on:'gravando',mic_err:'sem microfone',
  mic_http:'O navegador só libera o microfone para páginas HTTPS. No Chrome, abra chrome://flags/#unsafely-treat-insecure-origin-as-secure e adicione o endereço desta página.',
  aai_con:'conectando à AssemblyAI…',aai_live:'gravando · transcrevendo ao vivo',aai_err:'transcrição falhou',
  aai_sec:'Notas de voz',aai_key:'Chave da API da AssemblyAI (opcional)',aai_tip:'Com a chave, o que você fala nas notas do shot vira texto ao vivo. Ela fica só neste navegador e só vai para a AssemblyAI. Sem ela, o áudio é gravado do mesmo jeito.',
@@ -1635,7 +1644,6 @@ var rec=null;
 nMic.onclick=function(){rec?micPara():micGrava();};
 function micEstado(){
  nMic.classList.toggle('on',!!rec);
- nMic.textContent=t(rec?'mic_stop':'mic');
  nTxt.readOnly=!!(rec&&rec.ws);
 }
 function micGrava(){
