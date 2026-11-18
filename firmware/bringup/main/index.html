@@ -60,9 +60,29 @@
 #mhist .mcorpo{flex:1;min-height:0;display:grid;
   grid-template-columns:minmax(11rem,26%) 1fr;gap:.8rem;overflow:hidden}
 #mhist .hlado{overflow:auto;min-height:0}
-#mhist .hdet{margin:0;padding:0;border:0;display:flex;flex-direction:column;min-height:0}
-#mhist .tela{flex:1;min-height:0}
+#mhist .hdet{margin:0;padding:0;border:0;display:flex;flex-direction:column;min-height:0;overflow:auto}
+#mhist .tela{flex:1 0 16rem;min-height:16rem}
 #mhist .hdet[hidden]{display:none}
+#hNota .nota textarea{min-height:4.5rem}
+#hNota .nota #nResumo{display:none}
+/* Notas do shot e o aviso que convida a escrevê-las */
+#mnota{width:min(40rem,94vw)}
+.nota textarea,.campo{width:100%;box-sizing:border-box;background:var(--graf);color:var(--osso);
+  border:1px solid var(--linha);border-radius:.45rem;padding:.6rem .7rem;font:inherit;font-size:.9rem}
+.nota textarea{min-height:10rem;resize:vertical;line-height:1.45}
+.nota textarea:focus,.campo:focus{outline:none;border-color:var(--crema)}
+.nota textarea[readonly]{border-color:var(--brasa)}
+.nmic{align-items:center;margin-top:.5rem}
+#nMic.on,#nMic.on:hover{background:var(--brasa);border-color:var(--brasa);color:var(--osso)}
+#nAudios audio{display:block;width:100%;height:2.2rem;margin-top:.4rem}
+#snack{position:fixed;left:1rem;bottom:1rem;z-index:18;max-width:min(24rem,calc(100vw - 2rem));
+  background:var(--painel);border:1px solid var(--linha);border-left:3px solid var(--crema);
+  border-radius:.6rem;padding:.7rem 1rem;box-shadow:0 12px 40px rgba(0,0,0,.55);cursor:pointer;
+  animation:sobe .25s ease-out}
+#snack[hidden]{display:none}
+#snack b{display:block;color:var(--osso);font-size:.9rem}
+#snack s{text-decoration:none;color:var(--cinza);font-size:.78rem}
+@keyframes sobe{from{transform:translateY(1rem);opacity:0}}
 .mcab{display:flex;align-items:center;gap:.6rem;padding:.5rem .7rem;
   border-bottom:1px solid var(--linha);cursor:grab;user-select:none;flex:none;
   padding:.65rem .8rem .65rem 1.1rem}
@@ -682,6 +702,8 @@ table.hist td s{text-decoration:none;color:var(--fosco);font-size:.6rem;margin-l
       <div class="rot" id="hDetNome">&mdash;</div>
       <div class="tela"><canvas id="hPlot"></canvas></div>
       <p class="dica" id="hDetInfo">&mdash;</p>
+      <p class="dica" id="hDetPar"></p>
+      <div id="hNota"></div>
       <div class="chips">
         <button id="hCsv" class="neutro">CSV</button>
         <button id="hApagar" class="neutro" data-i18n="del">delete</button>
@@ -689,6 +711,27 @@ table.hist td s{text-decoration:none;color:var(--fosco);font-size:.6rem;margin-l
     </div>
   </div>
 </div>
+
+<!-- Notas do shot: o que se achou na xícara, por escrito ou falado. O painel é UM
+     só e muda de lugar — aqui, ou embaixo da curva no histórico. -->
+<div class="modal" id="mnota" role="dialog" aria-labelledby="mnTit">
+  <div class="mcab" id="mncab">
+    <span class="rot" id="mnTit" data-i18n="nota_t">Shot notes</span>
+    <button class="fechar" id="btNFechar" aria-label="close">&times;</button>
+  </div>
+  <div class="mcorpo" id="mnCorpo">
+    <div class="nota" id="nPainel">
+      <p class="dica" id="nResumo"></p>
+      <textarea id="nTxt" data-i18n-p="nota_ph"></textarea>
+      <div class="chips nmic">
+        <button id="nMic" class="neutro" data-i18n="mic">record</button>
+        <span class="dica" id="nEst"></span>
+      </div>
+      <div id="nAudios"></div>
+    </div>
+  </div>
+</div>
+<div id="snack" role="status" hidden><b data-i18n="sn_t">Shot saved</b><s id="snackTxt"></s></div>
 
 <!-- LED da placa: modo, cor e brilho. Os limites valem no servidor; a página só
      propõe. A bola mostra a cor que o firmware diz estar mandando, não a do slider. -->
@@ -812,6 +855,10 @@ table.hist td s{text-decoration:none;color:var(--fosco);font-size:.6rem;margin-l
     <label class="cedit" style="margin-top:0"><input type="checkbox" id="swIgnNivel"> <span data-i18n="ign_lvl">Ignore the reservoir sensor</span></label>
     <p class="dica" data-i18n="ign_lvl_tip"></p>
 
+    <div class="rot sec" data-i18n="aai_sec">Voice notes</div>
+    <input type="password" id="aaiKey" class="campo" autocomplete="off" data-i18n-p="aai_key">
+    <p class="dica" data-i18n="aai_tip"></p>
+
     <div class="rot sec" data-i18n="sim_sec">Simulation</div>
     <div class="linha">
       <label for="swSim" data-i18n="datasource">Data source</label>
@@ -883,6 +930,12 @@ en:{
  g_smooth:'smooth',g_all:'⤢ all',tt_smooth:'Smooth curve through the samples (off: raw steps, sample and hold)',
  tt_all:'See everything and follow live (double-click). Drag on the chart to zoom into a stretch; wheel zooms at the cursor, shift+wheel pans',
  diag_t:'Diagnostics',tab_sens:'Sensors',tab_sig:'Signals',tab_test:'Bench test',sim_sec:'Simulation',
+ nota_t:'Shot notes',nota_ph:'How was it? Taste, acidity, body, sweetness, the grind, what to change next time…',
+ mic:'🎙 record',mic_stop:'■ stop',rec_on:'recording',mic_err:'no microphone',
+ mic_http:'The browser only gives the microphone to HTTPS pages. In Chrome, open chrome://flags/#unsafely-treat-insecure-origin-as-secure and add this page\'s address.',
+ aai_con:'connecting to AssemblyAI…',aai_live:'recording · transcribing live',aai_err:'transcription failed',
+ aai_sec:'Voice notes',aai_key:'AssemblyAI API key (optional)',aai_tip:'With a key, what you say in the shot notes is typed live. It stays in this browser and only goes to AssemblyAI. Without it, the audio is still recorded.',
+ sn_t:'Shot saved',sn_tip:'tap to note how it tasted',
  src_loc:'browser',src_sd:'card',del:'delete',del_ok:'confirm delete?',
  s_filt:'filtered',s_raw:'raw',
  recorded:'Recorded shots',noshots:'No shots saved yet.',
@@ -965,6 +1018,12 @@ pt:{
  g_smooth:'suave',g_all:'⤢ tudo',tt_smooth:'Curva suave passando pelas amostras (desligado: degraus crus, amostra e retém)',
  tt_all:'Ver tudo e seguir ao vivo (duplo clique). Arraste no gráfico para dar zoom num trecho; a roda aproxima no cursor, shift+roda desloca',
  diag_t:'Diagnóstico',tab_sens:'Sensores',tab_sig:'Sinais',tab_test:'Teste de bancada',sim_sec:'Simulação',
+ nota_t:'Notas do shot',nota_ph:'Como ficou? Gosto, acidez, corpo, doçura, a moagem, o que mudar no próximo…',
+ mic:'🎙 gravar',mic_stop:'■ parar',rec_on:'gravando',mic_err:'sem microfone',
+ mic_http:'O navegador só libera o microfone para páginas HTTPS. No Chrome, abra chrome://flags/#unsafely-treat-insecure-origin-as-secure e adicione o endereço desta página.',
+ aai_con:'conectando à AssemblyAI…',aai_live:'gravando · transcrevendo ao vivo',aai_err:'transcrição falhou',
+ aai_sec:'Notas de voz',aai_key:'Chave da API da AssemblyAI (opcional)',aai_tip:'Com a chave, o que você fala nas notas do shot vira texto ao vivo. Ela fica só neste navegador e só vai para a AssemblyAI. Sem ela, o áudio é gravado do mesmo jeito.',
+ sn_t:'Shot salvo',sn_tip:'toque para anotar como ficou',
  src_loc:'navegador',src_sd:'cartão',del:'apagar',del_ok:'confirmar?',
  s_filt:'filtrado',s_raw:'cru',
  recorded:'Shots gravados',noshots:'Nenhum shot guardado ainda.',
@@ -1037,6 +1096,9 @@ function traduzir(){
  });
  [].forEach.call(document.querySelectorAll('[data-i18n-t]'),function(e){
   e.title=t(e.dataset.i18nT);
+ });
+ [].forEach.call(document.querySelectorAll('[data-i18n-p]'),function(e){
+  e.placeholder=t(e.dataset.i18nP);
  });
  // rótulos do perfil usam sufixo _l onde a chave já existe como métrica
  document.querySelector('[data-k="plato"]').parentNode
@@ -1449,6 +1511,166 @@ function salvaShot(s){
  }
 }
 
+/* -------------------------------------------------------- notas do shot
+   Cada shot guarda os parâmetros com que foi tirado (p), por que parou (mot) e o
+   que se achou dele (nota). Os áudios vão para o IndexedDB — no localStorage, uns
+   poucos minutos de voz expulsariam os shots da cota. */
+function shotAtualiza(n,f){
+ var l=shotsLocais(),x=l.filter(function(s){return s.n===n;})[0];
+ if(!x)return;
+ f(x);
+ try{localStorage.setItem('shots',JSON.stringify(l));}catch(e){}
+}
+function paramsDe(m){var p={};cvs.forEach(function(e){p[e.dataset.k]=m[e.dataset.k];});return p;}
+// Rótulos e unidades vêm dos próprios controles: parâmetro novo no perfil entra aqui sozinho.
+function paramsTxt(p){
+ if(!p)return '';
+ var o=[];
+ [].forEach.call(document.querySelectorAll('.ctr'),function(c){
+  var v=[].filter.call(c.querySelectorAll('.cv[data-k]'),function(e){return p[e.dataset.k]!=null;})
+   .map(function(e){return (+p[e.dataset.k]).toFixed(+e.dataset.c)+e.dataset.u;});
+  if(v.length)o.push(c.querySelector('.cl').textContent+' '+v.join(', '));
+ });
+ return o.join(' · ');
+}
+var idb=null;
+function db(f){
+ if(idb)return f(idb);
+ try{
+  var r=indexedDB.open('smartfilco',1);
+  r.onupgradeneeded=function(){r.result.createObjectStore('audio');};
+  r.onsuccess=function(){idb=r.result;f(idb);};
+ }catch(e){}
+}
+function audLe(n,cb){db(function(d){
+ var q=d.transaction('audio').objectStore('audio').get(n);
+ q.onsuccess=function(){cb(q.result||[]);};
+});}
+function audPoe(n,l){db(function(d){
+ var o=d.transaction('audio','readwrite').objectStore('audio');
+ if(l)o.put(l,n);else o.delete(n);
+});}
+
+var notaN=null;
+function notaAbre(n,onde){
+ notaN=n;onde.appendChild(nPainel);
+ var x=shotsLocais().filter(function(s){return s.n===n;})[0]||{};
+ nTxt.value=x.nota||'';
+ nResumo.textContent=quando(n).full+(x.p?' · '+paramsTxt(x.p):'');
+ nEst.textContent='';
+ audMostra();
+}
+function audMostra(){
+ var n=notaN;
+ audLe(n,function(l){
+  if(n!==notaN)return;
+  nAudios.innerHTML='';
+  l.forEach(function(b){
+   var a=document.createElement('audio');a.controls=true;a.preload='metadata';
+   a.src=URL.createObjectURL(b);nAudios.appendChild(a);
+  });
+ });
+}
+nTxt.oninput=function(){var v=nTxt.value;shotAtualiza(notaN,function(x){x.nota=v;});};
+
+var snackT=0;
+function avisoShot(s){
+ var r=resumoPts(s.pts);
+ snackTxt.textContent=r.g.toFixed(1)+' g · '+r.t.toFixed(1)+' s — '+t('sn_tip');
+ snackEl.n=s.n;snackEl.hidden=false;
+ clearTimeout(snackT);snackT=setTimeout(function(){snackEl.hidden=true;},30000);
+}
+var snackEl=document.getElementById('snack');
+snackEl.onclick=function(){
+ snackEl.hidden=true;clearTimeout(snackT);
+ notaAbre(snackEl.n,mnCorpo);
+ if(!mnota.classList.contains('aberto'))abrir(mnota);
+ nTxt.focus();
+};
+
+/* Voz: grava sempre; com chave da AssemblyAI, também transcreve AO VIVO para o
+   texto. A chave fica só neste navegador e só sai daqui para a própria
+   AssemblyAI, trocada por um token de 1 min — o socket nunca vê a chave.
+   Microfone exige contexto seguro (HTTPS ou localhost): em http://IP o
+   navegador nem oferece o getUserMedia. */
+try{aaiKey.value=localStorage.getItem('aaiKey')||'';}catch(e){}
+aaiKey.onchange=function(){try{localStorage.setItem('aaiKey',aaiKey.value.trim());}catch(e){}};
+var rec=null;
+nMic.onclick=function(){rec?micPara():micGrava();};
+function micEstado(){
+ nMic.classList.toggle('on',!!rec);
+ nMic.textContent=t(rec?'mic_stop':'mic');
+ nTxt.readOnly=!!(rec&&rec.ws);
+}
+function micGrava(){
+ if(!navigator.mediaDevices||!window.MediaRecorder){nEst.textContent=t('mic_http');return;}
+ var n=notaN;
+ navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}}).then(function(st){
+  var r=rec={n:n,st:st,ch:[]};
+  r.mr=new MediaRecorder(st);
+  r.mr.ondataavailable=function(e){if(e.data.size)r.ch.push(e.data);};
+  r.mr.onstop=function(){
+   if(!r.ch.length)return;
+   var b=new Blob(r.ch,{type:r.mr.mimeType});
+   audLe(n,function(l){l.push(b);audPoe(n,l);shotAtualiza(n,function(x){x.aud=l.length;});
+    if(notaN===n)audMostra();});
+  };
+  r.mr.start(1000);
+  nEst.textContent=t('rec_on');
+  var k='';try{k=localStorage.getItem('aaiKey')||'';}catch(e){}
+  if(k)transcreve(r,k);
+  micEstado();
+ }).catch(function(e){nEst.textContent=t('mic_err')+' ('+e.name+')';});
+}
+function micPara(){
+ var r=rec;if(!r)return;
+ rec=null;
+ try{r.mr.stop();}catch(e){}
+ r.st.getTracks().forEach(function(x){x.stop();});
+ if(r.ctx)r.ctx.close();
+ if(r.ws&&r.ws.readyState===1){r.ws.send('{"type":"Terminate"}');setTimeout(function(){r.ws.close();},3000);}
+ nEst.textContent='';
+ micEstado();
+}
+function transcreve(r,k){
+ nEst.textContent=t('aai_con');
+ fetch('https://token.assemblyai.com/v1/token',{method:'POST',
+  headers:{authorization:k,'content-type':'application/json'},
+  body:JSON.stringify({product:'streaming',expires_in_seconds:60})})
+ .then(function(x){return x.ok?x.json():x.text().then(function(e){throw new Error(x.status+' '+e);});})
+ .then(function(j){
+  if(rec!==r)return;
+  var ws=r.ws=new WebSocket('wss://streaming.assemblyai.com/v3/ws?encoding=pcm_s16le&sample_rate=16000&token='+
+                             encodeURIComponent(j.token));
+  // texto que já existia + um trecho por turno; o turno parcial é reescrito até fechar
+  var base=nTxt.value.replace(/\s+$/,''),turnos=[];
+  ws.onopen=function(){
+   var ctx=r.ctx=new AudioContext({sampleRate:16000});
+   var src=ctx.createMediaStreamSource(r.st),pr=ctx.createScriptProcessor(1024,1,1);
+   pr.onaudioprocess=function(e){
+    if(ws.readyState!==1)return;
+    var f=e.inputBuffer.getChannelData(0),o=new Int16Array(f.length);
+    for(var i=0;i<f.length;i++)o[i]=Math.max(-1,Math.min(1,f[i]))*32767;
+    ws.send(o.buffer);
+   };
+   src.connect(pr);pr.connect(ctx.destination);
+   nEst.textContent=t('aai_live');micEstado();
+  };
+  ws.onmessage=function(e){
+   var m=JSON.parse(e.data);
+   if(m.type!=='Turn')return;
+   turnos[m.turn_order]=m.transcript;
+   var v=(base?base+' ':'')+turnos.filter(function(x){return x;}).join(' ');
+   shotAtualiza(r.n,function(x){x.nota=v;});
+   if(notaN===r.n){nTxt.value=v;nTxt.scrollTop=nTxt.scrollHeight;}
+  };
+  ws.onclose=function(e){
+   r.ws=null;
+   if(rec===r){nEst.textContent=t('aai_err')+(e.reason?' ('+e.reason+')':'')+' — '+t('rec_on');micEstado();}
+  };
+ }).catch(function(e){if(rec===r)nEst.textContent=t('aai_err')+' ('+e.message.slice(0,80)+') — '+t('rec_on');});
+}
+
 /* Trem de pulsos do PSM: desenha o duty que a máquina manda para a bomba,
    semiciclo a semiciclo, com o mesmo acumulador de Bresenham do firmware. Torna
    visível o ripple em duty baixo, que a docs/07 aponta como o único contra real
@@ -1515,7 +1737,10 @@ function arrastavel(cx,cab,fechar){
  cab.addEventListener('pointerup',function(){on=false;cab.classList.remove('arrastando');});
  fechar.onclick=function(){cx.classList.remove('aberto');veuSync();};
 }
-function veuSync(){veu.classList.toggle('on',!!document.querySelector('.modal.aberto'));}
+function veuSync(){
+ veu.classList.toggle('on',!!document.querySelector('.modal.aberto'));
+ if(rec&&!nPainel.offsetParent)micPara();   // fechou onde as notas estavam: para de gravar
+}
 function fecharTodos(){[].forEach.call(document.querySelectorAll('.modal.aberto'),function(m){m.classList.remove('aberto');});veuSync();}
 // Abre centrado (esquece onde foi arrastado da última vez) e fecha o que estiver
 // aberto: dois diálogos empilhados, um tapando o × do outro, não servem a ninguém.
@@ -1529,6 +1754,7 @@ function abrir(cx){
 veu.onclick=fecharTodos;
 arrastavel(modal,mcab,btFechar);
 arrastavel(mhist,mhcab,btHFechar);
+arrastavel(mnota,mncab,btNFechar);
 btCfg.onclick=function(){abrir(modal);};
 
 /* ------------------------------------------------------------------ LED
@@ -1729,12 +1955,13 @@ hApagar.onclick=function(){
  if(!hApagar.dataset.c){hApagar.dataset.c='1';hApagar.textContent=t('del_ok');return;}
  var n=hSel.it.n;
  try{localStorage.setItem('shots',JSON.stringify(shotsLocais().filter(function(s){return s.n!==n;})));}catch(e){}
+ audPoe(n,null);
  hSel=null;hDet.hidden=true;carregaHist();
 };
 function carregaHist(){
  var itens=shotsLocais().map(function(s){
   var r=resumoPts(s.pts);
-  return {n:s.n,src:'src_loc',g:r.g,abre:function(cb){cb(r);}};
+  return {n:s.n,src:'src_loc',g:r.g,s:s,abre:function(cb){cb(r);}};
  });
  function lista(){
   itens.sort(function(a,b){return a.n<b.n?1:-1;});
@@ -1743,7 +1970,8 @@ function carregaHist(){
   itens.forEach(function(it){
    var q=quando(it.n);
    var tr=document.createElement('tr');
-   tr.innerHTML='<td>'+q.d+'<s>'+t(it.src)+'</s></td><td class="q">'+q.h+
+   var tem=it.s&&(it.s.nota||it.s.aud)?' ✎':'';
+   tr.innerHTML='<td>'+q.d+'<s>'+t(it.src)+tem+'</s></td><td class="q">'+q.h+
                 '</td><td class="g">'+(it.g!=null?it.g.toFixed(1)+' g':'→')+'</td>';
    tr.onclick=function(){
     [].forEach.call(hLista.children,function(x){x.classList.remove('sel');});
@@ -1752,7 +1980,11 @@ function carregaHist(){
      hDet.hidden=false;
      hDetNome.textContent=q.full;
      hDetInfo.textContent=r.g.toFixed(1)+' g · '+r.t.toFixed(1)+' s · '+
-       r.q.toFixed(2)+' g/s '+t('avg')+' · '+r.pts.length+' '+t('samples');
+       r.q.toFixed(2)+' g/s '+t('avg')+' · '+r.pts.length+' '+t('samples')+
+       (it.s&&it.s.mot?' · '+t(it.s.mot):'');
+     hDetPar.textContent=it.s&&it.s.p?paramsTxt(it.s.p):'';
+     hNota.hidden=!it.s;
+     if(it.s)notaAbre(it.n,hNota);
      hDados=r.pts;gHist.reset();
      hSel={it:it,r:r,q:q};
      hApagar.hidden=it.src!=='src_loc';hApagar.textContent=t('del');hApagar.dataset.c='';
@@ -2120,8 +2352,11 @@ function pinta(d){
  // Limpa na BORDA do estado, não no clique do botão: assim vale também para shot
  // disparado de outro navegador, e um dia pelo botão físico da máquina. O clique
  // só pede; quem manda é a máquina dizer que começou.
- if(ext&&!extAnt){limparSerie();shotRec={n:carimbo(),pts:[]};}
- if(!ext&&extAnt&&shotRec){if(shotRec.pts.length>4)salvaShot(shotRec);shotRec=null;}
+ if(ext&&!extAnt){limparSerie();shotRec={n:carimbo(),pts:[],p:paramsDe(m)};}
+ if(!ext&&extAnt&&shotRec){
+  if(shotRec.pts.length>4){shotRec.mot=m.mot||'';salvaShot(shotRec);avisoShot(shotRec);}
+  shotRec=null;
+ }
  extAnt=ext;
  btShot.textContent=ext?t('stop'):t('pull');
  btShot.classList.toggle('parar',ext);

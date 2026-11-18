@@ -50,7 +50,12 @@ conhecida: 32 g em 35 s, com pré-infusão, platô de 9 bar e temperatura contro
   da bomba.
 - 🗂️ **Histórico de shots no navegador** — cada extração fica guardada e pode ser
   reaberta depois com o mesmo gráfico (e os do cartão, quando houver), exportada
-  em CSV ou apagada.
+  em CSV ou apagada. Cada shot guarda os parâmetros com que foi tirado e por
+  que parou.
+- 📝 **Notas de prova** — ao fim do shot, um aviso convida a anotar como ficou na
+  xícara, escrevendo ou falando. O áudio fica guardado; com uma chave da
+  AssemblyAI, a fala vira texto ao vivo. (Microfone exige HTTPS — em `http://IP`,
+  libere o endereço em `chrome://flags/#unsafely-treat-insecure-origin-as-secure`.)
 - 📱 **Funciona no celular** — a mesma página vira uma coluna rolável.
 - ⚙️ **Tudo ajustável, nada fixo no código** — perfil, tempos, janela de pronta,
   ganhos; com "aplicar padrões" para voltar ao começo. Gravado na placa.
